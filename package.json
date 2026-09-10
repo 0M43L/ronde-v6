@@ -1,0 +1,12 @@
+{
+  "name": "ronde-v6",
+  "version": "1.0.0",
+  "description": "IDEX district heating substation PWA",
+  "type": "module",
+  "dependencies": {
+    "@libsql/client": "^0.3.5"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
