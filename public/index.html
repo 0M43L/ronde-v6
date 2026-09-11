@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ronde V6</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header { background: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .header h1 { color: #333; margin-bottom: 10px; }
+    .content { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; color: #666; font-weight: bold; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+    .form-group button { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+    .form-group button:hover { background: #229954; }
+    .list { margin-top: 20px; }
+    .card { background: #f9f9f9; padding: 15px; border-left: 4px solid #667eea; margin-bottom: 10px; border-radius: 3px; }
+    .card h3 { color: #333; margin-bottom: 5px; }
+    .card p { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🔧 Ronde V6 - IDEX</h1>
+    <p>Application d'inspection des sous-stations de chauffage urbain</p>
+  </div>
+  
+  <div class="content">
+    <h2>Créer une nouvelle ronde</h2>
+    <form id="rondeForm" onsubmit="saveRonde(event)">
+      <div class="form-group">
+        <label>Substation</label>
+        <select id="substationSelect" required>
+          <option value="">Choisir une substation...</option>
+          <option value="SUB_001">SUB_001 - Substation Tour Défense 1</option>
+          <option value="SUB_002">SUB_002 - Substation Tour Défense 2</option>
+          <option value="SUB_003">SUB_003 - Substation Tour Défense 3</option>
+          <option value="SUB_004">SUB_004 - Substation Coeur Défense</option>
+          <option value="SUB_005">SUB_005 - Substation Grande Arche</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Notes d'inspection</label>
+        <input type="text" id="rondeNotes" placeholder="Notes...">
+      </div>
+      
+      <div class="form-group">
+        <button type="submit">✅ Enregistrer la ronde</button>
+      </div>
+    </form>
+    
+    <div class="list">
+      <h2>Mes rondes récentes</h2>
+      <div id="rondesList">
+        <p>Aucune ronde pour le moment.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function saveRonde(event) {
+  event.preventDefault();
+  const subId = document.getElementById('substationSelect').value;
+  const notes = document.getElementById('rondeNotes').value;
+  
+  if (!subId) {
+    alert('Choisir une substation !');
+    return;
+  }
+  
+  const ronde = {
+    id: `RONDE_${Date.now()}`,
+    substation_id: subId,
+    date_visite: new Date().toLocaleString(),
+    notes: notes,
+  };
+  
+  let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
+  rondes.push(ronde);
+  localStorage.setItem('rondes', JSON.stringify(rondes));
+  
+  document.getElementById('rondeForm').reset();
+  alert('✅ Ronde enregistrée !');
+  loadRondes();
+}
+
+function loadRondes() {
+  let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
+  const list = document.getElementById('rondesList');
+  
+  if (rondes.length === 0) {
+    list.innerHTML = '<p>Aucune ronde pour le moment.</p>';
+    return;
+  }
+  
+  list.innerHTML = rondes.map(r => `
+    <div class="card">
+      <h3>${r.substation_id}</h3>
+      <p>Date: ${r.date_visite}</p>
+      <p>Notes: ${r.notes || 'N/A'}</p>
+    </div>
+  `).join('');
+}
+
+window.addEventListener('load', loadRondes);
+</script>
+</body>
+</html>
