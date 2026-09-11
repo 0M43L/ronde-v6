@@ -2,64 +2,347 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Ronde V6</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; background: #f5f5f5; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    .header { background: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .header h1 { color: #333; margin-bottom: 10px; }
-    .content { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .form-group { margin-bottom: 15px; }
-    .form-group label { display: block; margin-bottom: 5px; color: #666; font-weight: bold; }
-    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
-    .form-group button { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; }
-    .form-group button:hover { background: #229954; }
-    .list { margin-top: 20px; }
-    .card { background: #f9f9f9; padding: 15px; border-left: 4px solid #667eea; margin-bottom: 10px; border-radius: 3px; }
-    .card h3 { color: #333; margin-bottom: 5px; }
-    .card p { color: #666; font-size: 13px; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #007AFF;
+      --secondary: #5AC8FA;
+      --success: #34C759;
+      --warning: #FF9500;
+      --danger: #FF3B30;
+      --background: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --text-primary: #1C1C1E;
+      --text-secondary: #8E8E93;
+      --border: #E5E5EA;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--background);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--background);
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 24px 20px 32px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 200px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* CONTENT */
+    .content {
+      flex: 1;
+      padding: 24px 16px;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* CARD */
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+
+    .card:active {
+      transform: scale(0.98);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    /* FORM */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      background: var(--card-bg);
+      color: var(--text-primary);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .form-group input::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+      margin-top: 8px;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
+    }
+
+    /* RONDE LIST */
+    .ronde-item {
+      background: linear-gradient(135deg, #F5F7FA 0%, #FFFFFF 100%);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid var(--primary);
+      transition: all 0.2s ease;
+    }
+
+    .ronde-item:active {
+      box-shadow: var(--shadow-lg);
+    }
+
+    .ronde-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .ronde-item h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .ronde-badge {
+      background: var(--success);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .ronde-item p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 4px 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .ronde-item p::before {
+      content: '•';
+      margin-right: 8px;
+      color: var(--primary);
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    /* SECTION TITLE */
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 24px 0 12px 0;
+      padding: 0 20px;
+    }
+
+    /* FOOTER */
+    .footer {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 480px) {
+      .header h1 {
+        font-size: 28px;
+      }
+
+      .content {
+        padding: 16px 12px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+    }
+
+    /* ANIMATIONS */
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .ronde-item {
+      animation: slideUp 0.3s ease forwards;
+    }
+
+    .ronde-item:nth-child(1) { animation-delay: 0.05s; }
+    .ronde-item:nth-child(2) { animation-delay: 0.1s; }
+    .ronde-item:nth-child(3) { animation-delay: 0.15s; }
+    .ronde-item:nth-child(n+4) { animation-delay: 0.2s; }
   </style>
 </head>
 <body>
-<div class="container">
+
+<div class="app">
+  <!-- HEADER -->
   <div class="header">
-    <h1>🔧 Ronde V6 - IDEX</h1>
-    <p>Application d'inspection des sous-stations de chauffage urbain</p>
+    <h1>🔧 Ronde V6</h1>
+    <p>Inspections district heating</p>
   </div>
-  
+
+  <!-- CONTENT -->
   <div class="content">
-    <h2>Créer une nouvelle ronde</h2>
-    <form id="rondeForm" onsubmit="saveRonde(event)">
-      <div class="form-group">
-        <label>Substation</label>
-        <select id="substationSelect" required>
-          <option value="">Choisir une substation...</option>
-          <option value="SUB_001">SUB_001 - Substation Tour Défense 1</option>
-          <option value="SUB_002">SUB_002 - Substation Tour Défense 2</option>
-          <option value="SUB_003">SUB_003 - Substation Tour Défense 3</option>
-          <option value="SUB_004">SUB_004 - Substation Coeur Défense</option>
-          <option value="SUB_005">SUB_005 - Substation Grande Arche</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label>Notes d'inspection</label>
-        <input type="text" id="rondeNotes" placeholder="Notes...">
-      </div>
-      
-      <div class="form-group">
-        <button type="submit">✅ Enregistrer la ronde</button>
-      </div>
-    </form>
-    
-    <div class="list">
-      <h2>Mes rondes récentes</h2>
-      <div id="rondesList">
-        <p>Aucune ronde pour le moment.</p>
+    <!-- FORMULAIRE -->
+    <div class="card">
+      <h2>✏️ Nouvelle inspection</h2>
+      <form id="rondeForm" onsubmit="saveRonde(event)">
+        <div class="form-group">
+          <label>Sélectionner une sous-station</label>
+          <select id="substationSelect" required>
+            <option value="">Choisir...</option>
+            <option value="SUB_001">SUB_001 - Tour Défense 1</option>
+            <option value="SUB_002">SUB_002 - Tour Défense 2</option>
+            <option value="SUB_003">SUB_003 - Tour Défense 3</option>
+            <option value="SUB_004">SUB_004 - Coeur Défense</option>
+            <option value="SUB_005">SUB_005 - Grande Arche</option>
+            <option value="SUB_006">SUB_006 - CNIT</option>
+            <option value="SUB_007">SUB_007 - Esplanade Nord</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Notes d'inspection</label>
+          <input type="text" id="rondeNotes" placeholder="Observations, anomalies...">
+        </div>
+
+        <button class="btn" type="submit">📤 Enregistrer</button>
+      </form>
+    </div>
+
+    <!-- TITRE SECTION -->
+    <div class="section-title">📋 Inspections récentes</div>
+
+    <!-- LISTE RONDES -->
+    <div id="rondesList">
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <p>Aucune inspection enregistrée</p>
       </div>
     </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <p>© 2026 IDEX • Ronde V6</p>
   </div>
 </div>
 
@@ -68,47 +351,57 @@ function saveRonde(event) {
   event.preventDefault();
   const subId = document.getElementById('substationSelect').value;
   const notes = document.getElementById('rondeNotes').value;
-  
+
   if (!subId) {
-    alert('Choisir une substation !');
+    alert('Veuillez choisir une sous-station');
     return;
   }
-  
+
   const ronde = {
     id: `RONDE_${Date.now()}`,
     substation_id: subId,
-    date_visite: new Date().toLocaleString(),
-    notes: notes,
+    date_visite: new Date().toLocaleString('fr-FR'),
+    notes: notes || 'Aucune note',
   };
-  
+
   let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
-  rondes.push(ronde);
+  rondes.unshift(ronde);
   localStorage.setItem('rondes', JSON.stringify(rondes));
-  
+
   document.getElementById('rondeForm').reset();
-  alert('✅ Ronde enregistrée !');
   loadRondes();
+  
+  alert('✅ Inspection enregistrée');
 }
 
 function loadRondes() {
   let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
   const list = document.getElementById('rondesList');
-  
+
   if (rondes.length === 0) {
-    list.innerHTML = '<p>Aucune ronde pour le moment.</p>';
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <p>Aucune inspection enregistrée</p>
+      </div>
+    `;
     return;
   }
-  
+
   list.innerHTML = rondes.map(r => `
-    <div class="card">
-      <h3>${r.substation_id}</h3>
-      <p>Date: ${r.date_visite}</p>
-      <p>Notes: ${r.notes || 'N/A'}</p>
+    <div class="ronde-item">
+      <div class="ronde-item-header">
+        <h3>${r.substation_id}</h3>
+        <div class="ronde-badge">✓ Complétée</div>
+      </div>
+      <p>${r.date_visite}</p>
+      <p>${r.notes}</p>
     </div>
   `).join('');
 }
 
 window.addEventListener('load', loadRondes);
 </script>
+
 </body>
 </html>
