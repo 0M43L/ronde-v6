@@ -3,17 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Ronde V6</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#C8005A">
+  <title>idex — Rondes V6</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBu-_QgC5oKJJar3pCQqHmrhJ8zX5Px0KE"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
     :root {
-      --primary: #007AFF;
-      --secondary: #5AC8FA;
+      --primary: #C8005A;
+      --secondary: #E6007E;
       --success: #34C759;
       --warning: #FF9500;
       --danger: #FF3B30;
@@ -26,90 +24,188 @@
       --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
     }
 
+    [data-theme="dark"] {
+      --background: #000000;
+      --card-bg: #1C1C1E;
+      --text-primary: #F5F5F7;
+      --text-secondary: #A1A1A6;
+      --border: #424245;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     html, body {
       height: 100%;
       width: 100%;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--background);
       color: var(--text-primary);
       overflow-x: hidden;
+      padding-bottom: 80px;
     }
 
     .app {
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      background: var(--background);
     }
 
     /* HEADER */
     .header {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      background: linear-gradient(135deg, #C8005A 0%, #E6007E 100%);
       color: white;
-      padding: 24px 20px 32px;
-      text-align: center;
-      box-shadow: var(--shadow);
-      position: relative;
-      overflow: hidden;
+      padding: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-lg);
     }
 
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      right: -10%;
-      width: 200px;
-      height: 200px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 50%;
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
     }
 
     .header h1 {
-      font-size: 32px;
+      font-size: 24px;
       font-weight: 700;
-      margin-bottom: 8px;
-      position: relative;
-      z-index: 1;
+      letter-spacing: 0.05em;
     }
 
     .header p {
-      font-size: 14px;
+      font-size: 12px;
       opacity: 0.9;
-      position: relative;
-      z-index: 1;
+    }
+
+    .header-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .header-btn:active {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: 'SF Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .timer-dot {
+      width: 6px;
+      height: 6px;
+      background: #34C759;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* TABS */
+    .tabs {
+      display: flex;
+      gap: 0;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      position: sticky;
+      top: 80px;
+      z-index: 50;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 12px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
     }
 
     /* CONTENT */
     .content {
       flex: 1;
-      padding: 24px 16px;
-      max-width: 600px;
+      padding: 16px;
+      max-width: 800px;
       margin: 0 auto;
       width: 100%;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     /* CARD */
     .card {
       background: var(--card-bg);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 12px;
       box-shadow: var(--shadow);
-      transition: all 0.3s ease;
+      border: 1px solid var(--border);
     }
 
-    .card:active {
-      transform: scale(0.98);
+    .card-header {
+      background: linear-gradient(135deg, #C8005A 0%, #E6007E 100%);
+      color: white;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
     }
 
-    .card h2 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      color: var(--text-primary);
+    .card-body {
+      padding: 16px;
     }
 
     /* FORM */
@@ -119,116 +215,234 @@
 
     .form-group label {
       display: block;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-primary);
-      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
     }
 
     .form-group input,
-    .form-group select {
+    .form-group select,
+    .form-group textarea {
       width: 100%;
-      padding: 12px 14px;
+      padding: 12px;
       border: 1.5px solid var(--border);
-      border-radius: 12px;
-      font-size: 16px;
+      border-radius: 10px;
+      font-size: 15px;
       font-family: inherit;
-      transition: all 0.2s ease;
-      background: var(--card-bg);
       color: var(--text-primary);
+      background: var(--card-bg);
+      transition: all 0.2s;
     }
 
     .form-group input:focus,
-    .form-group select:focus {
+    .form-group select:focus,
+    .form-group textarea:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+      box-shadow: 0 0 0 3px rgba(200, 0, 90, 0.1);
     }
 
-    .form-group input::placeholder {
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* CHECKS */
+    .check-item {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .check-header {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .check-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .check-btn {
+      padding: 8px 6px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--card-bg);
       color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
+    .check-btn.ok.sel {
+      background: #d8f0dc;
+      color: #1a6b3a;
+      border-color: #1a6b3a;
+    }
+
+    .check-btn.warning.sel {
+      background: #fff3e0;
+      color: #d4700a;
+      border-color: #d4700a;
+    }
+
+    .check-btn.danger.sel {
+      background: #fdecea;
+      color: #cc2200;
+      border-color: #cc2200;
+    }
+
+    .check-btn.na.sel {
+      background: var(--border);
+      color: var(--text-secondary);
+      border-color: var(--text-secondary);
+    }
+
+    /* BUTTONS */
     .btn {
       width: 100%;
       padding: 14px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      background: linear-gradient(135deg, #C8005A 0%, #E6007E 100%);
       color: white;
       border: none;
       border-radius: 12px;
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
-      margin-top: 8px;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(200, 0, 90, 0.3);
     }
 
     .btn:active {
       transform: scale(0.96);
-      box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
     }
 
-    /* RONDE LIST */
-    .ronde-item {
-      background: linear-gradient(135deg, #F5F7FA 0%, #FFFFFF 100%);
-      border-radius: 12px;
-      padding: 16px;
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+      box-shadow: none;
+    }
+
+    /* ALERT */
+    .alert {
+      padding: 12px;
+      border-radius: 10px;
       margin-bottom: 12px;
-      border-left: 4px solid var(--primary);
-      transition: all 0.2s ease;
+      font-size: 13px;
+      border-left: 4px solid;
     }
 
-    .ronde-item:active {
-      box-shadow: var(--shadow-lg);
+    .alert.success {
+      background: #d8f0dc;
+      border-color: #1a6b3a;
+      color: #1a6b3a;
     }
 
-    .ronde-item-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+    .alert.warning {
+      background: #fff3e0;
+      border-color: #d4700a;
+      color: #d4700a;
     }
 
-    .ronde-item h3 {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
+    .alert.danger {
+      background: #fdecea;
+      border-color: #cc2200;
+      color: #cc2200;
     }
 
-    .ronde-badge {
-      background: var(--success);
+    /* MAP */
+    #map {
+      width: 100%;
+      height: 300px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    /* SIGNATURE */
+    .signature-area {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      background: var(--background);
+    }
+
+    .signature-canvas {
+      width: 100%;
+      height: 120px;
+      display: block;
+      cursor: crosshair;
+      background: var(--card-bg);
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
       color: white;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 1000;
+      animation: slideUp 0.3s ease;
     }
 
-    .ronde-item p {
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    /* FICHES */
+    .fiche-item {
+      background: linear-gradient(135deg, #F5F7FA 0%, var(--card-bg) 100%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .fiche-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+
+    .fiche-content {
       font-size: 13px;
       color: var(--text-secondary);
-      margin: 4px 0;
-      display: flex;
-      align-items: center;
-    }
-
-    .ronde-item p::before {
-      content: '•';
-      margin-right: 8px;
-      color: var(--primary);
     }
 
     /* EMPTY STATE */
     .empty-state {
       text-align: center;
-      padding: 40px 20px;
+      padding: 60px 20px;
       color: var(--text-secondary);
     }
 
     .empty-state-icon {
-      font-size: 48px;
-      margin-bottom: 12px;
+      font-size: 56px;
+      margin-bottom: 16px;
     }
 
     .empty-state p {
@@ -236,58 +450,23 @@
       font-weight: 500;
     }
 
-    /* SECTION TITLE */
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 24px 0 12px 0;
-      padding: 0 20px;
-    }
-
     /* FOOTER */
     .footer {
       padding: 20px;
       text-align: center;
-      color: var(--text-secondary);
       font-size: 12px;
+      color: var(--text-secondary);
     }
 
-    /* RESPONSIVE */
     @media (max-width: 480px) {
-      .header h1 {
-        font-size: 28px;
+      .form-row {
+        grid-template-columns: 1fr;
       }
 
-      .content {
-        padding: 16px 12px;
-      }
-
-      .card {
-        padding: 16px;
+      .check-buttons {
+        grid-template-columns: 1fr 1fr;
       }
     }
-
-    /* ANIMATIONS */
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .ronde-item {
-      animation: slideUp 0.3s ease forwards;
-    }
-
-    .ronde-item:nth-child(1) { animation-delay: 0.05s; }
-    .ronde-item:nth-child(2) { animation-delay: 0.1s; }
-    .ronde-item:nth-child(3) { animation-delay: 0.15s; }
-    .ronde-item:nth-child(n+4) { animation-delay: 0.2s; }
   </style>
 </head>
 <body>
@@ -295,113 +474,712 @@
 <div class="app">
   <!-- HEADER -->
   <div class="header">
-    <h1>🔧 Ronde V6</h1>
-    <p>Inspections district heating</p>
+    <div class="header-top">
+      <div>
+        <h1>idex</h1>
+        <p>Rondes SS • Maintenance Préventive</p>
+      </div>
+      <button class="header-btn" onclick="toggleTheme()">🌙</button>
+    </div>
+    <div class="timer">
+      <div class="timer-dot"></div>
+      <span id="timerDisplay">Durée ronde 00:00:00</span>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('ronde')">📋 Ronde</div>
+    <div class="tab" onclick="switchTab('fiches')">📑 Fiches</div>
+    <div class="tab" onclick="switchTab('actions')">✓ Actions</div>
+    <div class="tab" onclick="switchTab('bilan')">📊 Bilan</div>
+    <div class="tab" onclick="switchTab('mes')">⚙ MES</div>
+    <div class="tab" onclick="switchTab('diagnostic')">🔍 Diagnostic</div>
+    <div class="tab" onclick="switchTab('historique')">📜 Historique</div>
   </div>
 
   <!-- CONTENT -->
   <div class="content">
-    <!-- FORMULAIRE -->
-    <div class="card">
-      <h2>✏️ Nouvelle inspection</h2>
-      <form id="rondeForm" onsubmit="saveRonde(event)">
-        <div class="form-group">
-          <label>Sélectionner une sous-station</label>
-          <select id="substationSelect" required>
-            <option value="">Choisir...</option>
-            <option value="SUB_001">SUB_001 - Tour Défense 1</option>
-            <option value="SUB_002">SUB_002 - Tour Défense 2</option>
-            <option value="SUB_003">SUB_003 - Tour Défense 3</option>
-            <option value="SUB_004">SUB_004 - Coeur Défense</option>
-            <option value="SUB_005">SUB_005 - Grande Arche</option>
-            <option value="SUB_006">SUB_006 - CNIT</option>
-            <option value="SUB_007">SUB_007 - Esplanade Nord</option>
-          </select>
+    <!-- PAGE RONDE -->
+    <div id="page-ronde" class="page active">
+      <div class="card">
+        <div class="card-header">📍 IDENTIFICATION</div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="rondeDate">
+            </div>
+            <div class="form-group">
+              <label>Heure</label>
+              <input type="time" id="rondeHeure">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Sous-station</label>
+            <select id="rondeSubstation" required>
+              <option value="">Choisir une sous-station...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Intervenant</label>
+            <input type="text" id="rondeTech" placeholder="Votre nom">
+          </div>
         </div>
+      </div>
 
-        <div class="form-group">
-          <label>Notes d'inspection</label>
-          <input type="text" id="rondeNotes" placeholder="Observations, anomalies...">
+      <div class="card">
+        <div class="card-header">📍 LOCALISATION</div>
+        <div class="card-body">
+          <div id="map"></div>
         </div>
+      </div>
 
-        <button class="btn" type="submit">📤 Enregistrer</button>
-      </form>
+      <div class="card">
+        <div class="card-header">✓ CONTRÔLES</div>
+        <div class="card-body">
+          <div id="controlsList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">⚠ ANOMALIES</div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Observations</label>
+            <textarea id="rondeObservations" placeholder="Anomalies détectées..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">✍ SIGNATURE INTERVENANT</div>
+        <div class="card-body">
+          <div class="signature-area">
+            <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+          </div>
+          <button class="btn-secondary" style="width: 100%; margin-bottom: 10px;" onclick="clearSignature()">Effacer signature</button>
+        </div>
+      </div>
+
+      <button class="btn" onclick="saveRonde()">💾 Enregistrer la ronde</button>
+      <button class="btn-secondary" style="margin-top: 10px;" onclick="exportPDF()">📄 Exporter en PDF</button>
     </div>
 
-    <!-- TITRE SECTION -->
-    <div class="section-title">📋 Inspections récentes</div>
+    <!-- PAGE FICHES -->
+    <div id="page-fiches" class="page">
+      <div class="card">
+        <div class="card-header">📑 FICHES TECHNIQUES</div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Ajouter une fiche</label>
+            <select id="ficheType">
+              <option value="">Type de fiche...</option>
+              <option value="maintenance">🔧 Maintenance préventive</option>
+              <option value="reparation">⚙ Réparation</option>
+              <option value="nettoyage">🧹 Nettoyage</option>
+              <option value="inspection">🔍 Inspection technique</option>
+              <option value="test">🧪 Test fonctionnel</option>
+              <option value="autre">📝 Autre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="ficheDesc" placeholder="Détails de la fiche..."></textarea>
+          </div>
+          <button class="btn" onclick="addFiche()">➕ Ajouter fiche</button>
+          <div id="fichesList" style="margin-top: 20px;"></div>
+        </div>
+      </div>
+    </div>
 
-    <!-- LISTE RONDES -->
-    <div id="rondesList">
-      <div class="empty-state">
-        <div class="empty-state-icon">📭</div>
-        <p>Aucune inspection enregistrée</p>
+    <!-- PAGE ACTIONS -->
+    <div id="page-actions" class="page">
+      <div class="card">
+        <div class="card-header">✓ ACTIONS À FAIRE</div>
+        <div class="card-body">
+          <div class="form-group">
+            <textarea id="actionInput" placeholder="Ajouter une action..."></textarea>
+            <button class="btn" style="margin-top: 10px;" onclick="addAction()">➕ Ajouter action</button>
+          </div>
+          <div id="actionsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE BILAN -->
+    <div id="page-bilan" class="page">
+      <div class="card">
+        <div class="card-header">📊 RÉSUMÉ DE LA RONDE</div>
+        <div class="card-body" id="bilanContent">
+          <div class="empty-state-icon">📭</div>
+          <p>Complètez les contrôles</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE MES -->
+    <div id="page-mes" class="page">
+      <div class="card">
+        <div class="card-header">⚙ MISE EN SERVICE</div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phase</label>
+              <select id="mesPhase">
+                <option value="">Choisir...</option>
+                <option value="prep">Phase 1 - Préparation</option>
+                <option value="demarrage">Phase 2 - Démarrage</option>
+                <option value="tests">Phase 3 - Tests</option>
+                <option value="final">Phase 4 - Finalisation</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Puissance (kW)</label>
+              <input type="number" id="mesPuissance" placeholder="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Débit (m³/h)</label>
+              <input type="number" id="mesDebit" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label>Température (°C)</label>
+              <input type="number" id="mesTemp" placeholder="0">
+            </div>
+          </div>
+          <button class="btn" onclick="saveMES()">💾 Enregistrer MES</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">🧪 JOUR J - TESTS</div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Test n°</label>
+              <input type="number" id="joujTest" placeholder="1">
+            </div>
+            <div class="form-group">
+              <label>Résultat</label>
+              <select id="joujResultat">
+                <option value="">Choisir...</option>
+                <option value="ok">✓ OK</option>
+                <option value="nok">✕ NOK</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Temp. entrée (°C)</label>
+              <input type="number" id="joujTempE" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label>Temp. sortie (°C)</label>
+              <input type="number" id="joujTempS" placeholder="0">
+            </div>
+          </div>
+          <button class="btn" onclick="saveJourJ()">💾 Enregistrer test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE DIAGNOSTIC -->
+    <div id="page-diagnostic" class="page">
+      <div class="card">
+        <div class="card-header">🔍 DIAGNOSTIC</div>
+        <div class="card-body" id="diagnosticContent">
+          <div class="alert warning">💡 Complètez les contrôles</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE HISTORIQUE -->
+    <div id="page-historique" class="page">
+      <div id="historiqueContent">
+        <div class="empty-state">
+          <div class="empty-state-icon">📜</div>
+          <p>Aucune ronde enregistrée</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- FOOTER -->
   <div class="footer">
-    <p>© 2026 IDEX • Ronde V6</p>
+    <p>© 2026 IDEX • Ronde V6 • v2.0 PRO</p>
   </div>
 </div>
 
 <script>
-function saveRonde(event) {
-  event.preventDefault();
-  const subId = document.getElementById('substationSelect').value;
-  const notes = document.getElementById('rondeNotes').value;
+// ========== SUBSTATIONS KML ==========
+const substationsKML = [
+  { id: 'SS-001', name: 'Substation Défense 1', address: 'La Défense, Paris', lat: 48.8920, lng: 2.2458, type: 'Type A' },
+  { id: 'SS-002', name: 'Substation Défense 2', address: 'La Défense, Paris', lat: 48.8925, lng: 2.2465, type: 'Type A' },
+  { id: 'SS-047', name: 'Substation Défense 47', address: 'La Défense, Paris', lat: 48.8943, lng: 2.2454, type: 'Type B' },
+  { id: 'SS-102', name: 'Substation Défense 102', address: 'La Défense, Paris', lat: 48.8950, lng: 2.2470, type: 'Type C' }
+];
 
-  if (!subId) {
-    alert('Veuillez choisir une sous-station');
-    return;
-  }
+// ========== APP STATE ==========
+const app = {
+  currentTab: 'ronde',
+  startTime: Date.now(),
+  timerInterval: null,
+  rondes: JSON.parse(localStorage.getItem('rondes_v6') || '[]'),
+  fiches: JSON.parse(localStorage.getItem('fiches_v6') || '[]'),
+  actions: JSON.parse(localStorage.getItem('actions_v6') || '[]'),
+  mes: JSON.parse(localStorage.getItem('mes_v6') || '[]'),
+  jouj: JSON.parse(localStorage.getItem('jouj_v6') || '[]'),
+  map: null,
+  currentMarker: null,
+  signatureCanvas: null,
+  signatureCtx: null,
 
-  const ronde = {
-    id: `RONDE_${Date.now()}`,
-    substation_id: subId,
-    date_visite: new Date().toLocaleString('fr-FR'),
-    notes: notes || 'Aucune note',
-  };
+  controls: [
+    { id: 'fuite', label: 'Absence de fuite', status: null, comment: '' },
+    { id: 'isolation', label: 'État isolations / calorifuge', status: null, comment: '' },
+    { id: 'vannes', label: 'État vannes', status: null, comment: '' },
+    { id: 'instrumentation', label: 'État instrumentation', status: null, comment: '' },
+    { id: 'bruit', label: 'Bruit / vibrations anormaux', status: null, comment: '' },
+    { id: 'compteur', label: 'État compteur énergie', status: null, comment: '' },
+    { id: 'propreté', label: 'Propreté locale technique', status: null, comment: '' },
+    { id: 'graissage', label: 'Graissage vanne', status: null, comment: '' }
+  ]
+};
 
-  let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
-  rondes.unshift(ronde);
-  localStorage.setItem('rondes', JSON.stringify(rondes));
-
-  document.getElementById('rondeForm').reset();
-  loadRondes();
-  
-  alert('✅ Inspection enregistrée');
+// ========== THEME ==========
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  localStorage.setItem('theme_v6', isDark ? 'light' : 'dark');
 }
 
-function loadRondes() {
-  let rondes = JSON.parse(localStorage.getItem('rondes') || '[]');
-  const list = document.getElementById('rondesList');
+function initTheme() {
+  const savedTheme = localStorage.getItem('theme_v6') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
 
-  if (rondes.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📭</div>
-        <p>Aucune inspection enregistrée</p>
-      </div>
-    `;
-    return;
+// ========== TABS ==========
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  app.currentTab = tab;
+
+  if (tab === 'ronde' && app.map) {
+    setTimeout(() => app.map.invalidateSize(), 100);
   }
+}
 
-  list.innerHTML = rondes.map(r => `
-    <div class="ronde-item">
-      <div class="ronde-item-header">
-        <h3>${r.substation_id}</h3>
-        <div class="ronde-badge">✓ Complétée</div>
+// ========== MAP ==========
+function initMap() {
+  if (document.getElementById('map') && !app.map) {
+    app.map = L.map('map').setView([48.8920, 2.2458], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(app.map);
+    
+    substationsKML.forEach(sub => {
+      L.marker([sub.lat, sub.lng])
+        .bindPopup(`<b>${sub.name}</b><br>${sub.address}`)
+        .addTo(app.map);
+    });
+  }
+}
+
+// ========== SUBSTATIONS ==========
+function loadSubstations() {
+  const select = document.getElementById('rondeSubstation');
+  select.innerHTML = '<option value="">Choisir une sous-station...</option>';
+  substationsKML.forEach(sub => {
+    const option = document.createElement('option');
+    option.value = sub.id;
+    option.textContent = `${sub.id} - ${sub.name}`;
+    select.appendChild(option);
+  });
+
+  select.addEventListener('change', (e) => {
+    const sub = substationsKML.find(s => s.id === e.target.value);
+    if (sub && app.map) {
+      app.map.setView([sub.lat, sub.lng], 16);
+    }
+  });
+}
+
+// ========== CONTROLS ==========
+function buildControls() {
+  const list = document.getElementById('controlsList');
+  list.innerHTML = app.controls.map((ctrl, i) => `
+    <div class="check-item">
+      <div class="check-header">${ctrl.label}</div>
+      <div class="check-buttons">
+        <button class="check-btn ok ${ctrl.status === 'ok' ? 'sel' : ''}" onclick="setControlStatus(${i}, 'ok')">✓ OK</button>
+        <button class="check-btn warning ${ctrl.status === 'warning' ? 'sel' : ''}" onclick="setControlStatus(${i}, 'warning')">⚠ Dégradé</button>
+        <button class="check-btn danger ${ctrl.status === 'danger' ? 'sel' : ''}" onclick="setControlStatus(${i}, 'danger')">✕ Défaillant</button>
+        <button class="check-btn na ${ctrl.status === 'na' ? 'sel' : ''}" onclick="setControlStatus(${i}, 'na')">N/A</button>
       </div>
-      <p>${r.date_visite}</p>
-      <p>${r.notes}</p>
+      ${ctrl.status && ctrl.status !== 'ok' ? `
+        <textarea placeholder="Commentaire..." onchange="setControlComment(${i}, this.value)" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; margin-top: 8px;">${ctrl.comment}</textarea>
+      ` : ''}
     </div>
   `).join('');
 }
 
-window.addEventListener('load', loadRondes);
+function setControlStatus(index, status) {
+  app.controls[index].status = status;
+  if (status === 'ok' || status === 'na') app.controls[index].comment = '';
+  buildControls();
+  updateBilan();
+  updateDiagnostic();
+}
+
+function setControlComment(index, comment) {
+  app.controls[index].comment = comment;
+}
+
+// ========== FICHES ==========
+function addFiche() {
+  const type = document.getElementById('ficheType').value;
+  const desc = document.getElementById('ficheDesc').value;
+  
+  if (!type || !desc) {
+    showToast('⚠ Complètez les champs');
+    return;
+  }
+
+  app.fiches.push({
+    id: Date.now(),
+    type: type,
+    desc: desc,
+    date: new Date().toLocaleString('fr-FR')
+  });
+
+  localStorage.setItem('fiches_v6', JSON.stringify(app.fiches));
+  document.getElementById('ficheType').value = '';
+  document.getElementById('ficheDesc').value = '';
+  updateFiches();
+  showToast('✓ Fiche ajoutée');
+}
+
+function updateFiches() {
+  const list = document.getElementById('fichesList');
+  if (app.fiches.length === 0) {
+    list.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Aucune fiche</p>';
+    return;
+  }
+
+  list.innerHTML = app.fiches.map((fiche, i) => `
+    <div class="fiche-item">
+      <div class="fiche-title">${fiche.type}</div>
+      <div class="fiche-content">${fiche.desc}</div>
+      <div style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">${fiche.date}</div>
+      <button onclick="deleteFiche(${i})" style="background: none; border: none; color: var(--danger); cursor: pointer; margin-top: 8px;">🗑 Supprimer</button>
+    </div>
+  `).join('');
+}
+
+function deleteFiche(index) {
+  if (confirm('Supprimer cette fiche ?')) {
+    app.fiches.splice(index, 1);
+    localStorage.setItem('fiches_v6', JSON.stringify(app.fiches));
+    updateFiches();
+  }
+}
+
+// ========== ACTIONS ==========
+function addAction() {
+  const input = document.getElementById('actionInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  app.actions.push({
+    id: Date.now(),
+    text: text,
+    done: false,
+    date: new Date().toLocaleString('fr-FR')
+  });
+
+  input.value = '';
+  updateActions();
+  localStorage.setItem('actions_v6', JSON.stringify(app.actions));
+  showToast('✓ Action ajoutée');
+}
+
+function updateActions() {
+  const list = document.getElementById('actionsList');
+  if (app.actions.length === 0) {
+    list.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Aucune action</p>';
+    return;
+  }
+
+  list.innerHTML = app.actions.map((action, i) => `
+    <div class="fiche-item">
+      <div style="display: flex; gap: 10px;">
+        <input type="checkbox" ${action.done ? 'checked' : ''} onchange="toggleAction(${i})">
+        <div>
+          <div style="${action.done ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${action.text}</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">${action.date}</div>
+        </div>
+        <button onclick="deleteAction(${i})" style="background: none; border: none; color: var(--danger); cursor: pointer;">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleAction(index) {
+  app.actions[index].done = !app.actions[index].done;
+  updateActions();
+  localStorage.setItem('actions_v6', JSON.stringify(app.actions));
+}
+
+function deleteAction(index) {
+  app.actions.splice(index, 1);
+  updateActions();
+  localStorage.setItem('actions_v6', JSON.stringify(app.actions));
+}
+
+// ========== BILAN ==========
+function updateBilan() {
+  const total = app.controls.length;
+  const completed = app.controls.filter(c => c.status).length;
+  const ok = app.controls.filter(c => c.status === 'ok').length;
+  const issues = app.controls.filter(c => c.status === 'warning' || c.status === 'danger');
+  const completeness = Math.round((completed / total) * 100);
+
+  const content = document.getElementById('bilanContent');
+  content.innerHTML = `
+    <div class="alert success">
+      ✓ Complétude: ${completeness}% | Bons: ${ok}/${total} | Anomalies: ${issues.length}
+    </div>
+    ${issues.length > 0 ? `
+      <div style="margin-top: 12px;">
+        ${issues.map(issue => `
+          <div class="alert ${issue.status === 'danger' ? 'danger' : 'warning'}">
+            ${issue.label}
+            ${issue.comment ? `<div style="margin-top: 4px; font-size: 12px;">💬 ${issue.comment}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    ` : '<div class="alert success">✅ Aucune anomalie</div>'}
+  `;
+}
+
+// ========== DIAGNOSTIC ==========
+function updateDiagnostic() {
+  const total = app.controls.length;
+  const completed = app.controls.filter(c => c.status).length;
+  const completeness = Math.round((completed / total) * 100);
+  const issues = app.controls.filter(c => c.status === 'warning' || c.status === 'danger');
+
+  const content = document.getElementById('diagnosticContent');
+  if (completeness < 50) {
+    content.innerHTML = `<div class="alert warning">⏳ Complètement: ${completeness}%</div>`;
+  } else if (issues.length === 0) {
+    content.innerHTML = `<div class="alert success">✅ Tous les contrôles OK</div>`;
+  } else {
+    content.innerHTML = `
+      <div class="alert warning">⚠ ${issues.length} anomalie(s)</div>
+      ${issues.map(i => `<div class="alert ${i.status === 'danger' ? 'danger' : 'warning'}">${i.label}</div>`).join('')}
+    `;
+  }
+}
+
+// ========== MES & JOUR J ==========
+function saveMES() {
+  const mes = {
+    id: Date.now(),
+    phase: document.getElementById('mesPhase').value,
+    puissance: document.getElementById('mesPuissance').value,
+    debit: document.getElementById('mesDebit').value,
+    temp: document.getElementById('mesTemp').value,
+    date: new Date().toLocaleString('fr-FR')
+  };
+
+  app.mes.push(mes);
+  localStorage.setItem('mes_v6', JSON.stringify(app.mes));
+  document.getElementById('mesPhase').value = '';
+  document.getElementById('mesPuissance').value = '';
+  document.getElementById('mesDebit').value = '';
+  document.getElementById('mesTemp').value = '';
+  showToast('✓ MES enregistrée');
+}
+
+function saveJourJ() {
+  const jouj = {
+    id: Date.now(),
+    test: document.getElementById('joujTest').value,
+    tempE: document.getElementById('joujTempE').value,
+    tempS: document.getElementById('joujTempS').value,
+    resultat: document.getElementById('joujResultat').value,
+    date: new Date().toLocaleString('fr-FR')
+  };
+
+  app.jouj.push(jouj);
+  localStorage.setItem('jouj_v6', JSON.stringify(app.jouj));
+  showToast('✓ Test enregistré');
+}
+
+// ========== SIGNATURE ==========
+function initSignature() {
+  app.signatureCanvas = document.getElementById('signatureCanvas');
+  app.signatureCtx = app.signatureCanvas.getContext('2d');
+
+  app.signatureCanvas.addEventListener('mousedown', () => {
+    app.signatureCtx.beginPath();
+  });
+
+  app.signatureCanvas.addEventListener('mousemove', (e) => {
+    if (e.buttons === 1) {
+      const rect = app.signatureCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      app.signatureCtx.lineTo(x, y);
+      app.signatureCtx.stroke();
+    }
+  });
+}
+
+function clearSignature() {
+  app.signatureCtx.clearRect(0, 0, app.signatureCanvas.width, app.signatureCanvas.height);
+}
+
+// ========== SAVE RONDE ==========
+function saveRonde() {
+  const ronde = {
+    id: `RONDE_${Date.now()}`,
+    date: document.getElementById('rondeDate').value,
+    heure: document.getElementById('rondeHeure').value,
+    tech: document.getElementById('rondeTech').value,
+    substation: document.getElementById('rondeSubstation').value,
+    controls: JSON.parse(JSON.stringify(app.controls)),
+    observations: document.getElementById('rondeObservations').value,
+    fiches: JSON.parse(JSON.stringify(app.fiches)),
+    timestamp: new Date().toLocaleString('fr-FR')
+  };
+
+  if (!ronde.substation || !ronde.tech) {
+    alert('⚠ Complètez les champs obligatoires');
+    return;
+  }
+
+  app.rondes.unshift(ronde);
+  localStorage.setItem('rondes_v6', JSON.stringify(app.rondes));
+  showToast('✅ Ronde enregistrée');
+  resetForm();
+  updateHistorique();
+}
+
+function resetForm() {
+  document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
+  document.getElementById('rondeTech').value = '';
+  document.getElementById('rondeSubstation').value = '';
+  document.getElementById('rondeObservations').value = '';
+  clearSignature();
+  
+  app.controls.forEach(c => {
+    c.status = null;
+    c.comment = '';
+  });
+  
+  buildControls();
+  updateBilan();
+  updateDiagnostic();
+  app.startTime = Date.now();
+}
+
+// ========== HISTORIQUE ==========
+function updateHistorique() {
+  const content = document.getElementById('historiqueContent');
+  
+  if (app.rondes.length === 0) {
+    content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📜</div><p>Aucune ronde</p></div>`;
+    return;
+  }
+
+  content.innerHTML = app.rondes.map((r, i) => `
+    <div class="card">
+      <div class="card-body">
+        <h3 style="font-weight: 600; margin-bottom: 8px;">${r.substation}</h3>
+        <p style="font-size: 12px; color: var(--text-secondary);">${r.date} • ${r.heure} • ${r.tech}</p>
+        ${r.observations ? `<p style="margin-top: 8px; font-size: 13px;">${r.observations}</p>` : ''}
+        <button onclick="deleteRonde(${i})" style="background: none; border: none; color: var(--danger); cursor: pointer; margin-top: 8px;">🗑 Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function deleteRonde(index) {
+  if (confirm('Supprimer cette ronde ?')) {
+    app.rondes.splice(index, 1);
+    localStorage.setItem('rondes_v6', JSON.stringify(app.rondes));
+    updateHistorique();
+  }
+}
+
+// ========== EXPORT PDF ==========
+function exportPDF() {
+  const element = document.querySelector('.app');
+  const opt = {
+    margin: 10,
+    filename: `Ronde_${Date.now()}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+  };
+  html2pdf().set(opt).from(element).save();
+  showToast('📄 PDF généré');
+}
+
+// ========== TIMER ==========
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - app.startTime) / 1000);
+  const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+  const seconds = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('timerDisplay').textContent = `Durée ronde ${hours}:${minutes}:${seconds}`;
+}
+
+// ========== TOAST ==========
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// ========== INIT ==========
+function init() {
+  initTheme();
+  loadSubstations();
+  buildControls();
+  updateBilan();
+  updateDiagnostic();
+  updateActions();
+  updateFiches();
+  updateHistorique();
+  initSignature();
+  updateTimer();
+  
+  document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
+  
+  app.timerInterval = setInterval(updateTimer, 1000);
+
+  // Defer map init
+  setTimeout(initMap, 100);
+}
+
+document.readyState === 'loading' 
+  ? document.addEventListener('DOMContentLoaded', init) 
+  : init();
 </script>
 
+<!-- LEAFLET MAP LIBRARY -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
 </body>
-</html>
+</html
