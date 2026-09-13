@@ -1,0 +1,1122 @@
+[
+  {
+    "id": "SS-VALMY-RENAISSANCE",
+    "name": "Valmy-renaissance",
+    "lat": 48.88590712447504,
+    "lon": 2.238851430314186,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-BOULANGERIE",
+    "name": "boulangerie",
+    "lat": 48.89368390524549,
+    "lon": 2.226640896043627,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-DEPART-NANTERRE-E61",
+    "name": "départ NANTERRE E61",
+    "lat": 48.89611347157072,
+    "lon": 2.228598972486517,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ARCAS-1",
+    "name": "Arcas 1",
+    "lat": 48.89759502836218,
+    "lon": 2.221959842611008,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ARCHE-NORD-COLLINE-NORD",
+    "name": "arche nord /colline nord",
+    "lat": 48.89349940113049,
+    "lon": 2.23544185507573,
+    "notes_acces": "Arche nord tout en bas et colline nord sur la gauche en haut",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ARAGO-ECOLE-LA-ROTONDE",
+    "name": "Arago école la rotonde",
+    "lat": 48.88552219731096,
+    "lon": 2.2469594777712,
+    "notes_acces": "Voir le gardien",
+    "needs_review": false
+  },
+  {
+    "id": "SS-BOUVET-1-ET-2",
+    "name": "bouvet 1 et 2",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Deux sous station lune à côté de l’autre dans le parking Prendre les clé au taff",
+    "needs_review": true
+  },
+  {
+    "id": "SS-CAP-OUEST",
+    "name": "CAP Ouest",
+    "lat": 48.88622775629769,
+    "lon": 2.242853500674217,
+    "notes_acces": "À côté du porte de garage résidentiel rue qui monte",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CAMPUSEA",
+    "name": "Campusea",
+    "lat": 48.88864148219429,
+    "lon": 2.235088519636135,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CANVAS",
+    "name": "Canvas",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Cherche la clé au bureau et étage -1 entrée porte a",
+    "needs_review": true
+  },
+  {
+    "id": "SS-CARPEDIEM",
+    "name": "carpediem",
+    "lat": 48.8907905672568,
+    "lon": 2.246920034798982,
+    "notes_acces": "Sous station à la sortie du parking chaud et froid séparer par un mur sonner à l’interphone pour ouvrir le rideau du froid",
+    "needs_review": false
+  },
+  {
+    "id": "SS-COLLEGE-PAUL-ELUARD",
+    "name": "Collège Paul Eluard",
+    "lat": 48.89345357608676,
+    "lon": 2.222229033159629,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CHANT-DE-COQ-1",
+    "name": "chant de coq 1",
+    "lat": 48.88314744790886,
+    "lon": 2.228642157700982,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CHANT-DE-COQ-2",
+    "name": "Chant de coq 2",
+    "lat": 48.88383220653964,
+    "lon": 2.229775748295795,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CHEMIN-VERT",
+    "name": "chemin vert",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Décente parking yespark",
+    "needs_review": true
+  },
+  {
+    "id": "SS-CARRE-VERT-LES-FONTAINE",
+    "name": "carré vert les fontaine",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Première clé au sol à droite à côté de boîte au lettre",
+    "needs_review": true
+  },
+  {
+    "id": "SS-COLLEGE-MARECHAL-LECLERC",
+    "name": "collège maréchal Leclerc",
+    "lat": 48.88652644413751,
+    "lon": 2.242129192698739,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-COLLINE-SUD-ARCHE-SUD",
+    "name": "colline sud / arche sud",
+    "lat": 48.89115800684478,
+    "lon": 2.235742849961015,
+    "notes_acces": "Deux client au même endroit",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CRECHE-ARCADE-ET-HLM-ARC",
+    "name": "crèche arcade et hlm arcade",
+    "lat": 48.88643323965743,
+    "lon": 2.243304053721227,
+    "notes_acces": "Code portail 8519B",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CITE-DE-LA-JEUNESSE-ESPA",
+    "name": "cite de la jeunesse espace Jules verne",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Entre par l’accueil pour clé gardien post secu sous station dans le parking",
+    "needs_review": true
+  },
+  {
+    "id": "SS-DEFENSE-PLAZA",
+    "name": "Défense plaza",
+    "lat": 48.88757414397648,
+    "lon": 2.243969277894453,
+    "notes_acces": "Se présenter au pc sécurité annoncer idex",
+    "needs_review": false
+  },
+  {
+    "id": "SS-DE-LALANDE-AMPERE-WATT",
+    "name": "de Lalande ampère watt",
+    "lat": 48.89362417236771,
+    "lon": 2.243318883714164,
+    "notes_acces": "Sur le parvis trouver cage d’escalier extérieur",
+    "needs_review": false
+  },
+  {
+    "id": "SS-EXTENSION-PALAIS-DE-JUST",
+    "name": "Extension palais de justice",
+    "lat": 48.8953295980029,
+    "lon": 2.215408419715304,
+    "notes_acces": "Rentrez par le sous sol et ressortir de l’autre côté du parking",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ECOLE-CHARLES-DE-FOUCAUL",
+    "name": "école Charles de Foucault",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Demander clé à la gardienne",
+    "needs_review": true
+  },
+  {
+    "id": "SS-FELIX-PIAT-ECOLE",
+    "name": "Félix piat école",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Récupérer clé à l’accueil via la gardienne",
+    "needs_review": true
+  },
+  {
+    "id": "SS-GALLIENI",
+    "name": "Gallieni",
+    "lat": 48.88830637584481,
+    "lon": 2.243666078788691,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-GALLERIE-BOILDIEU-VILLIO",
+    "name": "gallérie boildieu villion",
+    "lat": 48.88912256354124,
+    "lon": 2.237748974155906,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-HANRIOT-STATION-DECHANGE",
+    "name": "Hanriot Station D’échange",
+    "lat": 48.9027321959182,
+    "lon": 2.228193764238062,
+    "notes_acces": "Mot de passe armoire:idex2024 Hanriot2024",
+    "needs_review": false
+  },
+  {
+    "id": "SS-HDD",
+    "name": "HDD",
+    "lat": 48.89834742084363,
+    "lon": 2.215555805747709,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-JULES-VERNE-HABITATIONS",
+    "name": "Jules verne habitations",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Badge boulot Premier sous soul",
+    "needs_review": true
+  },
+  {
+    "id": "SS-PALATIN-1",
+    "name": "palatin 1",
+    "lat": 48.89442745408208,
+    "lon": 2.235291711725446,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-UGC-COLLINE-DE-LA-DEFENS",
+    "name": "uGC colline de la défense/ De l’auto",
+    "lat": 48.89058849567117,
+    "lon": 2.234862737631135,
+    "notes_acces": "Rentre par la barrière en sonnant à l’interphone se garer sur la gauche après le rideau",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PTT",
+    "name": "PTT",
+    "lat": 48.88655227579776,
+    "lon": 2.239551111267462,
+    "notes_acces": "Sous station sur avenue jean moulin proche du feu rouge voir photo",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LTT1-AUCHAN",
+    "name": "LTT1 Auchan",
+    "lat": 48.89057483708882,
+    "lon": 2.234795349011506,
+    "notes_acces": "C’est la même entrée que uGC",
+    "needs_review": false
+  },
+  {
+    "id": "SS-TRIANGLE-DE-LARCHE",
+    "name": "triangle de l’arche",
+    "lat": 48.89405840459563,
+    "lon": 2.236261444271828,
+    "notes_acces": "Descendre par la grille",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PALATIN-2-ET-3",
+    "name": "palatin 2 et 3",
+    "lat": 48.89489807149274,
+    "lon": 2.234760814745147,
+    "notes_acces": "Un côté le chaud l’autre le froid on les différencie envoyant le panneau risque de brûlure",
+    "needs_review": false
+  },
+  {
+    "id": "SS-WILSON-OUEST",
+    "name": "Wilson ouest",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "200m après le portail sonne à l’interphone",
+    "needs_review": true
+  },
+  {
+    "id": "SS-WILSON-ABC",
+    "name": "Wilson abc",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "Rentré côté gauche par le parking",
+    "needs_review": true
+  },
+  {
+    "id": "SS-PETITOT-MOISSAN",
+    "name": "petitot moissan",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "",
+    "needs_review": true
+  },
+  {
+    "id": "SS-TRIANGLE-DE-LARCHE-2",
+    "name": "triangle de l’arche",
+    "lat": 48.88513002038895,
+    "lon": 2.240050129554134,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-KUPKA-AB-RIE",
+    "name": "kupka Ab rie",
+    "lat": 48.89097044440494,
+    "lon": 2.233118900200965,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LES-ROSIER",
+    "name": "les rosier",
+    "lat": 48.88403090324379,
+    "lon": 2.239632008670438,
+    "notes_acces": "À côté de l’école de foulcauld",
+    "needs_review": true
+  },
+  {
+    "id": "SS-LOT-1B",
+    "name": "lot 1B",
+    "lat": 48.90176177517244,
+    "lon": 2.224019377322179,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LOT-3A",
+    "name": "lot 3A",
+    "lat": 48.90109322535785,
+    "lon": 2.222737019703993,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LES-HALIZEE-2B",
+    "name": "les Halizee 2b",
+    "lat": 48.90307026081661,
+    "lon": 2.226527063707875,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MAJANGA",
+    "name": "majanga",
+    "lat": 48.88908858435229,
+    "lon": 2.243278790667738,
+    "notes_acces": "Passer par la porte 10. Donner son PC, sécurité, sous-station niveau -7.",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LE-DIAMANT",
+    "name": "le diamant",
+    "lat": 48.88675080255494,
+    "lon": 2.244495789489556,
+    "notes_acces": "Parking de gauche",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LOT-24-OUEST-VILLAGE",
+    "name": "lot 24 ouest village",
+    "lat": 48.8852673359646,
+    "lon": 2.228900260033968,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LOT-5-PAR-ALLURE",
+    "name": "lot 5 par. allure",
+    "lat": 48.88443866530805,
+    "lon": 2.22947324504714,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LOT-4-ET-BIS",
+    "name": "lot 4 et bis",
+    "lat": 48.88393532853302,
+    "lon": 2.227919992300262,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LOT-4-ET-BIS-2",
+    "name": "Lot 4 et bis",
+    "lat": 48.88390935306582,
+    "lon": 2.227023973039695,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MARCELIN-BERTHELOT",
+    "name": "Marcelin Berthelot",
+    "lat": 48.88976164806515,
+    "lon": 2.230817426496192,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PREFECTURE",
+    "name": "préfecture",
+    "lat": 48.89785973723498,
+    "lon": 2.216696579022472,
+    "notes_acces": "Passer par le portail sécurité Idex accès 24/24",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PABLO-NERUDA-FOSSE",
+    "name": "Pablo Neruda + fosse",
+    "lat": 48.89561584302364,
+    "lon": 2.21676401814329,
+    "notes_acces": "Passe NANTERRE pour accéder à la sous station",
+    "needs_review": false
+  },
+  {
+    "id": "SS-SAINT-VIME-2",
+    "name": "Saint vime 2",
+    "lat": 48.88631149332397,
+    "lon": 2.22927917442669,
+    "notes_acces": "Code d’accès 06235",
+    "needs_review": false
+  },
+  {
+    "id": "SS-KUPKA-C",
+    "name": "kupka C",
+    "lat": 48.89098256877447,
+    "lon": 2.232499654604665,
+    "notes_acces": "Appeler technicien ou pc sécurité",
+    "needs_review": false
+  },
+  {
+    "id": "SS-SAINT-VIME-1",
+    "name": "Saint vime 1",
+    "lat": 48.88677402772688,
+    "lon": 2.230296894331441,
+    "notes_acces": "Code d’accès",
+    "needs_review": false
+  },
+  {
+    "id": "SS-VINCI-TONGA",
+    "name": "Vinci Tonga",
+    "lat": 48.89688598623452,
+    "lon": 2.229604793053972,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-STADE-ARENA",
+    "name": "stade arena",
+    "lat": 48.89603096462564,
+    "lon": 2.231212023312063,
+    "notes_acces": "Accès par le pc sécurité",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ORIGINE",
+    "name": "Origine",
+    "lat": 48.89675204433298,
+    "lon": 2.227692005557358,
+    "notes_acces": "Decendrz barrière à gauche",
+    "needs_review": false
+  },
+  {
+    "id": "SS-SEGOFFIN",
+    "name": "Segoffin",
+    "lat": 48.89553367638745,
+    "lon": 2.243606979652666,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-LINEA",
+    "name": "linea",
+    "lat": 48.88697230016243,
+    "lon": 2.242215186780894,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-TOUR-EQHO",
+    "name": "tour Eqho",
+    "lat": 48.89153472774544,
+    "lon": 2.248073353281048,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ILOT-17",
+    "name": "îlot 17",
+    "lat": 48.89576405781164,
+    "lon": 2.227658199898086,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-WILSONSUD",
+    "name": "wilsonSud",
+    "lat": 48.88837494014866,
+    "lon": 2.240042366039663,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-WILSON-OUEST-2",
+    "name": "Wilson ouest",
+    "lat": 48.88832994974774,
+    "lon": 2.231856673725905,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-WILSON-ABC-TOUR-LOXAM",
+    "name": "Wilson abc tour loxam",
+    "lat": 48.88837164051183,
+    "lon": 2.234425980492667,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CRECHE-NANTERRE-MULTI-PA",
+    "name": "crèche NAnterre multi parc",
+    "lat": 48.89423735815703,
+    "lon": 2.224265801268976,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-RENARDIERE",
+    "name": "Renardière",
+    "lat": 48.89097428275105,
+    "lon": 2.249008803077492,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-BERGERE",
+    "name": "bergère",
+    "lat": 48.8862364794624,
+    "lon": 2.230592976725403,
+    "notes_acces": "Station principal bergère",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ILOT-OPERA-CRECHE-FARAND",
+    "name": "Îlot Opéra/ Crèche farandole",
+    "lat": 48.8950440372039,
+    "lon": 2.221717610970408,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-PARKING-MARECHAL-L",
+    "name": "fosse parking maréchal Leclerc",
+    "lat": 48.88670030706395,
+    "lon": 2.242153941817533,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-CHANT-DE-COQ-PURGE",
+    "name": "fosse chant de coq purge",
+    "lat": 48.88424848887607,
+    "lon": 2.230231713293533,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-PABLO-NERUDA",
+    "name": "fosse Pablo Neruda",
+    "lat": 48.89569572220427,
+    "lon": 2.216824549108021,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-PABLO-NERUDA-2",
+    "name": "fosse Pablo Neruda",
+    "lat": 48.89580777861978,
+    "lon": 2.217421585204284,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-PURGE-MH2",
+    "name": "fosse purge MH2",
+    "lat": 48.89611728267209,
+    "lon": 2.217804872213833,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-BOULEVARD-DES-BOUV",
+    "name": "fosse boulevard des bouvet",
+    "lat": 48.89582523989,
+    "lon": 2.227517491230708,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-CHARAS",
+    "name": "Fosse charas",
+    "lat": 48.89364841919186,
+    "lon": 2.248404939696633,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FOSSE-PREFECTURE",
+    "name": "fosse préfecture",
+    "lat": 48.89765539976351,
+    "lon": 2.216460619637661,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB5",
+    "name": "CB5",
+    "lat": 48.89327944514115,
+    "lon": 2.24534443538829,
+    "notes_acces": "Son interphone à la porte du parking",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB6",
+    "name": "CB6",
+    "lat": 48.89146259559529,
+    "lon": 2.248124736489696,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB-50-CENTRAL",
+    "name": "CB 50 Central",
+    "lat": 48.89151115538026,
+    "lon": 2.248235061603561,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB2-TOUR-TOTAL",
+    "name": "cb2 tour Total",
+    "lat": 48.89350001238206,
+    "lon": 2.24284602303171,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB4-BIS",
+    "name": "CB4 bis",
+    "lat": 48.89544365148133,
+    "lon": 2.242881951056246,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB4",
+    "name": "CB4",
+    "lat": 48.89552374292649,
+    "lon": 2.243120651902715,
+    "notes_acces": "Entrée en facade",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB12",
+    "name": "CB12",
+    "lat": 48.89183094165956,
+    "lon": 2.24469947492909,
+    "notes_acces": "Se présenter au pc sécurité aller à gauche 3 eme porte Immeuble europlaza",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB-14",
+    "name": "CB 14",
+    "lat": 48.89092528261011,
+    "lon": 2.246209959784624,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CBX",
+    "name": "CBx",
+    "lat": 48.89095169464303,
+    "lon": 2.246602432147033,
+    "notes_acces": "Clé en central",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH1",
+    "name": "CH1",
+    "lat": 48.89453465610333,
+    "lon": 2.241567692497064,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH-55-EXODE-JULES-VERNE",
+    "name": "CH 55 exode Jules verne",
+    "lat": 48.89309096198185,
+    "lon": 2.249401289527972,
+    "notes_acces": "Dans le parking yespark",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH-53-54-LAURAINE",
+    "name": "CH 53-54 + lauraine",
+    "lat": 48.89333477142345,
+    "lon": 2.248529150073877,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH4",
+    "name": "CH4",
+    "lat": 48.89284722582573,
+    "lon": 2.243984064464402,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH5-POMPIER",
+    "name": "CH5 pompier",
+    "lat": 48.89302119103795,
+    "lon": 2.243987108345069,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH-3-LES-DAUPHIN",
+    "name": "CH 3 les dauphin",
+    "lat": 48.89462443020609,
+    "lon": 2.242127886544314,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH2",
+    "name": "CH2",
+    "lat": 48.89396779898238,
+    "lon": 2.243211375178367,
+    "notes_acces": "Entrée à côté de la boîte au lettre laposte",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB10",
+    "name": "PB10",
+    "lat": 48.88764682976651,
+    "lon": 2.243024597110867,
+    "notes_acces": "Accès galerie violon également",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB17-18-19",
+    "name": "PB17-18-19",
+    "lat": 48.88801378799059,
+    "lon": 2.245062092908394,
+    "notes_acces": "Deux sous station une quai de livraison et une au sous sol",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB-20-21-CARRE-MICHELET",
+    "name": "PB 20-21 carré Michelet",
+    "lat": 48.88760695202544,
+    "lon": 2.245671953229798,
+    "notes_acces": "Quai de livraison carré Michelet",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB13-TOUR-ARIANE",
+    "name": "PB13 tour Ariane",
+    "lat": 48.8889456073689,
+    "lon": 2.243198110848992,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH28-PB28",
+    "name": "PH28 PB28",
+    "lat": 48.88631149156167,
+    "lon": 2.247180003033831,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB-2-3-4-5",
+    "name": "PB 2 3 4 5",
+    "lat": 48.88919003228111,
+    "lon": 2.241102062391851,
+    "notes_acces": "À droit du parking boldieu PB2 tour W",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB28-PH28",
+    "name": "pb28 ph28",
+    "lat": 48.88632866097306,
+    "lon": 2.246934672883856,
+    "notes_acces": "Rentré par la sortie à pied attention au stationnement",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH4",
+    "name": "PH4 -",
+    "lat": 48.88698430948135,
+    "lon": 2.239817134859215,
+    "notes_acces": "Sous station à coter du pont sur l’avenue Jean moulin voir photo",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH9-LOUIS-POUET",
+    "name": "ph9 Louis pouet",
+    "lat": 48.88758348442846,
+    "lon": 2.237849349007727,
+    "notes_acces": "Sur le bâtiment résidence Louis pouet Clé sur la pour de la sous station Presque en face de défense 2000",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH2-EXPRO-DEF",
+    "name": "PH2 Expro def",
+    "lat": 48.88890674455411,
+    "lon": 2.237392136809331,
+    "notes_acces": "Faire tour de résidence la sous station se trouve dans un virage on peux y voir un petit grille et la sous station est en bas de l’escalier derrière la grille la clé est sur la grille",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH21",
+    "name": "PH21",
+    "lat": 48.88785398195382,
+    "lon": 2.241238076457601,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH-14-RESIDENCE-LES-PLAT",
+    "name": "PH 14 résidence les platane",
+    "lat": 48.8887651341717,
+    "lon": 2.24298566958639,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH28-PB28-2",
+    "name": "PH28 PB28",
+    "lat": 48.88628745575755,
+    "lon": 2.247404220063993,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH-21-TOUR-EVE",
+    "name": "PH 21 tour eve",
+    "lat": 48.88810219090022,
+    "lon": 2.241984213136223,
+    "notes_acces": "Monter un étage pour sous station sonner avant dans le parking",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH14",
+    "name": "PH14",
+    "lat": 48.88896320921143,
+    "lon": 2.244381896449197,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PH3-LA-DEFENSE-2000",
+    "name": "PH3 - La Défense 2000",
+    "lat": 48.88770654411297,
+    "lon": 2.236487749477407,
+    "notes_acces": "Entrée de la sous-station au pied de l’immeuble sur la droite avant le petit parc pour grise avec pancarte idex",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB-11-ET-12",
+    "name": "MB 11 et 12",
+    "lat": 48.89056291389522,
+    "lon": 2.238807157709682,
+    "notes_acces": "Chaud et froid sonner à la barrière pour descendre",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB10",
+    "name": "mb10",
+    "lat": 48.8860117353724,
+    "lon": 2.234966051830098,
+    "notes_acces": "Descendre à droit niveau moins 1 avoir la carte d’accès Attention la clé n’est pas forcément présente dans le boîtier Sinon appeler pc sécurité",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB3-MB4",
+    "name": "MB3 - MB4",
+    "lat": 48.89687311743204,
+    "lon": 2.219159965396058,
+    "notes_acces": "Sonner wp4",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB-102-103-104-105",
+    "name": "MB 102 103 104 105",
+    "lat": 48.89608492616571,
+    "lon": 2.220423480871045,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB11-12",
+    "name": "MB11 12",
+    "lat": 48.89558005773985,
+    "lon": 2.224258839300894,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB10-2",
+    "name": "MB10",
+    "lat": 48.89542125424057,
+    "lon": 2.224131891380279,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB16",
+    "name": "MB16",
+    "lat": 48.89439221449951,
+    "lon": 2.226184729738181,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB109",
+    "name": "MB109",
+    "lat": 48.89402950922491,
+    "lon": 2.225679343700382,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB110",
+    "name": "MB110",
+    "lat": 48.89416704494444,
+    "lon": 2.226296877303635,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB5",
+    "name": "MB5",
+    "lat": 48.89670755517012,
+    "lon": 2.221089340025,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MB1-WP2",
+    "name": "MB1 wp2",
+    "lat": 48.89680380406685,
+    "lon": 2.219103288916449,
+    "notes_acces": "Appel wp2 dernier sous sol",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH52",
+    "name": "MH52",
+    "lat": 48.89456577167449,
+    "lon": 2.223496170318466,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH7-ELSA-TRIOLET",
+    "name": "MH7 Elsa triolet",
+    "lat": 48.8934508652193,
+    "lon": 2.226109999220687,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH-43-44-45",
+    "name": "MH 43 44 45",
+    "lat": 48.89509979441404,
+    "lon": 2.221754029514789,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH42",
+    "name": "MH42",
+    "lat": 48.89516098246865,
+    "lon": 2.221482477291161,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH-17",
+    "name": "MH 17",
+    "lat": 48.89432572756477,
+    "lon": 2.226382016752746,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-MH2",
+    "name": "MH2",
+    "lat": 48.89567002338709,
+    "lon": 2.21812075946493,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-GARENNE-SOUS-STATION-PRI",
+    "name": "Garenne sous station principal",
+    "lat": 48.89785729326517,
+    "lon": 2.231933033859941,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-COLLINE-SUD-E",
+    "name": "colline sud e",
+    "lat": 48.89036932859601,
+    "lon": 2.234742796888705,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-BOUVET-1-ET-2-2",
+    "name": "bouvet 1 et 2",
+    "lat": 48.88930431526518,
+    "lon": 2.232117701123855,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PB26-PH22",
+    "name": "pb26 ph22",
+    "lat": 48.8912850281724,
+    "lon": 2.242952783460928,
+    "notes_acces": "Voie des sculpteur voie des bâtisseur",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CH11",
+    "name": "Ch11",
+    "lat": 48.8907946788794,
+    "lon": 2.245657087282225,
+    "notes_acces": "Allée des bâtisseur dernière boucle",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB13",
+    "name": "CB13",
+    "lat": 48.89072521513414,
+    "lon": 2.245674688508221,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-FNAC",
+    "name": "FNAC",
+    "lat": 48.89075025278917,
+    "lon": 2.245619635314497,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ALSACE-OUEST",
+    "name": "Alsace Ouest",
+    "lat": 48.89076650798154,
+    "lon": 2.245573738213278,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB15",
+    "name": "CB15",
+    "lat": 48.89073938799611,
+    "lon": 2.24572624035863,
+    "notes_acces": "Aller des bâtisseur à côté de la sous station au rat là où ya les clochard qui range les carton",
+    "needs_review": false
+  },
+  {
+    "id": "SS-PCB1-FROID",
+    "name": "pcb1 froid",
+    "lat": 48.89167176978885,
+    "lon": 2.242699371828786,
+    "notes_acces": "Demander la clé au pc sécurité ou ya la vitre en sortant de la voie des bâtisseurs",
+    "needs_review": false
+  },
+  {
+    "id": "SS-CB5-2",
+    "name": "CB5",
+    "lat": 48.89301968481709,
+    "lon": 2.245681647797266,
+    "notes_acces": "",
+    "needs_review": false
+  },
+  {
+    "id": "SS-ILOT-5-ET-6",
+    "name": "ilot 5 et 6",
+    "lat": 48.89427671262607,
+    "lon": 2.245419007533169,
+    "notes_acces": "Clé dans le bureau",
+    "needs_review": false
+  }
+]
