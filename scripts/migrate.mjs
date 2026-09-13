@@ -4,18 +4,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createClient } from '@libsql/client';
+import { getTursoConfig } from './_turso.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const url = process.env.TURSO_CONNECTION_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
-
-if (!url || !authToken) {
-  console.error('TURSO_CONNECTION_URL et TURSO_AUTH_TOKEN doivent être définis.');
-  process.exit(1);
-}
-
-const db = createClient({ url, authToken });
+const db = createClient(getTursoConfig());
 
 const sql = readFileSync(join(__dirname, '..', 'schema.sql'), 'utf-8');
 const withoutComments = sql

@@ -3,6 +3,7 @@
 // Usage: node scripts/create-user.mjs <email> <password> <prenom> <nom>
 import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
 import { createClient } from '@libsql/client';
+import { getTursoConfig } from './_turso.mjs';
 
 const [, , email, password, prenom, nom] = process.argv;
 
@@ -11,15 +12,7 @@ if (!email || !password || !prenom || !nom) {
   process.exit(1);
 }
 
-const url = process.env.TURSO_CONNECTION_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
-
-if (!url || !authToken) {
-  console.error('TURSO_CONNECTION_URL et TURSO_AUTH_TOKEN doivent être définis.');
-  process.exit(1);
-}
-
-const db = createClient({ url, authToken });
+const db = createClient(getTursoConfig());
 
 const salt = randomBytes(16).toString('hex');
 const passwordHash = scryptSync(password, salt, 64).toString('hex');
