@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sS -X POST \"https://rondev6-0m43l.aws-eu-west-1.turso.io/v2/pipeline\" *)"
+    ]
+  }
+}
