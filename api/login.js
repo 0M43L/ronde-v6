@@ -1,10 +1,5 @@
-import { createClient } from "@libsql/client/web";
-import crypto from 'crypto';
-
-const db = createClient({
-  url: process.env.TURSO_CONNECTION_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+import { randomUUID, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { db } from './_db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,7 +10,7 @@ export default async function handler(req, res) {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
     const result = await db.execute({
@@ -26,35 +21,31 @@ export default async function handler(req, res) {
     const user = result.rows[0];
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Email ou mot de passe invalide' });
     }
 
-    const passwordHash = crypto
-      .createHash('sha256')
-      .update(password + 'salt_idex_2024')
-      .digest('hex');
+    const candidateHash = scryptSync(password, user.password_salt, 64);
+    const storedHash = Buffer.from(user.password_hash, 'hex');
 
-    if (user.password_hash !== passwordHash) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    if (
+      candidateHash.length !== storedHash.length ||
+      !timingSafeEqual(candidateHash, storedHash)
+    ) {
+      return res.status(401).json({ error: 'Email ou mot de passe invalide' });
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await db.execute({
       sql: `INSERT INTO user_sessions (id, user_id, token, expires_at)
             VALUES (?, ?, ?, ?)`,
-      args: [
-        crypto.randomBytes(16).toString('hex'),
-        user.id,
-        token,
-        expiresAt.toISOString(),
-      ],
+      args: [randomUUID(), user.id, token, expiresAt.toISOString()],
     });
 
     await db.execute({
-      sql: `UPDATE users SET last_login = ? WHERE id = ?`,
-      args: [new Date().toISOString(), user.id],
+      sql: `UPDATE users SET last_login = datetime('now') WHERE id = ?`,
+      args: [user.id],
     });
 
     return res.json({
@@ -67,9 +58,8 @@ export default async function handler(req, res) {
         prenom: user.prenom,
       },
     });
-
   } catch (error) {
-    console.error('Login Error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 }
