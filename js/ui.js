@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS } from './state.js';
 
 export function showToast(message) {
   const container = document.getElementById('toastContainer');
@@ -73,14 +73,29 @@ export function renderControls() {
         ctrl.status && ctrl.status !== 'ok' && ctrl.status !== 'na'
           ? `<textarea class="check-comment" placeholder="Commentaire..." data-action="set-comment" data-index="${i}">${escapeHtml(ctrl.comment)}</textarea>
              <div class="photo-row">
-               <label class="photo-btn">📷 Photo<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
+               <label class="photo-btn">📷 Avant<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
                ${ctrl.photo ? `<div class="photo-thumb"><img src="${ctrl.photo}"><button class="remove-photo" data-action="remove-photo" data-index="${i}">✕</button></div>` : ''}
-             </div>`
+               <label class="photo-btn">📷 Après<input type="file" accept="image/*" data-action="set-photo-apres" data-index="${i}"></label>
+               ${ctrl.photoApres ? `<div class="photo-thumb"><img src="${ctrl.photoApres}"><button class="remove-photo" data-action="remove-photo-apres" data-index="${i}">✕</button></div>` : ''}
+             </div>
+             <button class="btn-secondary" style="width:100%; margin-top:8px; ${ctrl.actionCreated ? 'opacity:.5;' : ''}" data-action="create-action-inline" data-index="${i}" ${ctrl.actionCreated ? 'disabled' : ''}>
+               ${ctrl.actionCreated ? '✓ Action corrective créée' : '+ Créer une action corrective pour ce point'}
+             </button>`
           : ''
       }
     </div>`
     )
     .join('');
+}
+
+// ===== STATUT À L'ISSUE =====
+export function renderRondeStatut() {
+  const el = document.getElementById('rondeStatutChoices');
+  el.innerHTML = RONDE_STATUTS.map(
+    (s) => `<button class="statut-btn ${state.rondeStatut === s.id ? 'sel ' + s.id : ''}" data-action="set-statut" data-statut="${s.id}">
+      ${s.id === 'operationnel' ? '✅' : s.id === 'reserve' ? '⚠️' : '🛑'} ${escapeHtml(s.label)}
+    </button>`
+  ).join('');
 }
 
 // ===== BILAN =====
@@ -238,7 +253,83 @@ export function renderActions() {
     .join('');
 }
 
-// ===== MES =====
+// ===== MES : identification du poste =====
+export function renderMesCasPosteSelect() {
+  const select = document.getElementById('mesCasPoste');
+  select.innerHTML =
+    '<option value="">Choisir...</option>' +
+    CAS_POSTE_TYPES.map((c) => `<option value="${c.cas}" ${state.mesPoste.cas_poste == c.cas ? 'selected' : ''}>Cas ${c.cas} — ${escapeHtml(c.code)} : ${escapeHtml(c.designation)}</option>`).join('');
+}
+
+const TYPE_COMPTEUR_LABEL = { kamstrup: 'Kamstrup', itron: 'Itron' };
+
+export function renderMesEchangeurs() {
+  const list = document.getElementById('mesEchangeursList');
+  list.innerHTML = state.mesPoste.echangeurs
+    .map(
+      (e, i) => `
+    <div class="card echangeur-card">
+      <div class="card-header">Échangeur ${i + 1}</div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type de boucle</label>
+            <select data-action="set-echangeur" data-field="type_boucle" data-index="${i}">
+              <option value="chaude" ${e.type_boucle === 'chaude' ? 'selected' : ''}>🔥 Eau chaude</option>
+              <option value="glacee" ${e.type_boucle === 'glacee' ? 'selected' : ''}>❄️ Eau glacée</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>N° contrat / installation</label>
+            <input type="text" data-action="set-echangeur" data-field="n_contrat" data-index="${i}" value="${escapeHtml(e.n_contrat)}" placeholder="ex. 4C012750">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Débit nominal (m³/h)</label>
+            <input type="number" step="0.1" data-action="set-echangeur" data-field="debit_nominal" data-index="${i}" value="${escapeHtml(e.debit_nominal)}">
+          </div>
+          <div class="form-group">
+            <label>Puissance nominale (kW)</label>
+            <input type="number" step="0.1" data-action="set-echangeur" data-field="puissance_nominale" data-index="${i}" value="${escapeHtml(e.puissance_nominale)}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>T° aller nominale (°C)</label>
+            <input type="number" step="0.1" data-action="set-echangeur" data-field="t_aller_nominale" data-index="${i}" value="${escapeHtml(e.t_aller_nominale)}">
+          </div>
+          <div class="form-group">
+            <label>T° retour nominale (°C)</label>
+            <input type="number" step="0.1" data-action="set-echangeur" data-field="t_retour_nominale" data-index="${i}" value="${escapeHtml(e.t_retour_nominale)}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Adresse compteur (Modbus)</label>
+            <input type="text" data-action="set-echangeur" data-field="adresse_compteur" data-index="${i}" value="${escapeHtml(e.adresse_compteur)}">
+          </div>
+          <div class="form-group">
+            <label>Type compteur</label>
+            <select data-action="set-echangeur" data-field="type_compteur" data-index="${i}">
+              <option value="kamstrup" ${e.type_compteur === 'kamstrup' ? 'selected' : ''}>${TYPE_COMPTEUR_LABEL.kamstrup}</option>
+              <option value="itron" ${e.type_compteur === 'itron' ? 'selected' : ''}>${TYPE_COMPTEUR_LABEL.itron}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>`
+    )
+    .join('');
+}
+
+export function renderMesProgress() {
+  const total = state.mesChecks.length;
+  const done = state.mesChecks.filter((c) => c.status).length;
+  document.getElementById('mesProgressLabel').textContent = `${done}/${total} points`;
+  document.getElementById('mesProgressFill').style.width = total ? `${Math.round((done / total) * 100)}%` : '0%';
+}
+
 export function renderMesChecks() {
   const list = document.getElementById('mesChecksList');
   const byCategory = {};
@@ -272,6 +363,7 @@ export function renderMesChecks() {
     </div>`
     )
     .join('');
+  renderMesProgress();
 }
 
 export function renderMesHistory() {
@@ -299,12 +391,11 @@ export function renderMesHistory() {
 }
 
 // ===== HISTORIQUE (unifié) =====
-export function renderHistorique() {
-  const content = document.getElementById('historiqueContent');
-
+export function buildHistoriqueItems() {
   const items = [];
   state.rondes.forEach((r) => {
     const substation = state.substations.find((s) => s.id === r.substation_id);
+    const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger').length;
     items.push({
       type: 'Ronde',
       ts: r.ts || 0,
@@ -313,38 +404,186 @@ export function renderHistorique() {
       body: r.observations,
       deleteAction: 'delete-ronde',
       id: r.id,
+      statut: r.statut || 'operationnel',
+      anomalies,
+      searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id });
+      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id });
+    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, searchable: a.text.toLowerCase() });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
-    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id });
+    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
-
   items.sort((a, b) => b.ts - a.ts);
+  return items;
+}
+
+export function renderHistorique(filter = 'tous', searchTerm = '') {
+  const content = document.getElementById('historiqueContent');
+  const needle = searchTerm.trim().toLowerCase();
+
+  let items = buildHistoriqueItems();
+  if (filter === 'anomalies') items = items.filter((it) => it.anomalies > 0);
+  else if (filter !== 'tous') items = items.filter((it) => it.statut === filter);
+  if (needle) items = items.filter((it) => it.searchable.includes(needle));
 
   if (items.length === 0) {
-    content.innerHTML = '<div class="empty-state"><div class="icon">▤</div><p>Aucune activité enregistrée</p></div>';
+    content.innerHTML = '<div class="empty-state"><div class="icon">▤</div><p>Aucune activité trouvée</p></div>';
     return;
   }
+
+  const statutBadge = { operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">OK</span>', reserve: '<span class="badge a_planifier">Réserve</span>', arret: '<span class="badge immediat">Arrêt</span>' };
 
   content.innerHTML = items
     .map(
       (it) => `
     <div class="item">
-      <div class="hist-type">${it.type}</div>
+      <div class="hist-type">${it.type} ${it.statut ? statutBadge[it.statut] || '' : ''}</div>
       <div class="item-title">${escapeHtml(it.title)}</div>
       <div class="item-meta">${escapeHtml(it.meta)}</div>
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
       <div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>
     </div>`
     )
+    .join('');
+}
+
+export async function renderStorageUsage() {
+  const el = document.getElementById('storageUsage');
+  if (!el) return;
+  if (!navigator.storage || !navigator.storage.estimate) {
+    el.textContent = '';
+    return;
+  }
+  try {
+    const { usage, quota } = await navigator.storage.estimate();
+    const usageKo = Math.round((usage || 0) / 1024);
+    const pct = quota ? Math.round(((usage || 0) / quota) * 1000) / 10 : null;
+    el.textContent = `${usageKo} Ko utilisés${pct !== null ? ` (~${pct}% du quota navigateur)` : ''}`;
+  } catch {
+    el.textContent = '';
+  }
+}
+
+// ===== BILAN AVANCÉ =====
+function weekKey(date) {
+  const d = new Date(date);
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+  return `${d.getFullYear()}-${week}`;
+}
+
+export function renderBilanTrend() {
+  const el = document.getElementById('bilanTrend');
+  const weeks = [];
+  const now = new Date();
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    weeks.push(d);
+  }
+  const counts = weeks.map((d) => {
+    const key = weekKey(d);
+    return state.rondes.filter((r) => r.date && weekKey(r.date) === key).length;
+  });
+
+  if (counts.every((c) => c === 0)) {
+    el.innerHTML = '<div class="trend-empty">Aucune ronde sur les 8 dernières semaines</div>';
+    return;
+  }
+
+  const max = Math.max(...counts, 1);
+  const w = 340, h = 110, pad = 20, barW = (w - pad * 2) / weeks.length - 6;
+  const bars = counts
+    .map((c, i) => {
+      const x = pad + i * ((w - pad * 2) / weeks.length);
+      const barH = (c / max) * (h - 30);
+      const y = h - 20 - barH;
+      const label = `${weeks[i].getDate().toString().padStart(2, '0')}/${(weeks[i].getMonth() + 1).toString().padStart(2, '0')}`;
+      return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="var(--accent)" rx="2"></rect><text x="${x + barW / 2}" y="${h - 6}" text-anchor="middle">${label}</text>${c > 0 ? `<text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle">${c}</text>` : ''}`;
+    })
+    .join('');
+
+  el.innerHTML = `<svg class="trend-chart" viewBox="0 0 ${w} ${h}">${bars}</svg>`;
+}
+
+export function renderSitesNonVisites(thresholdDays) {
+  const el = document.getElementById('sitesNonVisites');
+  const lastVisit = {};
+  state.rondes.forEach((r) => {
+    if (!r.date) return;
+    const t = new Date(r.date).getTime();
+    if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
+  });
+
+  const now = Date.now();
+  const overdue = state.substations
+    .map((s) => {
+      const last = lastVisit[s.id];
+      const days = last ? Math.floor((now - last) / 86400000) : null;
+      return { s, days };
+    })
+    .filter((x) => x.days === null || x.days > thresholdDays)
+    .sort((a, b) => (b.days ?? 99999) - (a.days ?? 99999));
+
+  if (overdue.length === 0) {
+    el.innerHTML = '<div class="alert success">✅ Tout est à jour</div>';
+    return;
+  }
+
+  el.innerHTML = overdue
+    .slice(0, 20)
+    .map((x) => `<div class="alert warning">${escapeHtml(x.s.name)} — ${x.days === null ? 'jamais visitée' : `${x.days} j sans visite`}</div>`)
+    .join('') + (overdue.length > 20 ? `<p class="hint">+ ${overdue.length - 20} autre(s)</p>` : '');
+}
+
+export function renderPointsRecurrents() {
+  const el = document.getElementById('pointsRecurrents');
+  const counts = {};
+  state.rondes.forEach((r) => {
+    (r.controls || []).forEach((c) => {
+      if (c.status === 'warning' || c.status === 'danger') {
+        counts[c.label] = (counts[c.label] || 0) + 1;
+      }
+    });
+  });
+  const recurrent = Object.entries(counts)
+    .filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (recurrent.length === 0) {
+    el.innerHTML = '<div class="alert success">✅ Aucun point récurrent</div>';
+    return;
+  }
+  el.innerHTML = recurrent.map(([label, n]) => `<div class="alert warning"><strong>${escapeHtml(label)}</strong> — ${n} rondes</div>`).join('');
+}
+
+export function renderActionsRetardSite(thresholdDays = 7) {
+  const el = document.getElementById('actionsRetardSite');
+  const now = Date.now();
+  const overdue = state.actions.filter((a) => !a.done && a.ts && (now - a.ts) / 86400000 > thresholdDays);
+
+  if (overdue.length === 0) {
+    el.innerHTML = '<div class="alert success">✅ Aucune action en retard</div>';
+    return;
+  }
+
+  const bySite = {};
+  overdue.forEach((a) => {
+    const substation = state.substations.find((s) => s.id === a.substation_id);
+    const name = substation ? substation.name : 'Sans sous-station';
+    bySite[name] = (bySite[name] || 0) + 1;
+  });
+
+  el.innerHTML = Object.entries(bySite)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action(s) en retard</div>`)
     .join('');
 }

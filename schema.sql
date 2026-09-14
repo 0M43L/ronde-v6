@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS rondes (
   tech           TEXT,
   controls_json  TEXT NOT NULL,
   observations   TEXT,
+  statut         TEXT NOT NULL DEFAULT 'operationnel',
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS mes_sessions (
   substation_id TEXT REFERENCES substations(id),
   user_id       TEXT NOT NULL REFERENCES users(id),
   checks_json   TEXT NOT NULL,
+  poste_json    TEXT,
   notes         TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

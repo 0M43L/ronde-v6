@@ -1,4 +1,4 @@
-import { state, resetControls, resetMesChecks } from './state.js';
+import { state, resetControls, resetMesChecks, emptyEchangeur } from './state.js';
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
@@ -97,6 +97,38 @@ function mergeById(local, server) {
   return Array.from(map.values());
 }
 
+let histFilter = 'tous';
+
+function getSiteThreshold() {
+  return Number(localStorage.getItem('site_threshold_days_v6')) || 30;
+}
+
+function checkOverdueReminders() {
+  if (localStorage.getItem('reminders_enabled_v6') !== '1') return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const lastVisit = {};
+  state.rondes.forEach((r) => {
+    if (!r.date) return;
+    const t = new Date(r.date).getTime();
+    if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
+  });
+  const threshold = getSiteThreshold();
+  const now = Date.now();
+  const overdueCount = state.substations.filter((s) => {
+    const last = lastVisit[s.id];
+    const days = last ? (now - last) / 86400000 : Infinity;
+    return days > threshold;
+  }).length;
+
+  const lastNotif = Number(localStorage.getItem('reminders_last_notif_v6') || 0);
+  if (overdueCount > 0 && now - lastNotif > 12 * 60 * 60 * 1000) {
+    new Notification('Ronde V6 — Sites en retard', {
+      body: `${overdueCount} sous-station(s) non visitée(s) depuis plus de ${threshold} jours.`,
+    });
+    localStorage.setItem('reminders_last_notif_v6', String(now));
+  }
+}
+
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
   const cachedSubstations = await dbLayer.getAll('substations');
@@ -123,17 +155,29 @@ async function loadAppData() {
 
   ui.renderSubstationDatalist();
   ui.renderControls();
+  ui.renderRondeStatut();
   ui.renderBilan();
   ui.renderBilanStats();
+  ui.renderBilanTrend();
+  ui.renderSitesNonVisites(getSiteThreshold());
+  ui.renderPointsRecurrents();
+  ui.renderActionsRetardSite();
   ui.renderFiches();
   ui.renderActions();
+  ui.renderMesCasPosteSelect();
+  ui.renderMesEchangeurs();
   ui.renderMesChecks();
   ui.renderMesHistory();
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.renderStorageUsage();
 
   document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
+  document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
+  document.getElementById('siteThresholdDays').value = getSiteThreshold();
+
+  checkOverdueReminders();
 
   initMap();
   renderMarkers(state.substations, (id) => {
@@ -155,7 +199,14 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   if (!tab) return;
   ui.switchTab(tab.dataset.tab);
   if (tab.dataset.tab === 'ronde') invalidateMapSize();
-  if (tab.dataset.tab === 'bilan') ui.renderBilanStats();
+  if (tab.dataset.tab === 'bilan') {
+    ui.renderBilanStats();
+    ui.renderBilanTrend();
+    ui.renderSitesNonVisites(getSiteThreshold());
+    ui.renderPointsRecurrents();
+    ui.renderActionsRetardSite();
+  }
+  if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
 });
 
 // ===== SOUS-STATIONS =====
@@ -232,7 +283,7 @@ function fileToDataUrl(file) {
   });
 }
 
-document.getElementById('controlsList').addEventListener('click', (e) => {
+document.getElementById('controlsList').addEventListener('click', async (e) => {
   const statusBtn = e.target.closest('[data-action="set-status"]');
   if (statusBtn) {
     const index = Number(statusBtn.dataset.index);
@@ -241,6 +292,8 @@ document.getElementById('controlsList').addEventListener('click', (e) => {
     if (status === 'ok' || status === 'na') {
       state.controls[index].comment = '';
       state.controls[index].photo = null;
+      state.controls[index].photoApres = null;
+      state.controls[index].actionCreated = false;
     }
     ui.renderControls();
     ui.renderBilan();
@@ -250,6 +303,43 @@ document.getElementById('controlsList').addEventListener('click', (e) => {
   if (removePhotoBtn) {
     state.controls[Number(removePhotoBtn.dataset.index)].photo = null;
     ui.renderControls();
+    return;
+  }
+  const removePhotoApresBtn = e.target.closest('[data-action="remove-photo-apres"]');
+  if (removePhotoApresBtn) {
+    state.controls[Number(removePhotoApresBtn.dataset.index)].photoApres = null;
+    ui.renderControls();
+    return;
+  }
+  const createActionBtn = e.target.closest('[data-action="create-action-inline"]');
+  if (createActionBtn) {
+    const index = Number(createActionBtn.dataset.index);
+    const c = state.controls[index];
+    if (c.actionCreated) return;
+    const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
+    if (!substation) {
+      ui.showToast('Indique une sous-station avant de créer une action');
+      return;
+    }
+    const action = {
+      id: `ACTION_${Date.now()}_${c.id}`,
+      substation_id: substation.id,
+      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      severity: c.status === 'danger' ? 'danger' : 'warning',
+      source: 'ronde',
+      photo: c.photo || null,
+      done: false,
+      date: new Date().toLocaleString('fr-FR'),
+      ts: Date.now(),
+    };
+    await dbLayer.put('actions', action);
+    await dbLayer.queueSync('action', 'upsert', action);
+    state.actions.push(action);
+    c.actionCreated = true;
+    ui.renderControls();
+    ui.renderActions();
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    ui.showToast('Action corrective créée');
   }
 });
 
@@ -261,10 +351,26 @@ document.getElementById('controlsList').addEventListener('input', (e) => {
 
 document.getElementById('controlsList').addEventListener('change', async (e) => {
   const fileInput = e.target.closest('[data-action="set-photo"]');
-  if (!fileInput || !fileInput.files[0]) return;
-  const dataUrl = await fileToDataUrl(fileInput.files[0]);
-  state.controls[Number(fileInput.dataset.index)].photo = dataUrl;
-  ui.renderControls();
+  if (fileInput && fileInput.files[0]) {
+    const dataUrl = await fileToDataUrl(fileInput.files[0]);
+    state.controls[Number(fileInput.dataset.index)].photo = dataUrl;
+    ui.renderControls();
+    return;
+  }
+  const fileInputApres = e.target.closest('[data-action="set-photo-apres"]');
+  if (fileInputApres && fileInputApres.files[0]) {
+    const dataUrl = await fileToDataUrl(fileInputApres.files[0]);
+    state.controls[Number(fileInputApres.dataset.index)].photoApres = dataUrl;
+    ui.renderControls();
+  }
+});
+
+// ===== STATUT À L'ISSUE =====
+document.getElementById('rondeStatutChoices').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="set-statut"]');
+  if (!btn) return;
+  state.rondeStatut = btn.dataset.statut;
+  ui.renderRondeStatut();
 });
 
 // ===== ENREGISTRER LA RONDE =====
@@ -283,6 +389,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     tech: document.getElementById('rondeTech').value,
     controls: JSON.parse(JSON.stringify(state.controls)),
     observations: document.getElementById('rondeObservations').value,
+    statut: state.rondeStatut,
     ts: Date.now(),
   };
 
@@ -290,9 +397,11 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   await dbLayer.queueSync('ronde', 'upsert', ronde);
   state.rondes.push(ronde);
 
-  // Anomalies -> actions en attente
+  // Anomalies sans action déjà créée manuellement -> actions en attente
   const anomalies = state.controls.filter((c) => c.status === 'warning' || c.status === 'danger');
+  let createdCount = 0;
   for (const c of anomalies) {
+    if (c.actionCreated) continue;
     const action = {
       id: `ACTION_${Date.now()}_${c.id}`,
       substation_id: substation.id,
@@ -308,17 +417,21 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     await dbLayer.put('actions', action);
     await dbLayer.queueSync('action', 'upsert', action);
     state.actions.push(action);
+    createdCount++;
   }
 
   document.getElementById('rondeObservations').value = '';
   resetControls();
   ui.renderControls();
+  ui.renderRondeStatut();
   ui.renderBilan();
   ui.renderBilanStats();
+  ui.renderBilanTrend();
+  ui.renderPointsRecurrents();
   ui.renderDiagnostic(null);
   ui.renderActions();
-  ui.renderHistorique();
-  ui.showToast(anomalies.length ? `Ronde enregistrée · ${anomalies.length} action(s) créée(s)` : 'Ronde enregistrée');
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.showToast(createdCount ? `Ronde archivée · ${createdCount} action(s) créée(s)` : 'Ronde archivée');
 
   await refreshSyncStatus();
   syncNow().catch(() => {});
@@ -365,7 +478,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
   state.fiches.push(fiche);
   ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
   ui.renderFiches(document.getElementById('ficheSearch').value);
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Fiche ajoutée');
 });
 
@@ -381,7 +494,7 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
   await dbLayer.queueSync('fiche', 'delete', { id });
   state.fiches = state.fiches.filter((f) => f.id !== id);
   ui.renderFiches(document.getElementById('ficheSearch').value);
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
 // ===== ACTIONS =====
@@ -407,7 +520,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   input.value = '';
   ui.renderActions();
   ui.renderBilanStats();
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Action ajoutée');
 });
 
@@ -420,7 +533,7 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
     state.actions = state.actions.filter((a) => a.id !== id);
     ui.renderActions();
     ui.renderBilanStats();
-    ui.renderHistorique();
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   }
 });
 
@@ -457,6 +570,35 @@ document.getElementById('mesChecksList').addEventListener('input', (e) => {
   }
 });
 
+// ===== MES : identification du poste =====
+document.getElementById('mesCasPoste').addEventListener('change', (e) => {
+  state.mesPoste.cas_poste = e.target.value;
+});
+
+document.getElementById('mesRepresentantClient').addEventListener('input', (e) => {
+  state.mesPoste.representant_client = e.target.value;
+});
+
+document.getElementById('mesNbEchangeurs').addEventListener('change', (e) => {
+  const n = Math.max(1, Math.min(3, Number(e.target.value) || 1));
+  e.target.value = n;
+  const echangeurs = state.mesPoste.echangeurs;
+  while (echangeurs.length < n) echangeurs.push(emptyEchangeur());
+  while (echangeurs.length > n) echangeurs.pop();
+  ui.renderMesEchangeurs();
+});
+
+document.getElementById('mesEchangeursList').addEventListener('input', (e) => {
+  const field = e.target.closest('[data-action="set-echangeur"]');
+  if (!field) return;
+  state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+});
+document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
+  const field = e.target.closest('[data-action="set-echangeur"]');
+  if (!field) return;
+  state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+});
+
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('mesSubstation').value);
   if (!substation) {
@@ -467,6 +609,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
     id: `MES_${Date.now()}`,
     substation_id: substation.id,
     checks: JSON.parse(JSON.stringify(state.mesChecks)),
+    poste: JSON.parse(JSON.stringify(state.mesPoste)),
     notes: document.getElementById('mesNotes').value,
     date: new Date().toLocaleString('fr-FR'),
     ts: Date.now(),
@@ -476,10 +619,14 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
   state.mesSessions.push(session);
   document.getElementById('mesNotes').value = '';
   document.getElementById('mesSubstation').value = '';
+  document.getElementById('mesRepresentantClient').value = '';
+  document.getElementById('mesNbEchangeurs').value = 1;
   resetMesChecks();
   ui.renderMesChecks();
+  ui.renderMesCasPosteSelect();
+  ui.renderMesEchangeurs();
   ui.renderMesHistory();
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Session MES enregistrée');
 });
 
@@ -491,7 +638,7 @@ document.getElementById('mesHistoryList').addEventListener('click', async (e) =>
   await dbLayer.queueSync('mes_session', 'delete', { id });
   state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
   ui.renderMesHistory();
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
 // ===== HISTORIQUE =====
@@ -522,7 +669,173 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
   } else {
     return;
   }
-  ui.renderHistorique();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+});
+
+document.getElementById('histSearch').addEventListener('input', (e) => {
+  ui.renderHistorique(histFilter, e.target.value);
+});
+
+document.getElementById('histFilterChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  histFilter = chip.dataset.filter;
+  document.querySelectorAll('#histFilterChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+});
+
+document.getElementById('exportExcelBtn').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') {
+    ui.showToast('Export Excel indisponible hors-ligne pour l\'instant');
+    return;
+  }
+  const rows = state.rondes.map((r) => {
+    const substation = state.substations.find((s) => s.id === r.substation_id);
+    const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
+    return {
+      Date: r.date || '',
+      Heure: r.heure || '',
+      'Sous-station': substation ? substation.name : r.substation_id,
+      Intervenant: r.tech || '',
+      Statut: r.statut || '',
+      Anomalies: anomalies.map((a) => a.label).join(', '),
+      Observations: r.observations || '',
+    };
+  });
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Rondes');
+  XLSX.writeFile(workbook, `Historique_Ronde_V6_${Date.now()}.xlsx`);
+});
+
+document.getElementById('exportBackupBtn').addEventListener('click', async () => {
+  const backup = {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    substations: await dbLayer.getAll('substations'),
+    rondes: await dbLayer.getAll('rondes'),
+    fiches: await dbLayer.getAll('fiches'),
+    actions: await dbLayer.getAll('actions'),
+    mes: await dbLayer.getAll('mes'),
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sauvegarde_ronde_v6_${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  ui.showToast('Sauvegarde téléchargée');
+});
+
+document.getElementById('importBackupBtn').addEventListener('click', () => {
+  document.getElementById('importBackupFile').click();
+});
+
+document.getElementById('importBackupFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    for (const store of ['substations', 'rondes', 'fiches', 'actions', 'mes']) {
+      if (Array.isArray(backup[store])) {
+        await dbLayer.putAll(store, backup[store]);
+        for (const item of backup[store]) {
+          const entityType = { substations: 'substation', rondes: 'ronde', fiches: 'fiche', actions: 'action', mes: 'mes_session' }[store];
+          await dbLayer.queueSync(entityType, 'upsert', item);
+        }
+      }
+    }
+    await loadAppData();
+    ui.showToast('Sauvegarde importée');
+  } catch (err) {
+    ui.showToast('Fichier de sauvegarde invalide');
+  }
+  e.target.value = '';
+});
+
+document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
+  if (!window.confirm('Effacer tout l\'historique local (rondes, actions, fiches ajoutées, sessions MES) ? Cette action est irréversible sur cet appareil.')) return;
+  for (const r of state.rondes) await dbLayer.queueSync('ronde', 'delete', { id: r.id });
+  for (const a of state.actions) await dbLayer.queueSync('action', 'delete', { id: a.id });
+  for (const f of state.fiches.filter((f) => !f.is_reference)) await dbLayer.queueSync('fiche', 'delete', { id: f.id });
+  for (const m of state.mesSessions) await dbLayer.queueSync('mes_session', 'delete', { id: m.id });
+  await dbLayer.clearStore('rondes');
+  await dbLayer.clearStore('actions');
+  await dbLayer.clearStore('mes');
+  state.rondes = [];
+  state.actions = [];
+  state.fiches = state.fiches.filter((f) => f.is_reference);
+  state.mesSessions = [];
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.renderActions();
+  ui.renderBilanStats();
+  ui.renderMesHistory();
+  ui.showToast('Historique effacé');
+  syncNow().catch(() => {});
+});
+
+// ===== BILAN AVANCÉ =====
+document.getElementById('weeklyReportBtn').addEventListener('click', () => {
+  if (typeof html2pdf === 'undefined') {
+    ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
+    return;
+  }
+  const rondesWeek = state.rondes.filter((r) => {
+    if (!r.date) return false;
+    const diff = (Date.now() - new Date(r.date).getTime()) / 86400000;
+    return diff >= 0 && diff <= 7;
+  });
+  const container = document.createElement('div');
+  container.style.padding = '16px';
+  container.innerHTML = `
+    <h2>Rapport hebdomadaire — Ronde V6 IDEX</h2>
+    <p>Généré le ${new Date().toLocaleString('fr-FR')}</p>
+    <p>${rondesWeek.length} ronde(s) sur les 7 derniers jours</p>
+    <ul>
+      ${rondesWeek
+        .map((r) => {
+          const s = state.substations.find((x) => x.id === r.substation_id);
+          return `<li>${r.date} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
+        })
+        .join('')}
+    </ul>
+    <h3>Actions en attente</h3>
+    <ul>
+      ${state.actions
+        .filter((a) => !a.done)
+        .map((a) => `<li>[${a.severity}] ${a.text}</li>`)
+        .join('')}
+    </ul>
+  `;
+  html2pdf()
+    .set({ margin: 10, filename: `Rapport_hebdo_${Date.now()}.pdf`, jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' } })
+    .from(container)
+    .save();
+});
+
+document.getElementById('siteThresholdDays').addEventListener('change', (e) => {
+  const days = Math.max(1, Number(e.target.value) || 30);
+  localStorage.setItem('site_threshold_days_v6', String(days));
+  ui.renderSitesNonVisites(days);
+});
+
+document.getElementById('enableRemindersBtn').addEventListener('click', async () => {
+  if (!('Notification' in window)) {
+    ui.showToast('Notifications non supportées sur cet appareil');
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    ui.showToast('Autorisation refusée');
+    return;
+  }
+  localStorage.setItem('reminders_enabled_v6', '1');
+  ui.showToast('Rappels activés (tant que l\'app est ouverte)');
+  checkOverdueReminders();
 });
 
 // ===== DIAGNOSTIC IA =====

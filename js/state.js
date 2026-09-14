@@ -71,24 +71,74 @@ export const MES_POINTS_DEF = [
 
 export const URGENCE_LABEL = { immediat: 'Immédiat', a_planifier: 'À planifier', a_surveiller: 'À surveiller' };
 
+// Les 8 cas de poste réels IDEX La Défense (procédure de chargement/paramétrage
+// automates SST). Libellés extraits automatiquement du PDF — à vérifier avec
+// Axel si un doute (deux lignes source portent le même libellé "1 échangeur
+// froid (non Asstek)" avec des codes cas différents, probablement G1a=Asstek
+// et G1=non Asstek malgré le texte extrait).
+export const CAS_POSTE_TYPES = [
+  { cas: 8, code: 'C1', designation: '1 échangeur chaud', exemple: '40801 (Micro850)' },
+  { cas: 9, code: 'C2', designation: '2 échangeurs chauds', exemple: '40301 (Micro850)' },
+  { cas: 10, code: 'C3', designation: '3 échangeurs chauds', exemple: '10301 (Micro850)' },
+  { cas: 3, code: 'G1a', designation: '1 échangeur froid (non Asstek)', exemple: 'B1201 (Micro850)' },
+  { cas: 11, code: 'G1aC1', designation: '1 échangeur froid Asstek + 1 échangeur chaud', exemple: 'A0201 (Micro850)' },
+  { cas: 14, code: 'G1C1', designation: '1 échangeur froid + 1 échangeur chaud', exemple: '91201 (Micro870)' },
+  { cas: 15, code: 'G1C2', designation: '1 échangeur froid + 2 échangeurs chauds', exemple: '21401 (Micro870E)' },
+  { cas: 1, code: 'G1', designation: '1 échangeur froid (non Asstek)', exemple: 'C0201 (Micro870E)' },
+];
+
+export const RONDE_STATUTS = [
+  { id: 'operationnel', label: 'Opérationnel' },
+  { id: 'reserve', label: 'Opérationnel avec réserve' },
+  { id: 'arret', label: 'Arrêt / intervention requise' },
+];
+
+export function emptyEchangeur() {
+  return {
+    type_boucle: 'chaude',
+    n_contrat: '',
+    n_installation: '',
+    n_client: '',
+    puissance_nominale: '',
+    debit_nominal: '',
+    t_aller_nominale: '',
+    t_retour_nominale: '',
+    adresse_compteur: '',
+    type_compteur: 'kamstrup',
+  };
+}
+
+export function emptyPoste() {
+  return {
+    representant_client: '',
+    cas_poste: '',
+    nb_echangeurs: 1,
+    echangeurs: [emptyEchangeur()],
+  };
+}
+
 export const state = {
   user: null,
   currentTab: 'ronde',
   substations: [],
-  controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null })),
+  controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
+  rondeStatut: 'operationnel',
   fiches: [],
   actions: [],
   mesSessions: [],
   mesChecks: MES_POINTS_DEF.map((p) => ({ ...p, status: null, valeur: '', commentaire: '' })),
+  mesPoste: emptyPoste(),
   rondes: [],
   lastDiagnostic: null,
   pendingGeoSubstation: null,
 };
 
 export function resetControls() {
-  state.controls = CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null }));
+  state.controls = CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
+  state.rondeStatut = 'operationnel';
 }
 
 export function resetMesChecks() {
   state.mesChecks = MES_POINTS_DEF.map((p) => ({ ...p, status: null, valeur: '', commentaire: '' }));
+  state.mesPoste = emptyPoste();
 }

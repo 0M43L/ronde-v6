@@ -58,5 +58,89 @@
     "title": "Local technique encombré ou sale",
     "cause_probable": "Stockage de matériel non lié à la sous-station, absence de nettoyage régulier.",
     "solution": "Dégager les accès aux organes de coupure/vannes, signaler à l'exploitant si stockage tiers récurrent."
+  },
+  {
+    "id": "REF-DEFAUT-PORTE-TABLEAU",
+    "title": "Défaut ouverture de porte tableau électrique",
+    "cause_probable": "Porte du tableau restée ouverte ou mal fermée, contact de détection de porte défaillant ou déréglé.",
+    "solution": "Fermer et verrouiller la porte, contrôler le contact de détection et son câblage, réarmer si nécessaire."
+  },
+  {
+    "id": "REF-DEFAUT-ELECTRIQUE-TABLEAU",
+    "title": "Défaut électrique dans le tableau",
+    "cause_probable": "Disjoncteur déclenché, court-circuit, protection défaillante ou surcharge.",
+    "solution": "Identifier le circuit en défaut avant réarmement, contrôler l'isolement, ne jamais réarmer plusieurs fois sans diagnostic."
+  },
+  {
+    "id": "REF-DEFAUT-24VCC",
+    "title": "Défaut 24VCC",
+    "cause_probable": "Alimentation logique automate/vannes proportionnelles/capteurs instable ou coupée (tension hors plage ±5%).",
+    "solution": "Contrôler la tension 24VCC en sortie d'alimentation, vérifier le transformateur/redresseur et les fusibles associés."
+  },
+  {
+    "id": "REF-DEFAUT-COMPTEUR-MODBUS",
+    "title": "Défaut Compteur MODBUS",
+    "cause_probable": "Perte de communication Modbus/JBUS avec le compteur d'énergie (câblage, adresse, alimentation compteur).",
+    "solution": "Vérifier le câblage du bus, l'adresse Modbus configurée dans l'automate, l'alimentation du compteur."
+  },
+  {
+    "id": "REF-DEFAUT-COMM-COMPTEUR-CHALEUR-FROID",
+    "title": "Défaut de communication avec le compteur chaleur/froid",
+    "cause_probable": "Ce défaut rend permanente la demande de marche en automatique et inhibe les limitations de puissance et débit (comportement de repli automate documenté).",
+    "solution": "Vérifier la liaison JBUS/Modbus vers le compteur, relancer la communication ; en dernier recours ce défaut peut être inhibé depuis la supervision."
+  },
+  {
+    "id": "REF-SONDE-TEMP-ALLER-ABONNE-HS",
+    "title": "Sonde de température aller abonné hors service",
+    "cause_probable": "Sonde débranchée, en court-circuit ou en rupture.",
+    "solution": "Contrôler le câblage et la résistance de la sonde (comparer à la table PT100/PT1000 selon le type), remplacer si hors tolérance."
+  },
+  {
+    "id": "REF-SONDE-TEMP-RETOUR-ABONNE-HS",
+    "title": "Sonde de température retour abonné hors service",
+    "cause_probable": "Sonde débranchée, en court-circuit ou en rupture.",
+    "solution": "Contrôler le câblage et la résistance de la sonde, remplacer si hors tolérance."
+  },
+  {
+    "id": "REF-SONDE-PRESSION-ALLER-HS",
+    "title": "Sonde de pression aller hors service",
+    "cause_probable": "Capteur déconnecté, hors échelle, ou défaillant.",
+    "solution": "Contrôler le câblage 4-20mA ou 0-10V, comparer à une mesure manometrique de référence, remplacer si nécessaire."
+  },
+  {
+    "id": "REF-SONDE-DELTA-PRESSION-HS",
+    "title": "Sonde de delta pression primaire hors service",
+    "cause_probable": "Capteur différentiel déconnecté ou défaillant, prises de pression bouchées.",
+    "solution": "Vérifier les deux prises de pression (amont/aval) et leur perméabilité, contrôler le câblage du capteur, remplacer si nécessaire."
+  },
+  {
+    "id": "REF-TEMP-REGULEE-ELEVEE",
+    "title": "Température régulée élevée chaleur/froid",
+    "cause_probable": "Vanne de régulation bloquée ouverte, sonde de température mal positionnée ou déréglée, consigne mal calculée.",
+    "solution": "Contrôler la fermeture effective de la vanne de régulation, vérifier le positionnement de la sonde, recalculer la consigne (loi d'eau/coefficient K)."
+  },
+  {
+    "id": "REF-VANNE-REGULATION-FUYARDE",
+    "title": "Vanne de régulation fuyarde",
+    "cause_probable": "Condition automate documentée : la vanne est complètement fermée alors que le débit mesuré reste supérieur à 0,1 m³/h pendant plus de 30 minutes — signe d'un clapet qui ne ferme plus complètement.",
+    "solution": "Contrôler l'étanchéité du clapet de la vanne, resserrer le presse-étoupe, prévoir un remplacement si la fuite est confirmée en position fermée."
+  },
+  {
+    "id": "REF-DEBIT-LIVRAISON-INSUFFISANT",
+    "title": "Débit de livraison insuffisant",
+    "cause_probable": "Condition automate documentée : la vanne est complètement ouverte alors que le débit mesuré reste inférieur au débit nominal -25% pendant plus de 30 minutes.",
+    "solution": "Vérifier la pompe primaire (fonctionnement, sens de rotation), contrôler un éventuel filtre encrassé, s'assurer qu'aucune vanne d'isolement n'est partiellement fermée en amont."
+  },
+  {
+    "id": "REF-PRESSION-ALLER-BASSE",
+    "title": "Pression aller primaire basse",
+    "cause_probable": "Condition automate documentée : la pression aller mesurée est inférieure à la consigne de seuil bas paramétrée (seuil dépendant de la position du poste sur le réseau).",
+    "solution": "Vérifier la pression du réseau primaire au point de livraison ; si la baisse est générale sur le secteur, remonter immédiatement à l'exploitant réseau plutôt que d'intervenir localement."
+  },
+  {
+    "id": "REF-DELTA-PRESSION-BAS",
+    "title": "Delta pression primaire bas",
+    "cause_probable": "Perte de charge insuffisante dans le circuit : pompe primaire faible, vanne de régulation bloquée, filtre encrassé.",
+    "solution": "Contrôler le fonctionnement de la pompe primaire, la course de la vanne de régulation, et l'état du filtre/crépine."
   }
 ]

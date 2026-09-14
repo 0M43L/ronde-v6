@@ -48,11 +48,12 @@ async function syncItem(item, userId) {
   switch (entity_type) {
     case 'ronde':
       return db.execute({
-        sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 date = excluded.date, heure = excluded.heure, tech = excluded.tech,
-                controls_json = excluded.controls_json, observations = excluded.observations`,
+                controls_json = excluded.controls_json, observations = excluded.observations,
+                statut = excluded.statut`,
         args: [
           payload.id,
           payload.substation_id,
@@ -62,6 +63,7 @@ async function syncItem(item, userId) {
           payload.tech || null,
           JSON.stringify(payload.controls || []),
           payload.observations || '',
+          payload.statut || 'operationnel',
         ],
       });
 
@@ -116,10 +118,10 @@ async function syncItem(item, userId) {
 
     case 'mes_session':
       return db.execute({
-        sql: `INSERT INTO mes_sessions (id, substation_id, user_id, checks_json, notes)
-              VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET checks_json = excluded.checks_json, notes = excluded.notes`,
-        args: [payload.id, payload.substation_id || null, userId, JSON.stringify(payload.checks || []), payload.notes || ''],
+        sql: `INSERT INTO mes_sessions (id, substation_id, user_id, checks_json, poste_json, notes)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET checks_json = excluded.checks_json, poste_json = excluded.poste_json, notes = excluded.notes`,
+        args: [payload.id, payload.substation_id || null, userId, JSON.stringify(payload.checks || []), JSON.stringify(payload.poste || {}), payload.notes || ''],
       });
 
     default:
