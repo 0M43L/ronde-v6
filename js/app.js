@@ -799,7 +799,7 @@ document.getElementById('weeklyReportBtn').addEventListener('click', () => {
       ${rondesWeek
         .map((r) => {
           const s = state.substations.find((x) => x.id === r.substation_id);
-          return `<li>${r.date} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
+          return `<li>${ui.formatDateFr(r.date)} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
         })
         .join('')}
     </ul>

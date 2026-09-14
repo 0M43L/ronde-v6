@@ -280,8 +280,18 @@ export function renderMesEchangeurs() {
             </select>
           </div>
           <div class="form-group">
-            <label>N° contrat / installation</label>
+            <label>N° contrat</label>
             <input type="text" data-action="set-echangeur" data-field="n_contrat" data-index="${i}" value="${escapeHtml(e.n_contrat)}" placeholder="ex. 4C012750">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>N° installation</label>
+            <input type="text" data-action="set-echangeur" data-field="n_installation" data-index="${i}" value="${escapeHtml(e.n_installation)}">
+          </div>
+          <div class="form-group">
+            <label>N° client</label>
+            <input type="text" data-action="set-echangeur" data-field="n_client" data-index="${i}" value="${escapeHtml(e.n_client)}">
           </div>
         </div>
         <div class="form-row">
@@ -391,6 +401,12 @@ export function renderMesHistory() {
 }
 
 // ===== HISTORIQUE (unifié) =====
+export function formatDateFr(isoDate) {
+  if (!isoDate) return '';
+  const [y, m, d] = isoDate.split('-');
+  return y && m && d ? `${d}/${m}/${y}` : isoDate;
+}
+
 export function buildHistoriqueItems() {
   const items = [];
   state.rondes.forEach((r) => {
@@ -400,7 +416,7 @@ export function buildHistoriqueItems() {
       type: 'Ronde',
       ts: r.ts || 0,
       title: substation ? substation.name : r.substation_id,
-      meta: `${r.date || ''} ${r.heure || ''} · ${r.tech || ''}`,
+      meta: `${formatDateFr(r.date)} ${r.heure || ''} · ${r.tech || ''}`,
       body: r.observations,
       deleteAction: 'delete-ronde',
       id: r.id,
