@@ -519,17 +519,28 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;
   }
-  const element = document.getElementById('page-ronde');
+  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed; left:-9999px; top:0; width:780px;';
+  container.innerHTML = ui.buildRondeReportHtml({
+    substation,
+    tech: document.getElementById('rondeTech').value,
+    date: document.getElementById('rondeDate').value,
+    heure: document.getElementById('rondeHeure').value,
+    observations: document.getElementById('rondeObservations').value,
+  });
+  document.body.appendChild(container);
   html2pdf()
     .set({
       margin: 10,
-      filename: `Ronde_${Date.now()}.pdf`,
+      filename: `Ronde_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`,
       image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2 },
       jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
     })
-    .from(element)
-    .save();
+    .from(container)
+    .save()
+    .then(() => container.remove());
 });
 
 // ===== FICHES =====
@@ -891,22 +902,55 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     ui.showToast('Export Excel indisponible hors-ligne pour l\'instant');
     return;
   }
-  const rows = state.rondes.map((r) => {
+  const STATUT_LABEL = { operationnel: 'Opérationnel', reserve: 'Opérationnel avec réserve', arret: 'Arrêt / intervention requise' };
+  const rondesSorted = state.rondes.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const rondeHeaders = ['Date', 'Heure', 'Sous-station', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
+  const rondeRows = rondesSorted.map((r) => {
     const substation = state.substations.find((s) => s.id === r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
-    return {
-      Date: r.date || '',
-      Heure: r.heure || '',
-      'Sous-station': substation ? substation.name : r.substation_id,
-      Intervenant: r.tech || '',
-      Statut: r.statut || '',
-      Anomalies: anomalies.map((a) => a.label).join(', '),
-      Observations: r.observations || '',
-    };
+    return [
+      r.date || '', r.heure || '', substation ? substation.name : r.substation_id, r.tech || '',
+      STATUT_LABEL[r.statut] || r.statut || '', anomalies.length,
+      anomalies.map((a) => a.label).join(', '), r.observations || '',
+    ];
   });
-  const sheet = XLSX.utils.json_to_sheet(rows);
+  const rondeSheet = XLSX.utils.aoa_to_sheet([
+    [`Historique des rondes — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
+    [`${rondesSorted.length} ronde(s)`],
+    [],
+    rondeHeaders,
+    ...rondeRows,
+  ]);
+  rondeSheet['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 45 }];
+  rondeSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: rondeHeaders.length - 1 } }];
+  rondeSheet['!autofilter'] = { ref: `A4:${String.fromCharCode(65 + rondeHeaders.length - 1)}${4 + rondeRows.length}` };
+  rondeSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
+
+  const SEVERITY_LABEL = { danger: 'Urgent', warning: 'À surveiller', none: 'Info' };
+  const actionHeaders = ['Statut', 'Gravité', 'Sous-station', 'Description', 'Intervenant', 'Date', 'Origine'];
+  const actionRows = state.actions.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((a) => {
+    const substation = state.substations.find((s) => s.id === a.substation_id);
+    return [
+      a.done ? 'Traitée' : 'En attente', SEVERITY_LABEL[a.severity] || a.severity || '',
+      substation ? substation.name : (a.substation_id || ''), a.text || '', a.tech || '', a.date || '',
+      a.source === 'ronde' ? 'Ronde' : 'Manuelle',
+    ];
+  });
+  const actionSheet = XLSX.utils.aoa_to_sheet([
+    [`Actions — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
+    [`${actionRows.length} action(s)`],
+    [],
+    actionHeaders,
+    ...actionRows,
+  ]);
+  actionSheet['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 45 }, { wch: 16 }, { wch: 16 }, { wch: 10 }];
+  actionSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: actionHeaders.length - 1 } }];
+  actionSheet['!autofilter'] = { ref: `A4:${String.fromCharCode(65 + actionHeaders.length - 1)}${4 + actionRows.length}` };
+  actionSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
+
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Rondes');
+  XLSX.utils.book_append_sheet(workbook, rondeSheet, 'Rondes');
+  XLSX.utils.book_append_sheet(workbook, actionSheet, 'Actions');
   XLSX.writeFile(workbook, `Historique_Ronde_V6_${Date.now()}.xlsx`);
 });
 
@@ -1008,37 +1052,21 @@ document.getElementById('weeklyReportBtn').addEventListener('click', () => {
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;
   }
-  const rondesWeek = state.rondes.filter((r) => {
-    if (!r.date) return false;
-    const diff = (Date.now() - new Date(r.date).getTime()) / 86400000;
-    return diff >= 0 && diff <= 7;
-  });
   const container = document.createElement('div');
-  container.style.padding = '16px';
-  container.innerHTML = `
-    <h2>Rapport hebdomadaire — Ronde V6 IDEX</h2>
-    <p>Généré le ${new Date().toLocaleString('fr-FR')}</p>
-    <p>${rondesWeek.length} ronde(s) sur les 7 derniers jours</p>
-    <ul>
-      ${rondesWeek
-        .map((r) => {
-          const s = state.substations.find((x) => x.id === r.substation_id);
-          return `<li>${ui.formatDateFr(r.date)} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
-        })
-        .join('')}
-    </ul>
-    <h3>Actions en attente</h3>
-    <ul>
-      ${state.actions
-        .filter((a) => !a.done)
-        .map((a) => `<li>[${a.severity}] ${a.text}</li>`)
-        .join('')}
-    </ul>
-  `;
+  container.style.cssText = 'position:fixed; left:-9999px; top:0; width:780px;';
+  container.innerHTML = ui.buildWeeklyReportHtml();
+  document.body.appendChild(container);
   html2pdf()
-    .set({ margin: 10, filename: `Rapport_hebdo_${Date.now()}.pdf`, jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' } })
+    .set({
+      margin: 10,
+      filename: `Rapport_hebdo_${Date.now()}.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+    })
     .from(container)
-    .save();
+    .save()
+    .then(() => container.remove());
 });
 
 document.getElementById('siteThresholdDays').addEventListener('change', (e) => {
