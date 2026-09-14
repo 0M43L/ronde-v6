@@ -262,13 +262,18 @@ export function renderDiagnostic(result) {
 
 // ===== FICHES (base de connaissances) =====
 // Catégorisation par mots-clés (déduite du contenu, pas de champ en base) —
-// sert uniquement à filtrer/parcourir rapidement la base complète des fiches,
-// par exemple pour retrouver et montrer une procédure précise à un collègue.
+// sert à parcourir la base comme un catalogue (grille de catégories, puis
+// liste au tap), sur le modèle de l'app de référence d'Axel : symptômes/
+// composants précis plutôt qu'un seul gros bloc "Hydraulique".
 const FICHE_CATEGORIES = [
-  { key: 'hydraulique', label: 'Hydraulique', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'vanne', 'purge', 'calorifuge', 'corrosion', 'entartrage', 'echangeur', 'joint', 'debit', 'bruit', 'vibration', 'cavitation'] },
+  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord'] },
+  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage'] },
+  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre'] },
+  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques'] },
+  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'circuit', 'tuyauterie', 'air', 'debit', 'delta'] },
   { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
-  { key: 'regulation', label: 'Régulation', icon: 'gauge', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable'] },
-  { key: 'instrumentation', label: 'Instrumentation / Compteur', icon: 'thermometer', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature'] },
   { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
   { key: 'general', label: 'Général', icon: 'building', colorVar: '--text-muted', softVar: '--neutral-soft', keywords: ['proprete', 'local', 'acces'] },
 ];
@@ -288,21 +293,6 @@ function classifyFiche(f) {
   return best ? best.key : 'general';
 }
 
-export function renderFicheCategoryChips(activeCategory = 'toutes') {
-  const el = document.getElementById('ficheCategoryChips');
-  if (!el) return;
-  const present = new Set(state.fiches.map((f) => classifyFiche(f)));
-  const cats = FICHE_CATEGORIES.filter((c) => present.has(c.key));
-  el.innerHTML =
-    `<button class="chip ${activeCategory === 'toutes' ? 'active' : ''}" data-category="toutes">Toutes (${state.fiches.length})</button>` +
-    cats
-      .map((c) => {
-        const count = state.fiches.filter((f) => classifyFiche(f) === c.key).length;
-        return `<button class="chip ${activeCategory === c.key ? 'active' : ''}" data-category="${c.key}">${escapeHtml(c.label)} (${count})</button>`;
-      })
-      .join('');
-}
-
 // Repliées par défaut : on ne garde que ce que le technicien a explicitement
 // ouvert, pour que la liste reste un repérage visuel rapide (icône + couleur
 // + titre) plutôt qu'un mur de texte à faire défiler.
@@ -311,6 +301,22 @@ const expandedFicheIds = new Set();
 export function toggleFicheExpanded(id) {
   if (expandedFicheIds.has(id)) expandedFicheIds.delete(id);
   else expandedFicheIds.add(id);
+}
+
+// Niveau du catalogue actuellement affiché : null = grille des catégories,
+// 'toutes' = liste complète, ou une clé de FICHE_CATEGORIES = liste filtrée.
+let ficheCatalogView = null;
+
+export function openFicheCategory(key) {
+  ficheCatalogView = key;
+}
+
+export function backToFicheCatalog() {
+  ficheCatalogView = null;
+}
+
+export function getFicheCatalogView() {
+  return ficheCatalogView;
 }
 
 function truncate(str, n) {
@@ -346,13 +352,40 @@ function renderFicheTile(f, autoExpand) {
     </div>`;
 }
 
-export function renderFiches(searchTerm = '', category = 'toutes') {
+function renderFicheCatalogGrid() {
+  const present = FICHE_CATEGORIES.filter((cat) => state.fiches.some((f) => classifyFiche(f) === cat.key));
+  const allTile = `
+    <div class="fiche-cat-tile fiche-cat-all" data-action="open-fiche-category" data-category="toutes">
+      <div class="fc-icon">${icon('search', 26)}</div>
+      <div class="fc-label">Toutes les fiches</div>
+      <div class="fc-count">${state.fiches.length} fiche${state.fiches.length > 1 ? 's' : ''}</div>
+    </div>`;
+  const catTiles = present
+    .map((cat) => {
+      const count = state.fiches.filter((f) => classifyFiche(f) === cat.key).length;
+      return `
+    <div class="fiche-cat-tile" style="--cat-color:var(${cat.colorVar});" data-action="open-fiche-category" data-category="${cat.key}">
+      <div class="fc-icon">${icon(cat.icon, 26)}</div>
+      <div class="fc-label">${escapeHtml(cat.label)}</div>
+      <div class="fc-count">${count} fiche${count > 1 ? 's' : ''}</div>
+    </div>`;
+    })
+    .join('');
+  return `${allTile}<div class="fiche-cat-grid">${catTiles}</div>`;
+}
+
+export function renderFiches(searchTerm = '') {
   const list = document.getElementById('fichesList');
   const needle = searchTerm.trim().toLowerCase();
-  const isFiltering = Boolean(needle) || category !== 'toutes';
+
+  if (!needle && !ficheCatalogView) {
+    // Niveau 1 : grille du catalogue, sans lire le contenu d'aucune fiche.
+    list.innerHTML = renderFicheCatalogGrid();
+    return;
+  }
 
   const filtered = state.fiches.filter((f) => {
-    if (category !== 'toutes' && classifyFiche(f) !== category) return false;
+    if (!needle && ficheCatalogView && ficheCatalogView !== 'toutes' && classifyFiche(f) !== ficheCatalogView) return false;
     if (!needle) return true;
     return (
       f.title.toLowerCase().includes(needle) ||
@@ -361,38 +394,17 @@ export function renderFiches(searchTerm = '', category = 'toutes') {
     );
   });
 
+  const backBar = `<button class="site-back" data-action="back-to-fiche-catalog">${icon('arrowLeft', 14)} Retour au catalogue</button>`;
+
   if (filtered.length === 0) {
-    list.innerHTML = `<div class="empty-state">${icon('clipboard', 32)}<p>Aucune fiche</p></div>`;
+    list.innerHTML = backBar + `<div class="empty-state">${icon('clipboard', 32)}<p>Aucune fiche</p></div>`;
     return;
   }
 
-  // Si une recherche/filtre ne laisse qu'une poignée de résultats, autant les
-  // montrer dépliés directement plutôt que d'imposer un tap supplémentaire.
-  const autoExpand = isFiltering && filtered.length <= 3;
-
-  if (isFiltering) {
-    // Résultat de recherche/filtre : liste à plat, peu importe la catégorie.
-    list.innerHTML = filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
-    return;
-  }
-
-  // Vue catalogue par défaut : sections par catégorie (comme des chapitres),
-  // pour parcourir toute la base organisée plutôt qu'une liste indifférenciée.
-  const sections = FICHE_CATEGORIES.filter((cat) => filtered.some((f) => classifyFiche(f) === cat.key));
-  list.innerHTML = sections
-    .map((cat) => {
-      const items = filtered.filter((f) => classifyFiche(f) === cat.key);
-      return `
-    <div class="fiche-section">
-      <div class="fiche-section-header" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});">
-        <div class="fiche-section-icon">${icon(cat.icon, 15)}</div>
-        <span class="fiche-section-label">${escapeHtml(cat.label)}</span>
-        <span class="fiche-section-count">${items.length}</span>
-      </div>
-      ${items.map((f) => renderFicheTile(f, false)).join('')}
-    </div>`;
-    })
-    .join('');
+  // Une recherche/filtre qui ne laisse qu'une poignée de résultats : autant
+  // les montrer dépliés directement plutôt que d'imposer un tap de plus.
+  const autoExpand = filtered.length <= 3;
+  list.innerHTML = backBar + filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
 }
 
 // ===== ACTIONS =====

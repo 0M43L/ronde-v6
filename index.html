@@ -150,16 +150,7 @@
 
     <!-- FICHES -->
     <div class="page" id="page-fiches">
-      <div class="card">
-        <div class="card-body">
-          <div class="form-group" style="margin:0;">
-            <input type="text" id="ficheSearch" placeholder="Rechercher une panne, une cause, une solution...">
-          </div>
-          <div class="filter-chips" id="ficheCategoryChips"></div>
-        </div>
-      </div>
-
-      <button class="btn btn-secondary" id="toggleAddFicheBtn" style="width:100%; margin-bottom:14px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une fiche</button>
+      <button class="btn-outline-accent" id="toggleAddFicheBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Créer une fiche terrain</button>
       <div class="card" id="addFicheCard" hidden>
         <div class="card-header">Nouvelle fiche</div>
         <div class="card-body">
@@ -177,6 +168,9 @@
           </div>
           <button class="btn" id="addFicheBtn">Ajouter la fiche</button>
         </div>
+      </div>
+      <div class="form-group">
+        <input type="text" id="ficheSearch" placeholder="Rechercher un symptôme, équipement...">
       </div>
       <div id="fichesList"></div>
     </div>

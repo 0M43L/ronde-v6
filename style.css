@@ -486,25 +486,31 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .fiche-tile-detail dt { color: var(--text-muted); font-weight: 600; }
 .fiche-tile-detail dd { color: var(--text); }
 
-/* ===== FICHES : sections du catalogue ===== */
-.fiche-section { margin-bottom: 18px; }
-.fiche-section:last-child { margin-bottom: 0; }
-.fiche-section-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 2px; margin-bottom: 8px;
-  font-size: 12px; font-weight: 700; color: var(--cat-color, var(--text));
-  text-transform: uppercase; letter-spacing: .04em;
+/* ===== FICHES : catalogue (grille de catégories → liste au tap) ===== */
+.btn-outline-accent {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 13px; margin-bottom: 14px;
+  background: var(--accent-soft); color: var(--accent);
+  border: 1.5px solid var(--accent); border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 700; cursor: pointer;
 }
-.fiche-section-icon {
-  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--cat-soft, var(--neutral-soft)); color: var(--cat-color, var(--text-muted));
+.btn-outline-accent:active { background: var(--accent); color: var(--accent-contrast); }
+
+.fiche-cat-tile {
+  background: var(--bg-elevated); border: 1.5px solid var(--border); border-radius: var(--radius);
+  padding: 18px 10px; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
-.fiche-section-label { flex: 1; }
-.fiche-section-count {
-  font-size: 11px; font-weight: 700; color: var(--text-muted);
-  background: var(--neutral-soft); border-radius: 999px; padding: 1px 8px;
-}
+.fiche-cat-tile:active { background: var(--neutral-soft); }
+.fiche-cat-tile .fc-icon { color: var(--cat-color, var(--text-muted)); }
+.fiche-cat-tile .fc-label { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+.fiche-cat-tile .fc-count { font-size: 11px; color: var(--text-muted); }
+
+.fiche-cat-all { border-color: var(--accent); margin-bottom: 12px; }
+.fiche-cat-all .fc-icon { color: var(--accent); }
+.fiche-cat-all .fc-label { font-size: 13.5px; }
+
+.fiche-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 
 /* ===== HISTORIQUE (unifié) ===== */
 .hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }

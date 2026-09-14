@@ -187,8 +187,7 @@ async function loadAppData() {
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
   ui.renderActionsRetardSite();
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
@@ -532,8 +531,6 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 });
 
 // ===== FICHES =====
-let ficheCategory = 'toutes';
-
 document.getElementById('toggleAddFicheBtn').addEventListener('click', () => {
   const card = document.getElementById('addFicheCard');
   card.hidden = !card.hidden;
@@ -562,21 +559,12 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
   state.fiches.push(fiche);
   ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
   document.getElementById('addFicheCard').hidden = true;
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Fiche ajoutée');
 });
 
-document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value, ficheCategory));
-
-document.getElementById('ficheCategoryChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (!chip) return;
-  ficheCategory = chip.dataset.category;
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
-});
+document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value));
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
   const delBtn = e.target.closest('[data-action="delete-fiche"]');
@@ -587,15 +575,27 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
     await dbLayer.remove('fiches', id);
     await dbLayer.queueSync('fiche', 'delete', { id });
     state.fiches = state.fiches.filter((f) => f.id !== id);
-    ui.renderFicheCategoryChips(ficheCategory);
-    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
+  }
+  const catTile = e.target.closest('[data-action="open-fiche-category"]');
+  if (catTile) {
+    ui.openFicheCategory(catTile.dataset.category);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
+    return;
+  }
+  const backBtn = e.target.closest('[data-action="back-to-fiche-catalog"]');
+  if (backBtn) {
+    ui.backToFicheCatalog();
+    document.getElementById('ficheSearch').value = '';
+    ui.renderFiches('');
     return;
   }
   const toggleEl = e.target.closest('[data-action="toggle-fiche"]');
   if (toggleEl) {
     ui.toggleFicheExpanded(toggleEl.dataset.id);
-    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
   }
 });
 
