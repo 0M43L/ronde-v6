@@ -57,6 +57,13 @@ export async function fetchSubstations() {
   return data.substations;
 }
 
+export async function fetchFiches() {
+  const res = await authedFetch('/api/fiches');
+  if (!res.ok) throw new Error('Impossible de récupérer les fiches');
+  const data = await res.json();
+  return data.fiches;
+}
+
 export async function pushSyncQueue(queue) {
   const res = await authedFetch('/api/sync', {
     method: 'POST',

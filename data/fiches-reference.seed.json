@@ -1,0 +1,62 @@
+[
+  {
+    "id": "REF-FUITE-JOINT",
+    "title": "Fuite au niveau d'un joint / raccord",
+    "cause_probable": "Joint vieilli ou mal serré, dilatation thermique répétée, corrosion du raccord.",
+    "solution": "Resserrer à couple, remplacer le joint (fibre/EPDM selon température), vérifier l'alignement des brides avant remontage."
+  },
+  {
+    "id": "REF-ENTARTRAGE-ECHANGEUR",
+    "title": "Perte de performance de l'échangeur (delta T faible)",
+    "cause_probable": "Entartrage/encrassement des plaques, débit primaire insuffisant, vanne de régulation bloquée partiellement ouverte.",
+    "solution": "Contrôler le delta T primaire/secondaire, démonter et détartrer l'échangeur si delta T anormalement faible malgré débit correct, vérifier le bon fonctionnement de la vanne de régulation."
+  },
+  {
+    "id": "REF-VANNE-GRIPPEE",
+    "title": "Vanne dure à manœuvrer / grippée",
+    "cause_probable": "Absence de manœuvre régulière, dépôt de tartre ou de boues sur le siège, corrosion de la tige.",
+    "solution": "Manœuvrer progressivement par à-coups, graisser le presse-étoupe, si échec prévoir remplacement de la vanne."
+  },
+  {
+    "id": "REF-BRUIT-CAVITATION",
+    "title": "Bruit / vibration anormale sur une vanne ou une pompe",
+    "cause_probable": "Cavitation (chute de pression trop importante), jeu mécanique, présence d'air dans le circuit, roulement de pompe usé.",
+    "solution": "Vérifier la pression amont/aval, purger le circuit, contrôler l'état des roulements de pompe, resserrer les fixations."
+  },
+  {
+    "id": "REF-COMPTEUR-INCOHERENT",
+    "title": "Compteur d'énergie avec valeurs incohérentes",
+    "cause_probable": "Sonde de température débranchée ou défaillante, débitmètre encrassé/bloqué, pile ou alimentation faible.",
+    "solution": "Vérifier les sondes (résistance/continuité), contrôler le débitmètre, relever et comparer avec le relevé précédent, remplacer la pile si applicable."
+  },
+  {
+    "id": "REF-CALORIFUGE-DEGRADE",
+    "title": "Calorifuge/isolation dégradé ou manquant",
+    "cause_probable": "Intervention précédente non remise en état, humidité ayant dégradé l'isolant, rongeurs.",
+    "solution": "Remplacer la coquille isolante, vérifier l'étanchéité du revêtement extérieur (alu/PVC), signaler si zone accessible au public (risque de brûlure)."
+  },
+  {
+    "id": "REF-PURGE-AIR",
+    "title": "Présence d'air dans le circuit (bruit, mauvaise circulation)",
+    "cause_probable": "Purge d'air mal fermée ou absente, appoint d'eau récent non dégazé, point haut sans purgeur.",
+    "solution": "Purger aux points hauts jusqu'à évacuation complète de l'air, vérifier l'étanchéité du purgeur automatique s'il existe."
+  },
+  {
+    "id": "REF-REGULATION-INSTABLE",
+    "title": "Régulation de température instable (oscillations)",
+    "cause_probable": "Paramètres PID mal réglés, sonde de température mal positionnée, vanne de régulation surdimensionnée ou grippée.",
+    "solution": "Vérifier le positionnement de la sonde, contrôler la course complète de la vanne, ajuster les paramètres de régulation si accès à l'automate, sinon remonter à l'exploitant."
+  },
+  {
+    "id": "REF-CORROSION-VISIBLE",
+    "title": "Corrosion visible sur tuyauterie ou équipement",
+    "cause_probable": "Humidité stagnante, défaut d'étanchéité à proximité, absence de traitement anticorrosion.",
+    "solution": "Nettoyer et évaluer la profondeur de la corrosion, traiter/protéger si superficielle, signaler en action prioritaire si tuyauterie sous pression touchée en profondeur."
+  },
+  {
+    "id": "REF-PROPRETE-LOCAL",
+    "title": "Local technique encombré ou sale",
+    "cause_probable": "Stockage de matériel non lié à la sous-station, absence de nettoyage régulier.",
+    "solution": "Dégager les accès aux organes de coupure/vannes, signaler à l'exploitant si stockage tiers récurrent."
+  }
+]

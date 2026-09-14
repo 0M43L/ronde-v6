@@ -58,7 +58,8 @@
     <div class="tab active" data-tab="ronde">Ronde</div>
     <div class="tab" data-tab="fiches">Fiches</div>
     <div class="tab" data-tab="actions">Actions</div>
-    <div class="tab" data-tab="bilan">Bilan &amp; Diagnostic</div>
+    <div class="tab" data-tab="bilan">Bilan</div>
+    <div class="tab" data-tab="diagnostic">Diagnostic</div>
     <div class="tab" data-tab="mes">MES</div>
     <div class="tab" data-tab="historique">Historique</div>
   </div>
@@ -82,7 +83,9 @@
           </div>
           <div class="form-group">
             <label>Sous-station</label>
-            <select id="rondeSubstation" required></select>
+            <input type="text" id="rondeSubstation" list="substationsDatalist" placeholder="Nom de la sous-station..." autocomplete="off">
+            <datalist id="substationsDatalist"></datalist>
+            <p class="hint">Tape librement — les suggestions existantes apparaissent, mais tu peux saisir un nom qui n'est pas encore connu.</p>
           </div>
           <div class="form-group" id="accessNotesGroup" style="display:none;">
             <label>Notes d'accès</label>
@@ -99,6 +102,7 @@
         <div class="card-header">Localisation</div>
         <div class="card-body">
           <div id="map"></div>
+          <button class="btn btn-secondary" id="registerGeoBtn" style="width:100%; margin-top:10px;">📍 Enregistrer cette position comme nouvelle sous-station</button>
         </div>
       </div>
 
@@ -125,23 +129,27 @@
     <!-- FICHES -->
     <div class="page" id="page-fiches">
       <div class="card">
-        <div class="card-header">Nouvelle fiche technique</div>
+        <div class="card-body">
+          <div class="form-group" style="margin:0;">
+            <input type="text" id="ficheSearch" placeholder="Rechercher une panne, une cause, une solution...">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Ajouter une fiche</div>
         <div class="card-body">
           <div class="form-group">
-            <label>Type</label>
-            <select id="ficheType">
-              <option value="">Type de fiche...</option>
-              <option value="maintenance">Maintenance préventive</option>
-              <option value="reparation">Réparation</option>
-              <option value="nettoyage">Nettoyage</option>
-              <option value="inspection">Inspection technique</option>
-              <option value="test">Test fonctionnel</option>
-              <option value="autre">Autre</option>
-            </select>
+            <label>Titre / panne</label>
+            <input type="text" id="ficheTitle" placeholder="Ex : Fuite au niveau du purgeur">
           </div>
           <div class="form-group">
-            <label>Description</label>
-            <textarea id="ficheDesc" placeholder="Détails..."></textarea>
+            <label>Cause probable</label>
+            <textarea id="ficheCause" placeholder="Ce qui provoque généralement ce problème..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Solution</label>
+            <textarea id="ficheSolution" placeholder="Comment le régler..."></textarea>
           </div>
           <button class="btn" id="addFicheBtn">Ajouter la fiche</button>
         </div>
@@ -157,25 +165,43 @@
           <div class="form-group">
             <textarea id="actionInput" placeholder="Ajouter une action à faire..."></textarea>
           </div>
+          <div class="form-group">
+            <label>Gravité</label>
+            <select id="actionSeverity">
+              <option value="none">Aucune</option>
+              <option value="warning">À surveiller</option>
+              <option value="danger">Urgent</option>
+            </select>
+          </div>
           <button class="btn" id="addActionBtn">Ajouter</button>
         </div>
       </div>
       <div id="actionsList"></div>
     </div>
 
-    <!-- BILAN & DIAGNOSTIC -->
+    <!-- BILAN -->
     <div class="page" id="page-bilan">
+      <div class="card">
+        <div class="card-header">Suivi d'activité</div>
+        <div class="card-body">
+          <div class="stat-grid" id="bilanStats"></div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">Résumé de la ronde en cours</div>
         <div class="card-body" id="bilanContent">
           <div class="empty-state"><div class="icon">◔</div><p>Complétez les contrôles dans l'onglet Ronde</p></div>
         </div>
       </div>
+    </div>
 
+    <!-- DIAGNOSTIC -->
+    <div class="page" id="page-diagnostic">
       <div class="card">
         <div class="card-header">Diagnostic IA</div>
         <div class="card-body">
-          <p class="hint" style="margin-bottom:10px;">Analyse les anomalies relevées et propose une cause probable, une action recommandée et un niveau d'urgence pour chacune.</p>
+          <p class="hint" style="margin-bottom:10px;">Analyse les anomalies relevées dans la ronde en cours et propose une cause probable, une action recommandée et un niveau d'urgence pour chacune.</p>
           <button class="btn" id="runDiagnosticBtn">Lancer le diagnostic IA</button>
           <div id="diagnosticContent" style="margin-top:12px;"></div>
         </div>
@@ -187,35 +213,19 @@
       <div class="card">
         <div class="card-header">Mise en service</div>
         <div class="card-body">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Phase</label>
-              <select id="mesPhase">
-                <option value="">Choisir...</option>
-                <option value="prep">Phase 1 - Préparation</option>
-                <option value="demarrage">Phase 2 - Démarrage</option>
-                <option value="tests">Phase 3 - Tests</option>
-                <option value="final">Phase 4 - Finalisation</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Puissance (kW)</label>
-              <input type="number" id="mesPuissance">
-            </div>
+          <div class="form-group">
+            <label>Sous-station</label>
+            <input type="text" id="mesSubstation" list="substationsDatalist" placeholder="Nom de la sous-station..." autocomplete="off">
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Débit (m³/h)</label>
-              <input type="number" id="mesDebit">
-            </div>
-            <div class="form-group">
-              <label>Température (°C)</label>
-              <input type="number" id="mesTemp">
-            </div>
+          <div id="mesChecksList"></div>
+          <div class="form-group">
+            <label>Notes générales</label>
+            <textarea id="mesNotes" placeholder="Remarques sur la session..."></textarea>
           </div>
-          <button class="btn" id="saveMesBtn">Enregistrer</button>
+          <button class="btn" id="saveMesBtn">Enregistrer la session MES</button>
         </div>
       </div>
+      <div id="mesHistoryList"></div>
     </div>
 
     <!-- HISTORIQUE -->

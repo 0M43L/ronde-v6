@@ -6,6 +6,7 @@
   "scripts": {
     "migrate": "node scripts/migrate.mjs",
     "seed:substations": "node scripts/seed-substations.mjs",
+    "seed:fiches": "node scripts/seed-fiches.mjs",
     "create-user": "node scripts/create-user.mjs"
   },
   "dependencies": {
