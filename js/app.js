@@ -2,7 +2,8 @@ import { state, resetControls, resetMesChecks, emptyEchangeur } from './state.js
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
-import { initMap, renderMarkers, focusSubstation, invalidateMapSize } from './map.js';
+import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
+import { prefetchTilesAround } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener } from './sync.js';
 
 if ('serviceWorker' in navigator) {
@@ -206,6 +207,10 @@ async function loadAppData() {
   checkOverdueReminders();
 
   initMap();
+  if (!isMapAvailable()) {
+    document.getElementById('map').innerHTML =
+      '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
+  }
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
     if (s) {
@@ -256,7 +261,10 @@ function onSubstationInput() {
   const name = document.getElementById('rondeSubstation').value;
   const substation = ui.findSubstationByName(name);
   ui.renderAccessNotes(substation);
-  if (substation) focusSubstation(substation);
+  if (substation) {
+    focusSubstation(substation);
+    prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
+  }
 }
 document.getElementById('rondeSubstation').addEventListener('input', onSubstationInput);
 
@@ -285,6 +293,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
   ui.renderSubstationDatalist();
+  prefetchTilesAround(lat, lon).catch(() => {});
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
     if (s) {
