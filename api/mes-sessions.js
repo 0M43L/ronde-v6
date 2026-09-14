@@ -14,8 +14,10 @@ export default async function handler(req, res) {
 
   try {
     const result = await db.execute(
-      `SELECT id, substation_id, user_id, checks_json, poste_json, notes, created_at
-       FROM mes_sessions ORDER BY created_at DESC`
+      `SELECT m.id, m.substation_id, m.user_id, m.checks_json, m.poste_json, m.notes, m.created_at,
+              u.prenom AS user_prenom, u.nom AS user_nom
+       FROM mes_sessions m LEFT JOIN users u ON u.id = m.user_id
+       ORDER BY m.created_at DESC`
     );
 
     return res.json({
@@ -23,6 +25,7 @@ export default async function handler(req, res) {
       sessions: result.rows.map((r) => ({
         id: r.id,
         user_id: r.user_id,
+        tech: [r.user_prenom, r.user_nom].filter(Boolean).join(' ').trim() || null,
         substation_id: r.substation_id,
         checks: JSON.parse(r.checks_json || '[]'),
         poste: JSON.parse(r.poste_json || '{}'),
