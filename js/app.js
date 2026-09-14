@@ -154,6 +154,7 @@ async function loadAppData() {
   state.mesSessions = await dbLayer.getAll('mes');
 
   ui.renderSubstationDatalist();
+  ui.renderSiteList();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
@@ -166,6 +167,7 @@ async function loadAppData() {
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
   ui.renderMesChecks();
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
@@ -207,6 +209,22 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderActionsRetardSite();
   }
   if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
+  if (tab.dataset.tab === 'sites') ui.renderSiteList(document.getElementById('siteSearch').value);
+});
+
+// ===== SITES (fiche technique) =====
+document.getElementById('siteSearch').addEventListener('input', (e) => ui.renderSiteList(e.target.value));
+
+document.getElementById('siteList').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="select-site"]');
+  if (!item) return;
+  ui.selectSite(item.dataset.id);
+});
+
+document.getElementById('siteDetail').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="back-to-sites"]');
+  if (!btn) return;
+  ui.backToSiteList();
 });
 
 // ===== SOUS-STATIONS =====
@@ -346,7 +364,9 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
 document.getElementById('controlsList').addEventListener('input', (e) => {
   const field = e.target.closest('[data-action="set-comment"]');
   if (!field) return;
-  state.controls[Number(field.dataset.index)].comment = field.value;
+  const index = Number(field.dataset.index);
+  state.controls[index].comment = field.value;
+  ui.updateFicheSuggestions(index);
 });
 
 document.getElementById('controlsList').addEventListener('change', async (e) => {
@@ -561,7 +581,9 @@ document.getElementById('mesChecksList').addEventListener('click', (e) => {
 document.getElementById('mesChecksList').addEventListener('input', (e) => {
   const valueField = e.target.closest('[data-action="set-mes-value"]');
   if (valueField) {
-    state.mesChecks[Number(valueField.dataset.index)].valeur = valueField.value;
+    const index = Number(valueField.dataset.index);
+    state.mesChecks[index].valeur = valueField.value;
+    ui.updateDeviationHint(index);
     return;
   }
   const commentField = e.target.closest('[data-action="set-mes-comment"]');
@@ -586,17 +608,23 @@ document.getElementById('mesNbEchangeurs').addEventListener('change', (e) => {
   while (echangeurs.length < n) echangeurs.push(emptyEchangeur());
   while (echangeurs.length > n) echangeurs.pop();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 
 document.getElementById('mesEchangeursList').addEventListener('input', (e) => {
   const field = e.target.closest('[data-action="set-echangeur"]');
   if (!field) return;
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
   const field = e.target.closest('[data-action="set-echangeur"]');
   if (!field) return;
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
@@ -625,6 +653,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
   ui.renderMesChecks();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Session MES enregistrée');

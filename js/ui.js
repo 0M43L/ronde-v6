@@ -1,4 +1,5 @@
 import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS } from './state.js';
+import { icon } from './icons.js';
 
 export function showToast(message) {
   const container = document.getElementById('toastContainer');
@@ -56,6 +57,71 @@ export function renderAccessNotes(substation) {
 }
 
 // ===== CONTRÔLES =====
+const STOPWORDS = new Set([
+  'de', 'du', 'des', 'la', 'le', 'les', 'un', 'une', 'et', 'a', 'au', 'aux', 'en', 'sur', 'sous',
+  'dans', 'pour', 'avec', 'sans', 'ou', 'est', 'etat', 'absence', 'niveau', 'presence', 'anormal',
+  'anormale', 'anormaux', 'general', 'generale',
+]);
+
+function normWord(w) {
+  return w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w;
+}
+
+function tokenize(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map(normWord)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+
+// Rapproche un contrôle en anomalie des fiches défaut existantes par recoupement
+// de mots-clés (label + commentaire technicien vs titre + cause probable de la
+// fiche). Approximatif mais évite d'aller chercher manuellement dans l'onglet
+// Fiches pendant la ronde.
+export function matchFichesForControl(ctrl) {
+  const needle = new Set(tokenize(`${ctrl.label} ${ctrl.comment || ''}`));
+  if (needle.size === 0) return [];
+  const scored = state.fiches
+    .map((f) => {
+      const hay = tokenize(`${f.title} ${f.cause_probable || ''}`);
+      const score = hay.reduce((n, w) => n + (needle.has(w) ? 1 : 0), 0);
+      return { f, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, 2).map((x) => x.f);
+}
+
+// Rafraîchit uniquement le bloc de suggestions d'un contrôle (appelé à chaque
+// frappe dans le commentaire) sans re-render la liste entière — évite de
+// perdre le focus du textarea en cours de saisie.
+export function updateFicheSuggestions(index) {
+  const el = document.querySelector(`[data-suggest-index="${index}"]`);
+  if (!el) return;
+  const ctrl = state.controls[index];
+  el.innerHTML = renderFicheSuggestions(matchFichesForControl(ctrl));
+}
+
+function renderFicheSuggestions(fiches) {
+  if (!fiches.length) return '';
+  return `<div class="fiche-suggest">
+    <div class="fiche-suggest-label">${icon('search', 12)} Fiche(s) proche(s)</div>
+    ${fiches
+      .map(
+        (f) => `<div class="fiche-suggest-item">
+          <strong>${escapeHtml(f.title)}</strong>
+          ${f.cause_probable ? `<span>${escapeHtml(f.cause_probable)}</span>` : ''}
+          ${f.solution ? `<span class="solution">→ ${escapeHtml(f.solution)}</span>` : ''}
+        </div>`
+      )
+      .join('')}
+  </div>`;
+}
+
 export function renderControls() {
   const list = document.getElementById('controlsList');
   list.innerHTML = state.controls
@@ -72,14 +138,15 @@ export function renderControls() {
       ${
         ctrl.status && ctrl.status !== 'ok' && ctrl.status !== 'na'
           ? `<textarea class="check-comment" placeholder="Commentaire..." data-action="set-comment" data-index="${i}">${escapeHtml(ctrl.comment)}</textarea>
+             <div data-suggest-index="${i}">${renderFicheSuggestions(matchFichesForControl(ctrl))}</div>
              <div class="photo-row">
-               <label class="photo-btn">📷 Avant<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
-               ${ctrl.photo ? `<div class="photo-thumb"><img src="${ctrl.photo}"><button class="remove-photo" data-action="remove-photo" data-index="${i}">✕</button></div>` : ''}
-               <label class="photo-btn">📷 Après<input type="file" accept="image/*" data-action="set-photo-apres" data-index="${i}"></label>
-               ${ctrl.photoApres ? `<div class="photo-thumb"><img src="${ctrl.photoApres}"><button class="remove-photo" data-action="remove-photo-apres" data-index="${i}">✕</button></div>` : ''}
+               <label class="photo-btn">${icon('camera', 14)} Avant<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
+               ${ctrl.photo ? `<div class="photo-thumb"><img src="${ctrl.photo}"><button class="remove-photo" data-action="remove-photo" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
+               <label class="photo-btn">${icon('camera', 14)} Après<input type="file" accept="image/*" data-action="set-photo-apres" data-index="${i}"></label>
+               ${ctrl.photoApres ? `<div class="photo-thumb"><img src="${ctrl.photoApres}"><button class="remove-photo" data-action="remove-photo-apres" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
              </div>
              <button class="btn-secondary" style="width:100%; margin-top:8px; ${ctrl.actionCreated ? 'opacity:.5;' : ''}" data-action="create-action-inline" data-index="${i}" ${ctrl.actionCreated ? 'disabled' : ''}>
-               ${ctrl.actionCreated ? '✓ Action corrective créée' : '+ Créer une action corrective pour ce point'}
+               ${ctrl.actionCreated ? icon('check', 13) + ' Action corrective créée' : icon('plus', 13) + ' Créer une action corrective pour ce point'}
              </button>`
           : ''
       }
@@ -89,11 +156,13 @@ export function renderControls() {
 }
 
 // ===== STATUT À L'ISSUE =====
+const STATUT_ICON = { operationnel: 'check', reserve: 'alertTriangle', arret: 'xCircle' };
+
 export function renderRondeStatut() {
   const el = document.getElementById('rondeStatutChoices');
   el.innerHTML = RONDE_STATUTS.map(
     (s) => `<button class="statut-btn ${state.rondeStatut === s.id ? 'sel ' + s.id : ''}" data-action="set-statut" data-statut="${s.id}">
-      ${s.id === 'operationnel' ? '✅' : s.id === 'reserve' ? '⚠️' : '🛑'} ${escapeHtml(s.label)}
+      ${icon(STATUT_ICON[s.id])} ${escapeHtml(s.label)}
     </button>`
   ).join('');
 }
@@ -197,7 +266,7 @@ export function renderFiches(searchTerm = '') {
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="icon">▤</div><p>Aucune fiche</p></div>';
+    list.innerHTML = `<div class="empty-state">${icon('clipboard', 32)}<p>Aucune fiche</p></div>`;
     return;
   }
 
@@ -222,7 +291,7 @@ const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 export function renderActions() {
   const list = document.getElementById('actionsList');
   if (state.actions.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="icon">✓</div><p>Aucune action</p></div>';
+    list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
     return;
   }
   const sorted = state.actions.slice().sort((a, b) => {
@@ -333,6 +402,61 @@ export function renderMesEchangeurs() {
     .join('');
 }
 
+export function renderMesNominalRecap() {
+  const el = document.getElementById('mesNominalRecap');
+  if (!el) return;
+  const multi = state.mesPoste.echangeurs.length > 1;
+  const rows = state.mesPoste.echangeurs.flatMap((e, i) => {
+    const prefix = multi ? `Éch. ${i + 1} — ` : '';
+    const fields = [
+      ['debit_nominal', 'Débit nominal', 'm³/h'],
+      ['puissance_nominale', 'Puissance nominale', 'kW'],
+      ['t_aller_nominale', 'T° aller nominale', '°C'],
+      ['t_retour_nominale', 'T° retour nominale', '°C'],
+    ];
+    return fields
+      .filter(([field]) => e[field] !== '' && e[field] !== null && e[field] !== undefined)
+      .map(([field, label, unit]) => `<div class="row"><span>${prefix}${label}</span><span class="val">${escapeHtml(e[field])} ${unit}</span></div>`);
+  });
+  if (!rows.length) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `<div class="card"><div class="card-header">${icon('gauge', 12)} Valeurs nominales de référence</div><div class="card-body nominal-recap">${rows.join('')}</div></div>`;
+}
+
+// Compare la valeur mesurée d'un point MES au paramètre nominal correspondant
+// de l'échangeur (uniquement quand le poste n'a qu'un seul échangeur — au-delà
+// l'affectation mesure/échangeur est ambiguë sur la checklist actuelle).
+const POINT_NOMINAL_MAP = {
+  'p6-5': { field: 'puissance_nominale', unit: 'kW' },
+  'p4-5': { field: 'debit_nominal', unit: 'm³/h' },
+};
+
+function computeDeviationHint(index) {
+  const point = state.mesChecks[index];
+  const map = point && POINT_NOMINAL_MAP[point.id];
+  if (!map || state.mesPoste.echangeurs.length !== 1) return '';
+  const nominal = Number(state.mesPoste.echangeurs[0][map.field]);
+  const mesure = Number(point.valeur);
+  if (!nominal || point.valeur === '' || isNaN(mesure)) return '';
+  const dev = ((mesure - nominal) / nominal) * 100;
+  const cls = Math.abs(dev) > 10 ? 'warn' : 'ok';
+  const sign = dev > 0 ? '+' : '';
+  return `<span class="deviation-hint ${cls}">${sign}${dev.toFixed(1)}% vs nominal (${nominal} ${map.unit})</span>`;
+}
+
+export function updateDeviationHint(index) {
+  const el = document.querySelector(`[data-hint-index="${index}"]`);
+  if (el) el.innerHTML = computeDeviationHint(index);
+}
+
+export function refreshAllDeviationHints() {
+  state.mesChecks.forEach((c, i) => {
+    if (POINT_NOMINAL_MAP[c.id]) updateDeviationHint(i);
+  });
+}
+
 export function renderMesProgress() {
   const total = state.mesChecks.length;
   const done = state.mesChecks.filter((c) => c.status).length;
@@ -364,7 +488,8 @@ export function renderMesChecks() {
               <button class="check-btn danger ${p.status === 'nok' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="nok">NOK</button>
               <button class="check-btn na ${p.status === 'na' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="na">N/A</button>
             </div>
-            <input type="text" class="check-comment" style="margin-top:8px;" placeholder="Valeur relevée..." data-action="set-mes-value" data-index="${p.i}" value="${escapeHtml(p.valeur)}">
+            <input type="text" class="check-comment value-mono" style="margin-top:8px;" placeholder="Valeur relevée..." data-action="set-mes-value" data-index="${p.i}" value="${escapeHtml(p.valeur)}">
+            <div data-hint-index="${p.i}">${computeDeviationHint(p.i)}</div>
             <textarea class="check-comment" placeholder="Commentaire..." data-action="set-mes-comment" data-index="${p.i}">${escapeHtml(p.commentaire)}</textarea>
           </div>`
           )
@@ -422,20 +547,21 @@ export function buildHistoriqueItems() {
       id: r.id,
       statut: r.statut || 'operationnel',
       anomalies,
+      substation_id: r.substation_id || null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
+      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, searchable: a.text.toLowerCase() });
+    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, searchable: a.text.toLowerCase() });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
-    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
+    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
   items.sort((a, b) => b.ts - a.ts);
   return items;
@@ -451,7 +577,7 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
   if (needle) items = items.filter((it) => it.searchable.includes(needle));
 
   if (items.length === 0) {
-    content.innerHTML = '<div class="empty-state"><div class="icon">▤</div><p>Aucune activité trouvée</p></div>';
+    content.innerHTML = `<div class="empty-state">${icon('search', 32)}<p>Aucune activité trouvée</p></div>`;
     return;
   }
 
@@ -602,4 +728,138 @@ export function renderActionsRetardSite(thresholdDays = 7) {
     .sort((a, b) => b[1] - a[1])
     .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action(s) en retard</div>`)
     .join('');
+}
+
+// ===== SITES (fiche technique par sous-station) =====
+let selectedSiteId = null;
+
+const SITE_STATUT_BADGE = {
+  operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">Opérationnel</span>',
+  reserve: '<span class="badge a_planifier">Réserve</span>',
+  arret: '<span class="badge immediat">Arrêt</span>',
+};
+
+export function renderSiteList(searchTerm = '') {
+  const listEl = document.getElementById('siteList');
+  const needle = searchTerm.trim().toLowerCase();
+  const sites = state.substations
+    .filter((s) => !needle || s.name.toLowerCase().includes(needle))
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+  if (sites.length === 0) {
+    listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucune sous-station trouvée</p></div>`;
+    return;
+  }
+
+  const lastVisit = {};
+  state.rondes.forEach((r) => {
+    if (!r.date) return;
+    const t = new Date(r.date).getTime();
+    if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
+  });
+
+  listEl.innerHTML = sites
+    .map((s) => {
+      const last = lastVisit[s.id];
+      const days = last ? Math.floor((Date.now() - last) / 86400000) : null;
+      const sub = days === null ? 'Jamais visitée' : `Vue il y a ${days} j`;
+      return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
+        <div><div class="name">${escapeHtml(s.name)}</div><div class="sub">${sub}</div></div>
+        ${icon('chevronRight', 16)}
+      </div>`;
+    })
+    .join('');
+}
+
+export function renderSiteDetail() {
+  const el = document.getElementById('siteDetail');
+  const listCard = document.getElementById('siteListCard');
+  if (!selectedSiteId) {
+    el.innerHTML = '';
+    listCard.style.display = '';
+    return;
+  }
+  const site = state.substations.find((s) => s.id === selectedSiteId);
+  if (!site) {
+    selectedSiteId = null;
+    el.innerHTML = '';
+    listCard.style.display = '';
+    return;
+  }
+  listCard.style.display = 'none';
+
+  const siteRondes = state.rondes.filter((r) => r.substation_id === site.id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const siteActions = state.actions.filter((a) => a.substation_id === site.id);
+  const siteMes = state.mesSessions.filter((m) => m.substation_id === site.id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const lastRonde = siteRondes[0];
+  const openActions = siteActions.filter((a) => !a.done).length;
+  const lastMes = siteMes[0];
+
+  let posteCard = `<div class="card"><div class="card-header">Dernière configuration MES connue</div><div class="card-body"><div class="alert neutral">Aucune session MES enregistrée pour ce site</div></div></div>`;
+  if (lastMes && lastMes.poste) {
+    const poste = lastMes.poste;
+    const cas = CAS_POSTE_TYPES.find((c) => String(c.cas) === String(poste.cas_poste));
+    const echRows = (poste.echangeurs || [])
+      .map(
+        (e, i) =>
+          `<div class="row"><span>Éch. ${i + 1} (${e.type_boucle === 'glacee' ? 'eau glacée' : 'eau chaude'})</span><span class="val">${escapeHtml(e.puissance_nominale || '—')} kW · ${escapeHtml(e.debit_nominal || '—')} m³/h</span></div>`
+      )
+      .join('');
+    posteCard = `<div class="card"><div class="card-header">Dernière configuration MES connue</div><div class="card-body nominal-recap">
+      <div class="row"><span>Type de poste</span><span class="val">${cas ? `${cas.code} — ${escapeHtml(cas.designation)}` : '—'}</span></div>
+      <div class="row"><span>Relevée le</span><span class="val">${escapeHtml(lastMes.date || '')}</span></div>
+      ${echRows}
+    </div></div>`;
+  }
+
+  const historiqueItems = buildHistoriqueItems().filter((it) => it.substation_id === site.id);
+  const historiqueHtml = historiqueItems.length
+    ? historiqueItems
+        .slice(0, 30)
+        .map(
+          (it) => `<div class="item">
+            <div class="hist-type">${it.type} ${it.statut ? SITE_STATUT_BADGE[it.statut] || '' : ''}</div>
+            <div class="item-meta">${escapeHtml(it.meta)}</div>
+            ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+          </div>`
+        )
+        .join('')
+    : `<div class="empty-state">${icon('search', 28)}<p>Aucune activité enregistrée sur ce site</p></div>`;
+
+  el.innerHTML = `
+    <button class="site-back" data-action="back-to-sites">${icon('arrowLeft', 14)} Retour à la liste</button>
+    <div class="card">
+      <div class="card-body">
+        <div class="site-detail-header">
+          <h3>${escapeHtml(site.name)}</h3>
+          ${lastRonde ? SITE_STATUT_BADGE[lastRonde.statut || 'operationnel'] : ''}
+        </div>
+        ${site.notes_acces ? `<div class="alert warning" style="margin-top:10px;">${escapeHtml(site.notes_acces)}</div>` : ''}
+        ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Activité</div>
+      <div class="card-body stat-grid">
+        <div class="stat-tile"><div class="value">${siteRondes.length}</div><div class="label">Rondes enregistrées</div></div>
+        <div class="stat-tile"><div class="value">${openActions}</div><div class="label">Actions ouvertes</div></div>
+      </div>
+    </div>
+    ${posteCard}
+    <div class="card">
+      <div class="card-header">Historique du site</div>
+      <div class="card-body">${historiqueHtml}</div>
+    </div>
+  `;
+}
+
+export function selectSite(id) {
+  selectedSiteId = id;
+  renderSiteDetail();
+}
+
+export function backToSiteList() {
+  selectedSiteId = null;
+  renderSiteDetail();
 }

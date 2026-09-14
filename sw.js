@@ -1,6 +1,6 @@
 // Service worker — met en cache la coquille applicative pour un fonctionnement hors-ligne.
 // Les appels /api/* ne sont jamais mis en cache (auth, données sensibles, toujours frais).
-const CACHE_NAME = 'ronde-v6-shell-v1';
+const CACHE_NAME = 'ronde-v6-shell-v2';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -9,6 +9,7 @@ const SHELL_ASSETS = [
   '/js/app.js',
   '/js/api.js',
   '/js/db.js',
+  '/js/icons.js',
   '/js/map.js',
   '/js/state.js',
   '/js/sync.js',
