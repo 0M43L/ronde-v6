@@ -86,8 +86,10 @@
   {
     "id": "REF-DEFAUT-COMM-COMPTEUR-CHALEUR-FROID",
     "title": "Défaut de communication avec le compteur chaleur/froid",
-    "cause_probable": "Ce défaut rend permanente la demande de marche en automatique et inhibe les limitations de puissance et débit (comportement de repli automate documenté).",
-    "solution": "Vérifier la liaison JBUS/Modbus vers le compteur, relancer la communication ; en dernier recours ce défaut peut être inhibé depuis la supervision."
+    "symptomes": "Comportement de repli automate documenté : ce défaut rend permanente la demande de marche en automatique et inhibe les limitations de puissance et débit tant qu'il est actif.",
+    "cause_probable": "Perte de liaison JBUS/Modbus avec le compteur (câblage, adresse, alimentation compteur).",
+    "solution": "Vérifier la liaison JBUS/Modbus vers le compteur, relancer la communication ; en dernier recours ce défaut peut être inhibé depuis la supervision.",
+    "urgence": "a_planifier"
   },
   {
     "id": "REF-SONDE-TEMP-ALLER-ABONNE-HS",
@@ -116,26 +118,34 @@
   {
     "id": "REF-TEMP-REGULEE-ELEVEE",
     "title": "Température régulée élevée chaleur/froid",
+    "symptomes": "Condition automate documentée : boucle froide — vanne complètement ouverte et température supérieure à la consigne +25% pendant plus de 10 minutes. Boucle chaude — vanne complètement ouverte et température inférieure à la consigne -25% pendant plus de 10 minutes.",
     "cause_probable": "Vanne de régulation bloquée ouverte, sonde de température mal positionnée ou déréglée, consigne mal calculée.",
-    "solution": "Contrôler la fermeture effective de la vanne de régulation, vérifier le positionnement de la sonde, recalculer la consigne (loi d'eau/coefficient K)."
+    "solution": "Contrôler la fermeture effective de la vanne de régulation, vérifier le positionnement de la sonde, recalculer la consigne (loi d'eau/coefficient K).",
+    "urgence": "a_planifier"
   },
   {
     "id": "REF-VANNE-REGULATION-FUYARDE",
     "title": "Vanne de régulation fuyarde",
-    "cause_probable": "Condition automate documentée : la vanne est complètement fermée alors que le débit mesuré reste supérieur à 0,1 m³/h pendant plus de 30 minutes — signe d'un clapet qui ne ferme plus complètement.",
-    "solution": "Contrôler l'étanchéité du clapet de la vanne, resserrer le presse-étoupe, prévoir un remplacement si la fuite est confirmée en position fermée."
+    "symptomes": "Condition automate documentée : vanne complètement fermée alors que le débit mesuré reste supérieur à 0,1 m³/h pendant plus de 30 minutes.",
+    "cause_probable": "Clapet de la vanne qui ne ferme plus complètement (usure, dépôt, presse-étoupe).",
+    "solution": "Contrôler l'étanchéité du clapet de la vanne, resserrer le presse-étoupe, prévoir un remplacement si la fuite est confirmée en position fermée.",
+    "urgence": "a_planifier"
   },
   {
     "id": "REF-DEBIT-LIVRAISON-INSUFFISANT",
     "title": "Débit de livraison insuffisant",
-    "cause_probable": "Condition automate documentée : la vanne est complètement ouverte alors que le débit mesuré reste inférieur au débit nominal -25% pendant plus de 30 minutes.",
-    "solution": "Vérifier la pompe primaire (fonctionnement, sens de rotation), contrôler un éventuel filtre encrassé, s'assurer qu'aucune vanne d'isolement n'est partiellement fermée en amont."
+    "symptomes": "Condition automate documentée : vanne complètement ouverte alors que le débit mesuré reste inférieur au débit nominal -25% pendant plus de 30 minutes.",
+    "cause_probable": "Pompe primaire défaillante, filtre encrassé, vanne d'isolement amont partiellement fermée.",
+    "solution": "Vérifier la pompe primaire (fonctionnement, sens de rotation), contrôler un éventuel filtre encrassé, s'assurer qu'aucune vanne d'isolement n'est partiellement fermée en amont.",
+    "urgence": "a_planifier"
   },
   {
     "id": "REF-PRESSION-ALLER-BASSE",
     "title": "Pression aller primaire basse",
-    "cause_probable": "Condition automate documentée : la pression aller mesurée est inférieure à la consigne de seuil bas paramétrée (seuil dépendant de la position du poste sur le réseau).",
-    "solution": "Vérifier la pression du réseau primaire au point de livraison ; si la baisse est générale sur le secteur, remonter immédiatement à l'exploitant réseau plutôt que d'intervenir localement."
+    "symptomes": "Condition automate documentée : pression aller mesurée inférieure à la consigne de seuil bas paramétrée (seuil dépendant de la position du poste sur le réseau).",
+    "cause_probable": "Baisse de pression générale sur le réseau primaire, ou fuite/défaut local en amont du poste.",
+    "solution": "Vérifier la pression du réseau primaire au point de livraison ; si la baisse est générale sur le secteur, remonter immédiatement à l'exploitant réseau plutôt que d'intervenir localement.",
+    "urgence": "immediat"
   },
   {
     "id": "REF-DELTA-PRESSION-BAS",

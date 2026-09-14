@@ -12,7 +12,9 @@ export default async function handler(req, res) {
 
   try {
     const result = await db.execute(
-      `SELECT id, title, cause_probable, solution, notes, is_reference, substation_id, created_at
+      `SELECT id, title, symptomes, cause_probable, procedure_intervention, securite, outillage,
+              pieces_rechange, solution, urgence, photos_json, notes, is_reference, substation_id,
+              user_id, created_at
        FROM fiches ORDER BY is_reference DESC, title ASC`
     );
 
@@ -21,11 +23,19 @@ export default async function handler(req, res) {
       fiches: result.rows.map((r) => ({
         id: r.id,
         title: r.title,
+        symptomes: r.symptomes,
         cause_probable: r.cause_probable,
+        procedure_intervention: r.procedure_intervention,
+        securite: r.securite,
+        outillage: r.outillage,
+        pieces_rechange: r.pieces_rechange,
         solution: r.solution,
+        urgence: r.urgence,
+        photos: JSON.parse(r.photos_json || '[]'),
         notes: r.notes,
         is_reference: !!r.is_reference,
         substation_id: r.substation_id,
+        user_id: r.user_id,
         created_at: r.created_at,
       })),
     });

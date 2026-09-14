@@ -262,13 +262,18 @@ export function renderDiagnostic(result) {
 
 // ===== FICHES (base de connaissances) =====
 // Catégorisation par mots-clés (déduite du contenu, pas de champ en base) —
-// sert uniquement à filtrer/parcourir rapidement la base complète des fiches,
-// par exemple pour retrouver et montrer une procédure précise à un collègue.
+// sert à parcourir la base comme un catalogue (grille de catégories, puis
+// liste au tap), sur le modèle de l'app de référence d'Axel : symptômes/
+// composants précis plutôt qu'un seul gros bloc "Hydraulique".
 const FICHE_CATEGORIES = [
-  { key: 'hydraulique', label: 'Hydraulique', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'vanne', 'purge', 'calorifuge', 'corrosion', 'entartrage', 'echangeur', 'joint', 'debit', 'bruit', 'vibration', 'cavitation'] },
+  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord'] },
+  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage'] },
+  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre'] },
+  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques'] },
+  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'circuit', 'tuyauterie', 'air', 'debit', 'delta'] },
   { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
-  { key: 'regulation', label: 'Régulation', icon: 'gauge', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable'] },
-  { key: 'instrumentation', label: 'Instrumentation / Compteur', icon: 'thermometer', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature'] },
   { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
   { key: 'general', label: 'Général', icon: 'building', colorVar: '--text-muted', softVar: '--neutral-soft', keywords: ['proprete', 'local', 'acces'] },
 ];
@@ -288,21 +293,6 @@ function classifyFiche(f) {
   return best ? best.key : 'general';
 }
 
-export function renderFicheCategoryChips(activeCategory = 'toutes') {
-  const el = document.getElementById('ficheCategoryChips');
-  if (!el) return;
-  const present = new Set(state.fiches.map((f) => classifyFiche(f)));
-  const cats = FICHE_CATEGORIES.filter((c) => present.has(c.key));
-  el.innerHTML =
-    `<button class="chip ${activeCategory === 'toutes' ? 'active' : ''}" data-category="toutes">Toutes (${state.fiches.length})</button>` +
-    cats
-      .map((c) => {
-        const count = state.fiches.filter((f) => classifyFiche(f) === c.key).length;
-        return `<button class="chip ${activeCategory === c.key ? 'active' : ''}" data-category="${c.key}">${escapeHtml(c.label)} (${count})</button>`;
-      })
-      .join('');
-}
-
 // Repliées par défaut : on ne garde que ce que le technicien a explicitement
 // ouvert, pour que la liste reste un repérage visuel rapide (icône + couleur
 // + titre) plutôt qu'un mur de texte à faire défiler.
@@ -313,11 +303,138 @@ export function toggleFicheExpanded(id) {
   else expandedFicheIds.add(id);
 }
 
-export function renderFiches(searchTerm = '', category = 'toutes') {
+// Niveau du catalogue actuellement affiché : null = grille des catégories,
+// 'toutes' = liste complète, ou une clé de FICHE_CATEGORIES = liste filtrée.
+let ficheCatalogView = null;
+
+export function openFicheCategory(key) {
+  ficheCatalogView = key;
+}
+
+export function backToFicheCatalog() {
+  ficheCatalogView = null;
+}
+
+export function getFicheCatalogView() {
+  return ficheCatalogView;
+}
+
+export function getFicheById(id) {
+  return state.fiches.find((f) => f.id === id) || null;
+}
+
+export function renderFicheFormPhotos(photos) {
+  const row = document.getElementById('ficheFormPhotoRow');
+  const addLabel = row.querySelector('label');
+  row.querySelectorAll('.photo-thumb').forEach((el) => el.remove());
+  photos.forEach((p) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = `<img src="${p.url}"><button class="remove-photo" data-action="remove-fiche-form-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button>`;
+    row.insertBefore(thumb, addLabel);
+  });
+}
+
+function truncate(str, n) {
+  if (!str) return '';
+  return str.length > n ? `${str.slice(0, n).trim()}…` : str;
+}
+
+const URGENCE_BADGE_CLASS = { immediat: 'immediat', a_planifier: 'a_planifier', a_surveiller: 'a_surveiller' };
+
+function renderProcedureSteps(text) {
+  const steps = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (steps.length === 0) return '';
+  return `<ol class="fiche-procedure">${steps.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`;
+}
+
+function renderFicheTile(f, autoExpand) {
+  const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
+  const isExpanded = autoExpand || expandedFicheIds.has(f.id);
+  const preview = truncate(f.symptomes || f.cause_probable || f.solution || '', 78);
+  return `
+    <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
+      <div class="fiche-tile-row">
+        <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
+        <div class="fiche-tile-body">
+          <div class="fiche-tile-title">
+            ${escapeHtml(f.title)}
+            ${!f.is_reference ? '<span class="badge a_surveiller">Perso</span>' : ''}
+            ${f.urgence && URGENCE_BADGE_CLASS[f.urgence] ? `<span class="badge ${URGENCE_BADGE_CLASS[f.urgence]}">${escapeHtml(URGENCE_LABEL[f.urgence] || f.urgence)}</span>` : ''}
+          </div>
+          ${preview && !isExpanded ? `<div class="fiche-tile-preview">${escapeHtml(preview)}</div>` : ''}
+        </div>
+        <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
+      </div>
+      ${
+        isExpanded
+          ? `<div class="fiche-tile-detail">
+              ${f.symptomes ? `<div class="fiche-block"><div class="fiche-block-label">${icon('search', 13)} Symptômes / signes observés</div><p>${escapeHtml(f.symptomes)}</p></div>` : ''}
+              ${f.cause_probable ? `<div class="fiche-block"><div class="fiche-block-label">${icon('alertTriangle', 13)} Cause probable</div><p>${escapeHtml(f.cause_probable)}</p></div>` : ''}
+              ${
+                f.procedure_intervention
+                  ? `<div class="fiche-block"><div class="fiche-block-label">${icon('clipboard', 13)} Procédure d'intervention</div>${renderProcedureSteps(f.procedure_intervention)}</div>`
+                  : ''
+              }
+              ${f.securite ? `<div class="fiche-safety">${icon('alertTriangle', 15)} <div><strong>Sécurité / précautions</strong><p>${escapeHtml(f.securite)}</p></div></div>` : ''}
+              ${
+                f.outillage || f.pieces_rechange
+                  ? `<div class="fiche-block-row">
+                      ${f.outillage ? `<div class="fiche-block"><div class="fiche-block-label">${icon('wrench', 13)} Outillage</div><p>${escapeHtml(f.outillage)}</p></div>` : ''}
+                      ${f.pieces_rechange ? `<div class="fiche-block"><div class="fiche-block-label">${icon('gauge', 13)} Pièces de rechange</div><p>${escapeHtml(f.pieces_rechange)}</p></div>` : ''}
+                    </div>`
+                  : ''
+              }
+              ${f.solution ? `<div class="fiche-block"><div class="fiche-block-label">${icon('check', 13)} Solution / résumé</div><p>${escapeHtml(f.solution)}</p></div>` : ''}
+              ${
+                (f.photos || []).length
+                  ? `<div class="photo-row">${f.photos.map((p) => `<div class="photo-thumb"><img src="${p.url}"></div>`).join('')}</div>`
+                  : ''
+              }
+              <div class="item-actions">
+                <button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>
+                ${!f.is_reference ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
+              </div>
+            </div>`
+          : ''
+      }
+    </div>`;
+}
+
+function renderFicheCatalogGrid() {
+  const present = FICHE_CATEGORIES.filter((cat) => state.fiches.some((f) => classifyFiche(f) === cat.key));
+  const allTile = `
+    <div class="fiche-cat-tile fiche-cat-all" data-action="open-fiche-category" data-category="toutes">
+      <div class="fc-icon">${icon('search', 26)}</div>
+      <div class="fc-label">Toutes les fiches</div>
+      <div class="fc-count">${state.fiches.length} fiche${state.fiches.length > 1 ? 's' : ''}</div>
+    </div>`;
+  const catTiles = present
+    .map((cat) => {
+      const count = state.fiches.filter((f) => classifyFiche(f) === cat.key).length;
+      return `
+    <div class="fiche-cat-tile" style="--cat-color:var(${cat.colorVar});" data-action="open-fiche-category" data-category="${cat.key}">
+      <div class="fc-icon">${icon(cat.icon, 26)}</div>
+      <div class="fc-label">${escapeHtml(cat.label)}</div>
+      <div class="fc-count">${count} fiche${count > 1 ? 's' : ''}</div>
+    </div>`;
+    })
+    .join('');
+  return `${allTile}<div class="fiche-cat-grid">${catTiles}</div>`;
+}
+
+export function renderFiches(searchTerm = '') {
   const list = document.getElementById('fichesList');
   const needle = searchTerm.trim().toLowerCase();
+
+  if (!needle && !ficheCatalogView) {
+    // Niveau 1 : grille du catalogue, sans lire le contenu d'aucune fiche.
+    list.innerHTML = renderFicheCatalogGrid();
+    return;
+  }
+
   const filtered = state.fiches.filter((f) => {
-    if (category !== 'toutes' && classifyFiche(f) !== category) return false;
+    if (!needle && ficheCatalogView && ficheCatalogView !== 'toutes' && classifyFiche(f) !== ficheCatalogView) return false;
     if (!needle) return true;
     return (
       f.title.toLowerCase().includes(needle) ||
@@ -326,43 +443,17 @@ export function renderFiches(searchTerm = '', category = 'toutes') {
     );
   });
 
+  const backBar = `<button class="site-back" data-action="back-to-fiche-catalog">${icon('arrowLeft', 14)} Retour au catalogue</button>`;
+
   if (filtered.length === 0) {
-    list.innerHTML = `<div class="empty-state">${icon('clipboard', 32)}<p>Aucune fiche</p></div>`;
+    list.innerHTML = backBar + `<div class="empty-state">${icon('clipboard', 32)}<p>Aucune fiche</p></div>`;
     return;
   }
 
-  // Si une recherche/filtre ne laisse qu'une poignée de résultats, autant les
-  // montrer dépliés directement plutôt que d'imposer un tap supplémentaire.
-  const autoExpand = (needle || category !== 'toutes') && filtered.length <= 3;
-
-  list.innerHTML = filtered
-    .map((f) => {
-      const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
-      const isExpanded = autoExpand || expandedFicheIds.has(f.id);
-      return `
-    <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
-      <div class="fiche-tile-row">
-        <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
-        <div class="fiche-tile-body">
-          <div class="fiche-tile-title">${escapeHtml(f.title)}${f.is_reference ? '<span class="badge a_surveiller">Référence</span>' : ''}</div>
-          <div class="fiche-tile-meta">${escapeHtml(cat.label)}</div>
-        </div>
-        <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
-      </div>
-      ${
-        isExpanded
-          ? `<div class="fiche-tile-detail">
-              <dl>
-                ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
-                ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
-              </dl>
-              ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
-            </div>`
-          : ''
-      }
-    </div>`;
-    })
-    .join('');
+  // Une recherche/filtre qui ne laisse qu'une poignée de résultats : autant
+  // les montrer dépliés directement plutôt que d'imposer un tap de plus.
+  const autoExpand = filtered.length <= 3;
+  list.innerHTML = backBar + filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
 }
 
 // ===== ACTIONS =====

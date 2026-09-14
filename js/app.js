@@ -187,8 +187,7 @@ async function loadAppData() {
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
   ui.renderActionsRetardSite();
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
@@ -532,44 +531,121 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 });
 
 // ===== FICHES =====
-let ficheCategory = 'toutes';
+// Formulaire unique pour créer une fiche ou enrichir une fiche existante
+// (y compris une fiche de référence) — la base de connaissances est pensée
+// comme un outil collaboratif qui s'enrichit avec l'expérience terrain.
+const FICHE_FORM_FIELDS = {
+  ficheUrgence: 'urgence',
+  ficheSymptomes: 'symptomes',
+  ficheCause: 'cause_probable',
+  ficheProcedure: 'procedure_intervention',
+  ficheSecurite: 'securite',
+  ficheOutillage: 'outillage',
+  fichePieces: 'pieces_rechange',
+  ficheSolution: 'solution',
+};
+let ficheFormPhotos = [];
+let editingFicheId = null;
+
+function resetFicheForm() {
+  document.getElementById('ficheTitle').value = '';
+  Object.keys(FICHE_FORM_FIELDS).forEach((id) => (document.getElementById(id).value = ''));
+  ficheFormPhotos = [];
+  ui.renderFicheFormPhotos(ficheFormPhotos);
+  editingFicheId = null;
+  document.getElementById('addFicheCardTitle').textContent = 'Nouvelle fiche';
+  document.getElementById('addFicheBtn').textContent = 'Enregistrer la fiche';
+  document.getElementById('cancelFicheEditBtn').hidden = true;
+}
+
+function openFicheFormForEdit(fiche) {
+  editingFicheId = fiche.id;
+  document.getElementById('ficheTitle').value = fiche.title || '';
+  Object.entries(FICHE_FORM_FIELDS).forEach(([elId, field]) => {
+    document.getElementById(elId).value = fiche[field] || '';
+  });
+  ficheFormPhotos = (fiche.photos || []).map((p) => ({ ...p }));
+  ui.renderFicheFormPhotos(ficheFormPhotos);
+  document.getElementById('addFicheCardTitle').textContent = 'Modifier la fiche';
+  document.getElementById('addFicheBtn').textContent = 'Enregistrer les modifications';
+  document.getElementById('cancelFicheEditBtn').hidden = false;
+  document.getElementById('addFicheCard').hidden = false;
+  document.getElementById('addFicheCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.getElementById('toggleAddFicheBtn').addEventListener('click', () => {
+  const card = document.getElementById('addFicheCard');
+  if (card.hidden) {
+    resetFicheForm();
+    card.hidden = false;
+    document.getElementById('ficheTitle').focus();
+  } else {
+    card.hidden = true;
+  }
+});
+
+document.getElementById('cancelFicheEditBtn').addEventListener('click', () => {
+  resetFicheForm();
+  document.getElementById('addFicheCard').hidden = true;
+});
+
+document.getElementById('fichePhotoInput').addEventListener('change', async (e) => {
+  if (!e.target.files[0]) return;
+  const dataUrl = await fileToDataUrl(e.target.files[0]);
+  ficheFormPhotos.push({ id: `PHOTO_${Date.now()}`, url: dataUrl });
+  ui.renderFicheFormPhotos(ficheFormPhotos);
+  e.target.value = '';
+});
+
+document.getElementById('ficheFormPhotoRow').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="remove-fiche-form-photo"]');
+  if (!btn) return;
+  ficheFormPhotos = ficheFormPhotos.filter((p) => p.id !== btn.dataset.photoId);
+  ui.renderFicheFormPhotos(ficheFormPhotos);
+});
 
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
   const title = document.getElementById('ficheTitle').value.trim();
-  const cause_probable = document.getElementById('ficheCause').value.trim();
-  const solution = document.getElementById('ficheSolution').value.trim();
   if (!title) {
     ui.showToast('Le titre est requis');
     return;
   }
-  const fiche = {
-    id: `FICHE_${Date.now()}`,
-    title,
-    cause_probable,
-    solution,
-    is_reference: false,
-    date: new Date().toLocaleString('fr-FR'),
-    ts: Date.now(),
-  };
-  await dbLayer.put('fiches', fiche);
-  await dbLayer.queueSync('fiche', 'upsert', fiche);
-  state.fiches.push(fiche);
-  ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+  const fields = {};
+  Object.entries(FICHE_FORM_FIELDS).forEach(([elId, field]) => {
+    fields[field] = document.getElementById(elId).value.trim();
+  });
+
+  if (editingFicheId) {
+    const fiche = state.fiches.find((f) => f.id === editingFicheId);
+    if (fiche) {
+      Object.assign(fiche, fields, { title, photos: ficheFormPhotos });
+      await dbLayer.put('fiches', fiche);
+      await dbLayer.queueSync('fiche', 'upsert', fiche);
+      ui.showToast('Fiche mise à jour');
+    }
+  } else {
+    const fiche = {
+      id: `FICHE_${Date.now()}`,
+      title,
+      ...fields,
+      photos: ficheFormPhotos,
+      is_reference: false,
+      date: new Date().toLocaleString('fr-FR'),
+      ts: Date.now(),
+    };
+    await dbLayer.put('fiches', fiche);
+    await dbLayer.queueSync('fiche', 'upsert', fiche);
+    state.fiches.push(fiche);
+    ui.showToast('Fiche ajoutée');
+  }
+
+  resetFicheForm();
+  document.getElementById('addFicheCard').hidden = true;
+  ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-  ui.showToast('Fiche ajoutée');
 });
 
-document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value, ficheCategory));
-
-document.getElementById('ficheCategoryChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (!chip) return;
-  ficheCategory = chip.dataset.category;
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
-});
+document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value));
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
   const delBtn = e.target.closest('[data-action="delete-fiche"]');
@@ -580,15 +656,33 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
     await dbLayer.remove('fiches', id);
     await dbLayer.queueSync('fiche', 'delete', { id });
     state.fiches = state.fiches.filter((f) => f.id !== id);
-    ui.renderFicheCategoryChips(ficheCategory);
-    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
+  }
+  const editBtn = e.target.closest('[data-action="edit-fiche"]');
+  if (editBtn) {
+    const fiche = ui.getFicheById(editBtn.dataset.id);
+    if (fiche) openFicheFormForEdit(fiche);
+    return;
+  }
+  const catTile = e.target.closest('[data-action="open-fiche-category"]');
+  if (catTile) {
+    ui.openFicheCategory(catTile.dataset.category);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
+    return;
+  }
+  const backBtn = e.target.closest('[data-action="back-to-fiche-catalog"]');
+  if (backBtn) {
+    ui.backToFicheCatalog();
+    document.getElementById('ficheSearch').value = '';
+    ui.renderFiches('');
     return;
   }
   const toggleEl = e.target.closest('[data-action="toggle-fiche"]');
   if (toggleEl) {
     ui.toggleFicheExpanded(toggleEl.dataset.id);
-    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+    ui.renderFiches(document.getElementById('ficheSearch').value);
   }
 });
 

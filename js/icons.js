@@ -27,6 +27,9 @@ const PATHS = {
   zap: '<polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2"/>',
   thermometer: '<path d="M14 14.76V3.5a2 2 0 0 0-4 0v11.26a4 4 0 1 0 4 0Z"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.39 5.4L2.8 18.2a1.7 1.7 0 0 0 2.4 2.4l6.5-6.5a4 4 0 0 0 5.4-5.4l-2.5 2.5-3-3Z"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>',
+  monitor: '<rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
 };
 
 export function icon(name, size = 16) {
