@@ -69,12 +69,13 @@ async function syncItem(item, userId) {
 
     case 'substation':
       return db.execute({
-        sql: `INSERT INTO substations (id, name, lat, lon, notes_acces, needs_review, source, updated_at)
-              VALUES (?, ?, ?, ?, ?, 0, 'terrain', datetime('now'))
+        sql: `INSERT INTO substations (id, name, lat, lon, notes_acces, needs_review, source, photos_json, updated_at)
+              VALUES (?, ?, ?, ?, ?, 0, 'terrain', ?, datetime('now'))
               ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name, lat = excluded.lat, lon = excluded.lon,
-                notes_acces = excluded.notes_acces, updated_at = datetime('now')`,
-        args: [payload.id, payload.name, payload.lat, payload.lon, payload.notes_acces || ''],
+                notes_acces = excluded.notes_acces, photos_json = excluded.photos_json,
+                updated_at = datetime('now')`,
+        args: [payload.id, payload.name, payload.lat, payload.lon, payload.notes_acces || '', JSON.stringify(payload.photos || [])],
       });
 
     case 'fiche':

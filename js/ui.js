@@ -265,13 +265,14 @@ export function renderDiagnostic(result) {
 // sert uniquement à filtrer/parcourir rapidement la base complète des fiches,
 // par exemple pour retrouver et montrer une procédure précise à un collègue.
 const FICHE_CATEGORIES = [
-  { key: 'hydraulique', label: 'Hydraulique', keywords: ['fuite', 'vanne', 'purge', 'calorifuge', 'corrosion', 'entartrage', 'echangeur', 'joint', 'debit', 'bruit', 'vibration', 'cavitation'] },
-  { key: 'electrique', label: 'Électrique / Automate', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
-  { key: 'regulation', label: 'Régulation', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable'] },
-  { key: 'instrumentation', label: 'Instrumentation / Compteur', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
-  { key: 'securite', label: 'Sécurité', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
-  { key: 'general', label: 'Général', keywords: ['proprete', 'local', 'acces'] },
+  { key: 'hydraulique', label: 'Hydraulique', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'vanne', 'purge', 'calorifuge', 'corrosion', 'entartrage', 'echangeur', 'joint', 'debit', 'bruit', 'vibration', 'cavitation'] },
+  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
+  { key: 'regulation', label: 'Régulation', icon: 'gauge', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteur', icon: 'thermometer', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
+  { key: 'general', label: 'Général', icon: 'building', colorVar: '--text-muted', softVar: '--neutral-soft', keywords: ['proprete', 'local', 'acces'] },
 ];
+const FICHE_CATEGORY_BY_KEY = Object.fromEntries(FICHE_CATEGORIES.map((c) => [c.key, c]));
 
 function classifyFiche(f) {
   const tokens = tokenize(`${f.title} ${f.cause_probable || ''}`);
@@ -302,6 +303,16 @@ export function renderFicheCategoryChips(activeCategory = 'toutes') {
       .join('');
 }
 
+// Repliées par défaut : on ne garde que ce que le technicien a explicitement
+// ouvert, pour que la liste reste un repérage visuel rapide (icône + couleur
+// + titre) plutôt qu'un mur de texte à faire défiler.
+const expandedFicheIds = new Set();
+
+export function toggleFicheExpanded(id) {
+  if (expandedFicheIds.has(id)) expandedFicheIds.delete(id);
+  else expandedFicheIds.add(id);
+}
+
 export function renderFiches(searchTerm = '', category = 'toutes') {
   const list = document.getElementById('fichesList');
   const needle = searchTerm.trim().toLowerCase();
@@ -320,18 +331,37 @@ export function renderFiches(searchTerm = '', category = 'toutes') {
     return;
   }
 
+  // Si une recherche/filtre ne laisse qu'une poignée de résultats, autant les
+  // montrer dépliés directement plutôt que d'imposer un tap supplémentaire.
+  const autoExpand = (needle || category !== 'toutes') && filtered.length <= 3;
+
   list.innerHTML = filtered
-    .map(
-      (f) => `
-    <div class="fiche-card">
-      <div class="fiche-title">${escapeHtml(f.title)}${f.is_reference ? '<span class="badge a_surveiller">Référence</span>' : ''}</div>
-      <dl>
-        ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
-        ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
-      </dl>
-      ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
-    </div>`
-    )
+    .map((f) => {
+      const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
+      const isExpanded = autoExpand || expandedFicheIds.has(f.id);
+      return `
+    <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
+      <div class="fiche-tile-row">
+        <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
+        <div class="fiche-tile-body">
+          <div class="fiche-tile-title">${escapeHtml(f.title)}${f.is_reference ? '<span class="badge a_surveiller">Référence</span>' : ''}</div>
+          <div class="fiche-tile-meta">${escapeHtml(cat.label)}</div>
+        </div>
+        <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
+      </div>
+      ${
+        isExpanded
+          ? `<div class="fiche-tile-detail">
+              <dl>
+                ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
+                ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
+              </dl>
+              ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
+            </div>`
+          : ''
+      }
+    </div>`;
+    })
     .join('');
 }
 
@@ -891,6 +921,19 @@ export function renderSiteDetail() {
       </div>
     </div>
     <div class="card">
+      <div class="card-header">${icon('image', 12)} Photos du site</div>
+      <div class="card-body">
+        <div class="photo-row">
+          ${(site.photos || [])
+            .map(
+              (p) => `<div class="photo-thumb"><img src="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
+            )
+            .join('')}
+          <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" data-action="add-site-photo"></label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-header">Activité</div>
       <div class="card-body stat-grid">
         <div class="stat-tile"><div class="value">${siteRondes.length}</div><div class="label">Rondes enregistrées</div></div>
@@ -913,4 +956,8 @@ export function selectSite(id) {
 export function backToSiteList() {
   selectedSiteId = null;
   renderSiteDetail();
+}
+
+export function getSelectedSite() {
+  return state.substations.find((s) => s.id === selectedSiteId) || null;
 }
