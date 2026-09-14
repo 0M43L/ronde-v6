@@ -395,8 +395,8 @@ function renderFicheTile(f, autoExpand) {
                   : ''
               }
               <div class="item-actions">
-                <button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>
-                ${!f.is_reference ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
+                ${isOwned(f) ? `<button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>` : `<span class="hint">Créée par ${escapeHtml(f.tech || 'un autre technicien')} — seul l'auteur peut la modifier</span>`}
+                ${!f.is_reference && isOwned(f) ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
               </div>
             </div>`
           : ''

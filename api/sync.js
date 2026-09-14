@@ -101,15 +101,28 @@ async function syncItem(item, userId) {
     }
 
     case 'fiche': {
-      // Concurrence optimiste : une fiche est une base de connaissances
-      // éditée collaborativement (souvent enrichie par plusieurs
-      // techniciens). Si deux personnes modifient la même fiche hors ligne
-      // en même temps, on ne veut surtout pas que la seconde synchro écrase
-      // silencieusement le travail de la première. Le client envoie la
-      // version qu'il avait vue ; la mise à jour n'est appliquée que si
-      // c'est toujours la version courante en base, sinon 0 ligne n'est
-      // affectée et syncItem() le traduit en conflit explicite (voir plus
-      // bas) — jamais un écrasement silencieux.
+      // Seul l'auteur d'une fiche terrain a le droit de la modifier (les
+      // fiches de référence, sans auteur personnel, restent modifiables par
+      // tous). Vérifié ici côté serveur — pas seulement en cachant le
+      // bouton "Modifier" côté client — pour que ce ne soit pas
+      // contournable par un appel direct à l'API.
+      const existing = await db.execute({ sql: `SELECT user_id, is_reference FROM fiches WHERE id = ?`, args: [payload.id] });
+      const row = existing.rows[0];
+      if (row && !row.is_reference && row.user_id && row.user_id !== userId) {
+        const err = new Error('FORBIDDEN_NOT_OWNER');
+        err.code = 'FORBIDDEN_NOT_OWNER';
+        throw err;
+      }
+
+      // Concurrence optimiste : si deux personnes modifient la même fiche
+      // hors ligne en même temps (rare maintenant que l'édition est limitée
+      // à l'auteur, mais reste possible entre deux appareils du même
+      // compte, ou pour une fiche de référence), on ne veut surtout pas que
+      // la seconde synchro écrase silencieusement le travail de la
+      // première. Le client envoie la version qu'il avait vue ; la mise à
+      // jour n'est appliquée que si c'est toujours la version courante en
+      // base, sinon 0 ligne n'est affectée et syncItem() le traduit en
+      // conflit explicite (voir plus bas) — jamais un écrasement silencieux.
       const result = await db.execute({
         sql: `INSERT INTO fiches (id, title, symptomes, cause_probable, procedure_intervention, securite,
                 outillage, pieces_rechange, solution, urgence, photos_json, notes, is_reference,

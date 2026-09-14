@@ -49,8 +49,11 @@ setSyncErrorListener(async (failedItems, errors) => {
   const errorById = new Map(errors.map((e) => [e.id, e.error]));
   const other = [];
   for (const item of failedItems) {
-    if (item.entity_type === 'fiche' && errorById.get(item.id) === 'CONFLICT') {
+    const code = errorById.get(item.id);
+    if (item.entity_type === 'fiche' && code === 'CONFLICT') {
       await captureFicheConflict(item);
+    } else if (item.entity_type === 'fiche' && code === 'FORBIDDEN_NOT_OWNER') {
+      await rejectNonOwnedFicheEdit(item);
     } else {
       other.push(item);
     }
@@ -97,6 +100,29 @@ async function captureFicheConflict(item) {
   if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast(`${serverFiche.tech || 'Un collègue'} a modifié "${serverFiche.title}" en même temps que toi — va dans l'onglet Fiches pour comparer et fusionner.`);
+}
+
+// Seul l'auteur d'une fiche terrain peut la modifier (voir api/sync.js). Le
+// bouton "Modifier" est déjà caché côté UI pour une fiche qui n'appartient
+// pas au technicien connecté ; ce cas ne devrait donc arriver qu'en cas
+// d'état local périmé (ex : la fiche a changé de propriétaire entre-temps,
+// improbable, ou une modification restée en file depuis avant ce
+// changement de règle). On n'insiste jamais : pas de nouvelle tentative,
+// on resynchronise la vraie version et on prévient.
+async function rejectNonOwnedFicheEdit(item) {
+  await dbLayer.clearSyncQueueItems([item.id]);
+  try {
+    const fresh = await api.fetchFiches();
+    const serverFiche = fresh.find((f) => f.id === item.payload.id);
+    if (serverFiche) {
+      state.fiches = state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f));
+      await dbLayer.put('fiches', serverFiche);
+    }
+  } catch {
+    // Hors-ligne : la version correcte reviendra au prochain chargement de l'appli.
+  }
+  if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.showToast(`Tu ne peux modifier que les fiches que tu as créées ("${item.payload.title}" appartient à un autre technicien).`);
 }
 
 document.getElementById('ficheConflicts').addEventListener('click', async (e) => {
