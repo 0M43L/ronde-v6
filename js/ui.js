@@ -1052,3 +1052,222 @@ export function backToSiteList() {
 export function getSelectedSite() {
   return state.substations.find((s) => s.id === selectedSiteId) || null;
 }
+
+// ===== EXPORTS PROFESSIONNELS (PDF ronde / rapport hebdomadaire) =====
+// Gabarit dédié (pas une capture de l'écran mobile) : couleurs figées en dur
+// (indépendantes du thème clair/sombre courant) pour un document imprimable
+// cohérent quel que soit le thème actif au moment de l'export.
+const REPORT_COLORS = {
+  text: '#17171A', muted: '#6B6B72', accent: '#9F1247',
+  success: '#1F9D55', successSoft: '#E7F7ED',
+  warning: '#B7791F', warningSoft: '#FDF3E3',
+  danger: '#C53030', dangerSoft: '#FCEAEA',
+  neutralSoft: '#EEEEF0', border: '#E6E6E9', bgAlt: '#F7F7F9',
+};
+
+const STATUS_REPORT_LABEL = { ok: 'OK', warning: 'Dégradé', danger: 'Défaillant', na: 'N/A' };
+
+function reportStatusBadge(status) {
+  const c = REPORT_COLORS;
+  const map = {
+    ok: [c.success, c.successSoft], warning: [c.warning, c.warningSoft],
+    danger: [c.danger, c.dangerSoft], na: [c.muted, c.neutralSoft],
+  };
+  const [fg, bg] = map[status] || [c.muted, c.neutralSoft];
+  return `<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:9.5px;font-weight:700;background:${bg};color:${fg};">${STATUS_REPORT_LABEL[status] || '—'}</span>`;
+}
+
+function statutColors(statut) {
+  const c = REPORT_COLORS;
+  if (statut === 'arret') return [c.danger, c.dangerSoft];
+  if (statut === 'reserve') return [c.warning, c.warningSoft];
+  return [c.success, c.successSoft];
+}
+
+function reportHeader(title, subtitle) {
+  const c = REPORT_COLORS;
+  return `
+    <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid ${c.accent};padding-bottom:12px;margin-bottom:18px;">
+      <div style="width:42px;height:42px;border-radius:11px;background:${c.accent};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex:none;">ID</div>
+      <div>
+        <div style="font-size:16px;font-weight:800;color:${c.text};">${title}</div>
+        <div style="font-size:10px;color:${c.muted};">${subtitle}</div>
+      </div>
+    </div>`;
+}
+
+function reportFooter() {
+  const c = REPORT_COLORS;
+  return `<div style="margin-top:22px;padding-top:8px;border-top:1px solid ${c.border};font-size:8px;color:${c.muted};text-align:center;">
+    Généré automatiquement par Ronde V6 — IDEX · ${new Date().toLocaleString('fr-FR')}
+  </div>`;
+}
+
+function reportSectionTitle(label) {
+  return `<div style="font-size:10.5px;font-weight:800;color:${REPORT_COLORS.accent};text-transform:uppercase;letter-spacing:.4px;margin:18px 0 8px;">${label}</div>`;
+}
+
+// substation/tech/date/heure/observations : valeurs de la ronde en cours de
+// saisie (pas encore forcément enregistrées), passées par l'appelant plutôt
+// que relues dans le DOM pour garder ce module découplé du formulaire.
+export function buildRondeReportHtml({ substation, tech, date, heure, observations }) {
+  const c = REPORT_COLORS;
+  const statutMeta = RONDE_STATUTS.find((s) => s.id === state.rondeStatut) || RONDE_STATUTS[0];
+  const [statutColor, statutBg] = statutColors(state.rondeStatut);
+
+  const controlsRows = state.controls
+    .map(
+      (ctrl) => `
+    <tr style="border-bottom:1px solid ${c.border};">
+      <td style="padding:7px 8px;font-size:10px;color:${c.text};">${escapeHtml(ctrl.label)}</td>
+      <td style="padding:7px 8px;">${reportStatusBadge(ctrl.status)}</td>
+      <td style="padding:7px 8px;font-size:9.5px;color:${c.muted};">${escapeHtml(ctrl.comment || '—')}</td>
+    </tr>`
+    )
+    .join('');
+
+  const withPhotos = state.controls.filter((ctrl) => ctrl.photo || ctrl.photoApres);
+  const photosHtml = withPhotos.length
+    ? `${reportSectionTitle('Photos')}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${withPhotos
+          .map(
+            (ctrl) => `
+          ${ctrl.photo ? `<div style="width:100px;"><img src="${ctrl.photo}" style="width:100%;border-radius:6px;border:1px solid ${c.border};display:block;"><div style="font-size:7.5px;color:${c.muted};text-align:center;margin-top:2px;">${escapeHtml(ctrl.label)} — avant</div></div>` : ''}
+          ${ctrl.photoApres ? `<div style="width:100px;"><img src="${ctrl.photoApres}" style="width:100%;border-radius:6px;border:1px solid ${c.border};display:block;"><div style="font-size:7.5px;color:${c.muted};text-align:center;margin-top:2px;">${escapeHtml(ctrl.label)} — après</div></div>` : ''}`
+          )
+          .join('')}
+      </div>`
+    : '';
+
+  return `
+    <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
+      ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sous-stations d'échange de chauffage urbain")}
+      <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Sous-station</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Date / heure</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${formatDateFr(date)}${heure ? ' — ' + heure : ''}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Intervenant</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(tech || '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Statut à l'issue</td><td style="padding:4px 0;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td></tr>
+      </table>
+
+      ${reportSectionTitle('Contrôles réalisés')}
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="background:${c.accent};color:#fff;">
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Point de contrôle</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;width:80px;">Statut</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Commentaire</th>
+        </tr>
+        ${controlsRows}
+      </table>
+
+      ${reportSectionTitle('Observations')}
+      <div style="font-size:10px;background:${c.bgAlt};border:1px solid ${c.border};border-radius:8px;padding:10px 12px;min-height:20px;color:${c.text};white-space:pre-wrap;">${escapeHtml(observations) || '—'}</div>
+
+      ${photosHtml}
+      ${reportFooter()}
+    </div>`;
+}
+
+export function buildWeeklyReportHtml() {
+  const c = REPORT_COLORS;
+  const now = Date.now();
+  const rondesWeek = state.rondes
+    .filter((r) => {
+      if (!r.date) return false;
+      const diff = (now - new Date(r.date).getTime()) / 86400000;
+      return diff >= 0 && diff <= 7;
+    })
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  const anomaliesCount = rondesWeek.reduce(
+    (sum, r) => sum + (r.controls || []).filter((ct) => ct.status === 'warning' || ct.status === 'danger').length,
+    0
+  );
+  const sitesVisited = new Set(rondesWeek.map((r) => r.substation_id)).size;
+  const SEVERITY_ORDER_R = { danger: 0, warning: 1, none: 2 };
+  const actionsPending = state.actions
+    .filter((a) => !a.done)
+    .sort((a, b) => (SEVERITY_ORDER_R[a.severity] ?? 2) - (SEVERITY_ORDER_R[b.severity] ?? 2));
+
+  const statTile = (value, label) => `
+    <div style="flex:1;background:${c.bgAlt};border:1px solid ${c.border};border-radius:8px;padding:12px 6px;text-align:center;">
+      <div style="font-size:20px;font-weight:800;color:${c.accent};">${value}</div>
+      <div style="font-size:8.5px;color:${c.muted};margin-top:2px;">${label}</div>
+    </div>`;
+
+  const rondesRows = rondesWeek
+    .map((r) => {
+      const s = state.substations.find((x) => x.id === r.substation_id);
+      const anomalies = (r.controls || []).filter((ct) => ct.status === 'warning' || ct.status === 'danger').length;
+      const statutMeta = RONDE_STATUTS.find((st) => st.id === (r.statut || 'operationnel')) || RONDE_STATUTS[0];
+      const [statutColor, statutBg] = statutColors(r.statut);
+      return `<tr style="border-bottom:1px solid ${c.border};">
+        <td style="padding:6px 8px;font-size:9.5px;color:${c.muted};white-space:nowrap;">${formatDateFr(r.date)}</td>
+        <td style="padding:6px 8px;font-size:10px;color:${c.text};">${escapeHtml(s ? s.name : r.substation_id)}</td>
+        <td style="padding:6px 8px;font-size:9.5px;color:${c.muted};">${escapeHtml(r.tech || '—')}</td>
+        <td style="padding:6px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:8.5px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td>
+        <td style="padding:6px 8px;font-size:9.5px;text-align:center;color:${anomalies ? c.danger : c.muted};font-weight:${anomalies ? '700' : '400'};">${anomalies || '—'}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const SEVERITY_LABEL = { danger: 'Urgent', warning: 'À surveiller', none: 'Info' };
+  const actionsRows = actionsPending
+    .map((a) => {
+      const sevColor = a.severity === 'danger' ? c.danger : a.severity === 'warning' ? c.warning : c.muted;
+      const sevBg = a.severity === 'danger' ? c.dangerSoft : a.severity === 'warning' ? c.warningSoft : c.neutralSoft;
+      return `<tr style="border-bottom:1px solid ${c.border};">
+        <td style="padding:6px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:8.5px;font-weight:700;background:${sevBg};color:${sevColor};">${SEVERITY_LABEL[a.severity] || a.severity}</span></td>
+        <td style="padding:6px 8px;font-size:9.5px;color:${c.text};">${escapeHtml(a.text)}</td>
+        <td style="padding:6px 8px;font-size:9px;color:${c.muted};white-space:nowrap;">${escapeHtml(a.tech || '—')}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const periodeDebut = formatDateFr(new Date(now - 7 * 86400000).toISOString().slice(0, 10));
+  const periodeFin = formatDateFr(new Date(now).toISOString().slice(0, 10));
+
+  return `
+    <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
+      ${reportHeader('Rapport hebdomadaire', `Ronde V6 — IDEX · Semaine du ${periodeDebut} au ${periodeFin}`)}
+
+      <div style="display:flex;gap:10px;margin-bottom:6px;">
+        ${statTile(rondesWeek.length, 'Rondes effectuées')}
+        ${statTile(sitesVisited, 'Sites visités')}
+        ${statTile(anomaliesCount, 'Anomalies relevées')}
+        ${statTile(actionsPending.length, 'Actions en attente')}
+      </div>
+
+      ${reportSectionTitle('Rondes de la semaine')}
+      ${
+        rondesWeek.length
+          ? `<table style="width:100%;border-collapse:collapse;">
+        <tr style="background:${c.accent};color:#fff;">
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Date</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Sous-station</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Intervenant</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Statut</th>
+          <th style="text-align:center;padding:7px 8px;font-size:9px;">Anomalies</th>
+        </tr>
+        ${rondesRows}
+      </table>`
+          : `<div style="font-size:10px;color:${c.muted};">Aucune ronde sur les 7 derniers jours.</div>`
+      }
+
+      ${reportSectionTitle(`Actions en attente (${actionsPending.length})`)}
+      ${
+        actionsPending.length
+          ? `<table style="width:100%;border-collapse:collapse;">
+        <tr style="background:${c.accent};color:#fff;">
+          <th style="text-align:left;padding:7px 8px;font-size:9px;width:100px;">Gravité</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Description</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;width:90px;">Intervenant</th>
+        </tr>
+        ${actionsRows}
+      </table>`
+          : `<div style="font-size:10px;color:${c.muted};">Aucune action en attente.</div>`
+      }
+
+      ${reportFooter()}
+    </div>`;
+}
