@@ -483,7 +483,7 @@ export function renderActions() {
             ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span> ` : ''}
             ${escapeHtml(a.text)}
           </div>
-          <div class="item-meta">${escapeHtml(a.date || '')}</div>
+          <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}</div>
           ${a.photo ? `<div class="photo-row"><div class="photo-thumb"><img src="${a.photo}"></div></div>` : ''}
         </div>
         ${isOwned(a) ? `<button class="btn-ghost" data-action="delete-action" data-id="${a.id}">✕</button>` : ''}
@@ -688,7 +688,7 @@ export function renderMesHistory() {
         const nok = (m.checks || []).filter((c) => c.status === 'nok').length;
         return `<div class="item">
         <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
-        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK</div>
+        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
         ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
       </div>`;
       })
@@ -712,7 +712,7 @@ export function buildHistoriqueItems() {
       type: 'Ronde',
       ts: r.ts || 0,
       title: substation ? substation.name : r.substation_id,
-      meta: `${formatDateFr(r.date)} ${r.heure || ''} · ${r.tech || ''}`,
+      meta: `${formatDateFr(r.date)} ${r.heure || ''}${r.tech ? ` · ${r.tech}` : ''}`,
       body: r.observations,
       deleteAction: 'delete-ronde',
       id: r.id,
@@ -729,11 +729,11 @@ export function buildHistoriqueItems() {
       items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), searchable: a.text.toLowerCase() });
+    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), searchable: a.text.toLowerCase() });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
-    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
+    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: `${m.date || ''}${m.tech ? ` · ${m.tech}` : ''}`, body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
   items.sort((a, b) => b.ts - a.ts);
   return items;

@@ -402,6 +402,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
       source: 'ronde',
       photo: c.photo || null,
       done: false,
+      tech: `${state.user.prenom} ${state.user.nom}`.trim(),
       date: new Date().toLocaleString('fr-FR'),
       ts: Date.now(),
     };
@@ -486,6 +487,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       source: 'ronde',
       photo: c.photo || null,
       done: false,
+      tech: `${state.user.prenom} ${state.user.nom}`.trim(),
       date: new Date().toLocaleString('fr-FR'),
       ts: Date.now(),
     };
@@ -700,6 +702,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
     source: 'manuelle',
     photo: null,
     done: false,
+    tech: `${state.user.prenom} ${state.user.nom}`.trim(),
     date: new Date().toLocaleString('fr-FR'),
     ts: Date.now(),
   };
@@ -808,6 +811,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
     checks: JSON.parse(JSON.stringify(state.mesChecks)),
     poste: JSON.parse(JSON.stringify(state.mesPoste)),
     notes: document.getElementById('mesNotes').value,
+    tech: `${state.user.prenom} ${state.user.nom}`.trim(),
     date: new Date().toLocaleString('fr-FR'),
     ts: Date.now(),
   };
