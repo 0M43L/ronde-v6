@@ -2,7 +2,8 @@ import { state, resetControls, resetMesChecks, emptyEchangeur } from './state.js
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
-import { initMap, renderMarkers, focusSubstation, invalidateMapSize } from './map.js';
+import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
+import { prefetchTilesAround } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener } from './sync.js';
 
 if ('serviceWorker' in navigator) {
@@ -149,11 +150,35 @@ async function loadAppData() {
     state.fiches = cachedFiches;
   }
 
-  state.rondes = await dbLayer.getAll('rondes');
-  state.actions = await dbLayer.getAll('actions');
-  state.mesSessions = await dbLayer.getAll('mes');
+  const cachedRondes = await dbLayer.getAll('rondes');
+  try {
+    const fresh = await api.fetchRondes();
+    state.rondes = mergeById(cachedRondes, fresh);
+    await dbLayer.putAll('rondes', state.rondes);
+  } catch {
+    state.rondes = cachedRondes;
+  }
+
+  const cachedActions = await dbLayer.getAll('actions');
+  try {
+    const fresh = await api.fetchActions();
+    state.actions = mergeById(cachedActions, fresh);
+    await dbLayer.putAll('actions', state.actions);
+  } catch {
+    state.actions = cachedActions;
+  }
+
+  const cachedMes = await dbLayer.getAll('mes');
+  try {
+    const fresh = await api.fetchMesSessions();
+    state.mesSessions = mergeById(cachedMes, fresh);
+    await dbLayer.putAll('mes', state.mesSessions);
+  } catch {
+    state.mesSessions = cachedMes;
+  }
 
   ui.renderSubstationDatalist();
+  ui.renderSiteList();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
@@ -162,10 +187,12 @@ async function loadAppData() {
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
   ui.renderActionsRetardSite();
-  ui.renderFiches();
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
   ui.renderMesChecks();
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
@@ -180,6 +207,10 @@ async function loadAppData() {
   checkOverdueReminders();
 
   initMap();
+  if (!isMapAvailable()) {
+    document.getElementById('map').innerHTML =
+      '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
+  }
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
     if (s) {
@@ -207,6 +238,22 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderActionsRetardSite();
   }
   if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
+  if (tab.dataset.tab === 'sites') ui.renderSiteList(document.getElementById('siteSearch').value);
+});
+
+// ===== SITES (fiche technique) =====
+document.getElementById('siteSearch').addEventListener('input', (e) => ui.renderSiteList(e.target.value));
+
+document.getElementById('siteList').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="select-site"]');
+  if (!item) return;
+  ui.selectSite(item.dataset.id);
+});
+
+document.getElementById('siteDetail').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="back-to-sites"]');
+  if (!btn) return;
+  ui.backToSiteList();
 });
 
 // ===== SOUS-STATIONS =====
@@ -214,7 +261,10 @@ function onSubstationInput() {
   const name = document.getElementById('rondeSubstation').value;
   const substation = ui.findSubstationByName(name);
   ui.renderAccessNotes(substation);
-  if (substation) focusSubstation(substation);
+  if (substation) {
+    focusSubstation(substation);
+    prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
+  }
 }
 document.getElementById('rondeSubstation').addEventListener('input', onSubstationInput);
 
@@ -243,6 +293,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
   ui.renderSubstationDatalist();
+  prefetchTilesAround(lat, lon).catch(() => {});
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
     if (s) {
@@ -346,7 +397,9 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
 document.getElementById('controlsList').addEventListener('input', (e) => {
   const field = e.target.closest('[data-action="set-comment"]');
   if (!field) return;
-  state.controls[Number(field.dataset.index)].comment = field.value;
+  const index = Number(field.dataset.index);
+  state.controls[index].comment = field.value;
+  ui.updateFicheSuggestions(index);
 });
 
 document.getElementById('controlsList').addEventListener('change', async (e) => {
@@ -456,6 +509,8 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 });
 
 // ===== FICHES =====
+let ficheCategory = 'toutes';
+
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
   const title = document.getElementById('ficheTitle').value.trim();
   const cause_probable = document.getElementById('ficheCause').value.trim();
@@ -477,12 +532,21 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
   await dbLayer.queueSync('fiche', 'upsert', fiche);
   state.fiches.push(fiche);
   ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
-  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Fiche ajoutée');
 });
 
-document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value));
+document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value, ficheCategory));
+
+document.getElementById('ficheCategoryChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  ficheCategory = chip.dataset.category;
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+});
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action="delete-fiche"]');
@@ -493,7 +557,8 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
   await dbLayer.remove('fiches', id);
   await dbLayer.queueSync('fiche', 'delete', { id });
   state.fiches = state.fiches.filter((f) => f.id !== id);
-  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
@@ -561,7 +626,9 @@ document.getElementById('mesChecksList').addEventListener('click', (e) => {
 document.getElementById('mesChecksList').addEventListener('input', (e) => {
   const valueField = e.target.closest('[data-action="set-mes-value"]');
   if (valueField) {
-    state.mesChecks[Number(valueField.dataset.index)].valeur = valueField.value;
+    const index = Number(valueField.dataset.index);
+    state.mesChecks[index].valeur = valueField.value;
+    ui.updateDeviationHint(index);
     return;
   }
   const commentField = e.target.closest('[data-action="set-mes-comment"]');
@@ -586,17 +653,23 @@ document.getElementById('mesNbEchangeurs').addEventListener('change', (e) => {
   while (echangeurs.length < n) echangeurs.push(emptyEchangeur());
   while (echangeurs.length > n) echangeurs.pop();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 
 document.getElementById('mesEchangeursList').addEventListener('input', (e) => {
   const field = e.target.closest('[data-action="set-echangeur"]');
   if (!field) return;
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
   const field = e.target.closest('[data-action="set-echangeur"]');
   if (!field) return;
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
 });
 
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
@@ -625,6 +698,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
   ui.renderMesChecks();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Session MES enregistrée');
@@ -758,23 +832,45 @@ document.getElementById('importBackupFile').addEventListener('change', async (e)
 });
 
 document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
-  if (!window.confirm('Effacer tout l\'historique local (rondes, actions, fiches ajoutées, sessions MES) ? Cette action est irréversible sur cet appareil.')) return;
-  for (const r of state.rondes) await dbLayer.queueSync('ronde', 'delete', { id: r.id });
-  for (const a of state.actions) await dbLayer.queueSync('action', 'delete', { id: a.id });
-  for (const f of state.fiches.filter((f) => !f.is_reference)) await dbLayer.queueSync('fiche', 'delete', { id: f.id });
-  for (const m of state.mesSessions) await dbLayer.queueSync('mes_session', 'delete', { id: m.id });
-  await dbLayer.clearStore('rondes');
-  await dbLayer.clearStore('actions');
-  await dbLayer.clearStore('mes');
-  state.rondes = [];
-  state.actions = [];
+  // Rondes/actions/MES sont partagées entre techniciens : on n'efface que ce
+  // que cet appareil/compte a créé, jamais l'activité des collègues.
+  if (!window.confirm('Effacer mes propres rondes, actions et sessions MES (et mes fiches ajoutées) ? Cette action est irréversible. L\'activité des autres techniciens n\'est pas affectée.')) return;
+  const isMine = (item) => !item.user_id || item.user_id === state.user.id;
+  const ownRondes = state.rondes.filter(isMine);
+  const ownActions = state.actions.filter(isMine);
+  const ownMes = state.mesSessions.filter(isMine);
+  const ownFiches = state.fiches.filter((f) => !f.is_reference);
+
+  for (const r of ownRondes) {
+    await dbLayer.remove('rondes', r.id);
+    await dbLayer.queueSync('ronde', 'delete', { id: r.id });
+  }
+  for (const a of ownActions) {
+    await dbLayer.remove('actions', a.id);
+    await dbLayer.queueSync('action', 'delete', { id: a.id });
+  }
+  for (const f of ownFiches) {
+    await dbLayer.remove('fiches', f.id);
+    await dbLayer.queueSync('fiche', 'delete', { id: f.id });
+  }
+  for (const m of ownMes) {
+    await dbLayer.remove('mes', m.id);
+    await dbLayer.queueSync('mes_session', 'delete', { id: m.id });
+  }
+
+  const ownRondeIds = new Set(ownRondes.map((r) => r.id));
+  const ownActionIds = new Set(ownActions.map((a) => a.id));
+  const ownMesIds = new Set(ownMes.map((m) => m.id));
+  state.rondes = state.rondes.filter((r) => !ownRondeIds.has(r.id));
+  state.actions = state.actions.filter((a) => !ownActionIds.has(a.id));
   state.fiches = state.fiches.filter((f) => f.is_reference);
-  state.mesSessions = [];
+  state.mesSessions = state.mesSessions.filter((m) => !ownMesIds.has(m.id));
+
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.renderActions();
   ui.renderBilanStats();
   ui.renderMesHistory();
-  ui.showToast('Historique effacé');
+  ui.showToast('Ton historique a été effacé');
   syncNow().catch(() => {});
 });
 
@@ -799,7 +895,7 @@ document.getElementById('weeklyReportBtn').addEventListener('click', () => {
       ${rondesWeek
         .map((r) => {
           const s = state.substations.find((x) => x.id === r.substation_id);
-          return `<li>${r.date} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
+          return `<li>${ui.formatDateFr(r.date)} ${r.heure} — ${s ? s.name : r.substation_id} — ${r.tech || ''} — statut : ${r.statut || 'operationnel'}</li>`;
         })
         .join('')}
     </ul>
