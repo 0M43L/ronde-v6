@@ -42,10 +42,7 @@ async function syncItem(item, userId) {
   const { entity_type, action, payload } = item;
 
   if (action === 'delete') {
-    const table = TABLES[entity_type];
-    if (!table) throw new Error(`Type inconnu: ${entity_type}`);
-    await db.execute({ sql: `DELETE FROM ${table} WHERE id = ? AND user_id = ?`, args: [payload.id, userId] });
-    return;
+    return deleteItem(entity_type, payload.id, userId);
   }
 
   switch (entity_type) {
@@ -68,45 +65,61 @@ async function syncItem(item, userId) {
         ],
       });
 
+    case 'substation':
+      return db.execute({
+        sql: `INSERT INTO substations (id, name, lat, lon, notes_acces, needs_review, source, updated_at)
+              VALUES (?, ?, ?, ?, ?, 0, 'terrain', datetime('now'))
+              ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name, lat = excluded.lat, lon = excluded.lon,
+                notes_acces = excluded.notes_acces, updated_at = datetime('now')`,
+        args: [payload.id, payload.name, payload.lat, payload.lon, payload.notes_acces || ''],
+      });
+
     case 'fiche':
       return db.execute({
-        sql: `INSERT INTO fiches (id, ronde_id, substation_id, user_id, type, description)
-              VALUES (?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET type = excluded.type, description = excluded.description`,
+        sql: `INSERT INTO fiches (id, title, cause_probable, solution, notes, is_reference, ronde_id, substation_id, user_id)
+              VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title, cause_probable = excluded.cause_probable,
+                solution = excluded.solution, notes = excluded.notes`,
         args: [
           payload.id,
+          payload.title,
+          payload.cause_probable || '',
+          payload.solution || '',
+          payload.notes || '',
           payload.ronde_id || null,
           payload.substation_id || null,
           userId,
-          payload.type,
-          payload.description,
         ],
       });
 
     case 'action':
       return db.execute({
-        sql: `INSERT INTO actions (id, user_id, substation_id, text, done)
-              VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET text = excluded.text, done = excluded.done`,
-        args: [payload.id, userId, payload.substation_id || null, payload.text, payload.done ? 1 : 0],
-      });
-
-    case 'mes':
-      return db.execute({
-        sql: `INSERT INTO mes_records (id, substation_id, user_id, phase, puissance, debit, temperature)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO actions (id, user_id, substation_id, ronde_id, text, severity, source, photo, done)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
-                phase = excluded.phase, puissance = excluded.puissance,
-                debit = excluded.debit, temperature = excluded.temperature`,
+                text = excluded.text, severity = excluded.severity, done = excluded.done,
+                photo = excluded.photo`,
         args: [
           payload.id,
-          payload.substation_id || null,
           userId,
-          payload.phase || null,
-          payload.puissance ?? null,
-          payload.debit ?? null,
-          payload.temperature ?? null,
+          payload.substation_id || null,
+          payload.ronde_id || null,
+          payload.text,
+          payload.severity || 'none',
+          payload.source || 'manuelle',
+          payload.photo || null,
+          payload.done ? 1 : 0,
         ],
+      });
+
+    case 'mes_session':
+      return db.execute({
+        sql: `INSERT INTO mes_sessions (id, substation_id, user_id, checks_json, notes)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET checks_json = excluded.checks_json, notes = excluded.notes`,
+        args: [payload.id, payload.substation_id || null, userId, JSON.stringify(payload.checks || []), payload.notes || ''],
       });
 
     default:
@@ -116,7 +129,21 @@ async function syncItem(item, userId) {
 
 const TABLES = {
   ronde: 'rondes',
+  substation: 'substations',
   fiche: 'fiches',
   action: 'actions',
-  mes: 'mes_records',
+  mes_session: 'mes_sessions',
 };
+
+// Tables où la suppression est limitée aux enregistrements du user (les
+// fiches de référence et les sous-stations n'ont pas cette contrainte).
+const OWNED_TABLES = new Set(['rondes', 'actions', 'mes_sessions']);
+
+function deleteItem(entity_type, id, userId) {
+  const table = TABLES[entity_type];
+  if (!table) throw new Error(`Type inconnu: ${entity_type}`);
+  if (OWNED_TABLES.has(table)) {
+    return db.execute({ sql: `DELETE FROM ${table} WHERE id = ? AND user_id = ?`, args: [id, userId] });
+  }
+  return db.execute({ sql: `DELETE FROM ${table} WHERE id = ?`, args: [id] });
+}

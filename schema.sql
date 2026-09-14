@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token);
 
--- Sous-stations importées du KML Google Earth (source de vérité: data/substations.seed.json)
+-- Sous-stations. Deux origines : 'kml' (import initial) et 'terrain' (créées
+-- depuis l'app via géolocalisation quand une sous-station n'est pas encore référencée).
 CREATE TABLE IF NOT EXISTS substations (
   id           TEXT PRIMARY KEY,
   name         TEXT NOT NULL,
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS substations (
   lon          REAL,
   notes_acces  TEXT,
   needs_review INTEGER NOT NULL DEFAULT 0,
+  source       TEXT NOT NULL DEFAULT 'kml',
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -49,32 +51,46 @@ CREATE TABLE IF NOT EXISTS rondes (
 CREATE INDEX IF NOT EXISTS idx_rondes_substation ON rondes(substation_id);
 CREATE INDEX IF NOT EXISTS idx_rondes_user ON rondes(user_id);
 
+-- Fiches = base de connaissances métier (pannes récurrentes, causes probables,
+-- solutions). is_reference=1 pour les fiches pré-remplies, 0 pour celles
+-- ajoutées à la main par un technicien.
 CREATE TABLE IF NOT EXISTS fiches (
-  id            TEXT PRIMARY KEY,
-  ronde_id      TEXT REFERENCES rondes(id),
-  substation_id TEXT REFERENCES substations(id),
-  user_id       TEXT NOT NULL REFERENCES users(id),
-  type          TEXT NOT NULL,
-  description   TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  id              TEXT PRIMARY KEY,
+  title           TEXT NOT NULL,
+  cause_probable  TEXT,
+  solution        TEXT,
+  notes           TEXT,
+  is_reference    INTEGER NOT NULL DEFAULT 0,
+  ronde_id        TEXT REFERENCES rondes(id),
+  substation_id   TEXT REFERENCES substations(id),
+  user_id         TEXT REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Actions à traiter. source='ronde' quand créée automatiquement depuis une
+-- anomalie relevée en ronde (avec photo), 'manuelle' sinon.
+-- severity : 'danger' | 'warning' | 'none' — sert au tri par gravité.
 CREATE TABLE IF NOT EXISTS actions (
   id            TEXT PRIMARY KEY,
   user_id       TEXT NOT NULL REFERENCES users(id),
   substation_id TEXT REFERENCES substations(id),
+  ronde_id      TEXT REFERENCES rondes(id),
   text          TEXT NOT NULL,
+  severity      TEXT NOT NULL DEFAULT 'none',
+  source        TEXT NOT NULL DEFAULT 'manuelle',
+  photo         TEXT,
   done          INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS mes_records (
+-- Sessions de mise en service. checks_json contient la liste des points de
+-- vérification cochés (structure libre : le nombre/contenu des points peut
+-- évoluer côté frontend sans migration de schéma).
+CREATE TABLE IF NOT EXISTS mes_sessions (
   id            TEXT PRIMARY KEY,
   substation_id TEXT REFERENCES substations(id),
   user_id       TEXT NOT NULL REFERENCES users(id),
-  phase         TEXT,
-  puissance     REAL,
-  debit         REAL,
-  temperature   REAL,
+  checks_json   TEXT NOT NULL,
+  notes         TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

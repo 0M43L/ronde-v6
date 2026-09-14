@@ -1,4 +1,4 @@
-import { state, resetControls } from './state.js';
+import { state, resetControls, resetMesChecks } from './state.js';
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
@@ -51,7 +51,6 @@ window.addEventListener('load', async () => {
       }
       state.user = user;
     } catch {
-      // hors-ligne : on continue avec la session locale, sera revérifiée au retour réseau
       state.user = cachedUser;
     }
     await enterApp();
@@ -85,40 +84,64 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
-  document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`;
+  document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
   await loadAppData();
+}
+
+// ===== FUSION LOCAL / SERVEUR (offline-first) =====
+// Le serveur écrase les entrées connues, mais on garde les entrées créées
+// localement (hors-ligne) qui n'ont pas encore été synchronisées.
+function mergeById(local, server) {
+  const map = new Map(local.map((item) => [item.id, item]));
+  server.forEach((item) => map.set(item.id, item));
+  return Array.from(map.values());
 }
 
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
+  const cachedSubstations = await dbLayer.getAll('substations');
   try {
     const fresh = await api.fetchSubstations();
-    state.substations = fresh;
-    await dbLayer.putAll('substations', fresh);
+    state.substations = mergeById(cachedSubstations, fresh);
+    await dbLayer.putAll('substations', state.substations);
   } catch {
-    state.substations = await dbLayer.getAll('substations');
+    state.substations = cachedSubstations;
+  }
+
+  const cachedFiches = await dbLayer.getAll('fiches');
+  try {
+    const fresh = await api.fetchFiches();
+    state.fiches = mergeById(cachedFiches, fresh);
+    await dbLayer.putAll('fiches', state.fiches);
+  } catch {
+    state.fiches = cachedFiches;
   }
 
   state.rondes = await dbLayer.getAll('rondes');
-  state.fiches = await dbLayer.getAll('fiches');
   state.actions = await dbLayer.getAll('actions');
-  state.mesRecords = await dbLayer.getAll('mes');
+  state.mesSessions = await dbLayer.getAll('mes');
 
-  ui.renderSubstationSelect();
+  ui.renderSubstationDatalist();
   ui.renderControls();
   ui.renderBilan();
+  ui.renderBilanStats();
   ui.renderFiches();
   ui.renderActions();
+  ui.renderMesChecks();
+  ui.renderMesHistory();
   ui.renderHistorique();
 
   document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
-  document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`;
+  document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
 
   initMap();
   renderMarkers(state.substations, (id) => {
-    document.getElementById('rondeSubstation').value = id;
-    onSubstationChange();
+    const s = state.substations.find((x) => x.id === id);
+    if (s) {
+      document.getElementById('rondeSubstation').value = s.name;
+      onSubstationInput();
+    }
   });
   invalidateMapSize();
 
@@ -132,63 +155,170 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   if (!tab) return;
   ui.switchTab(tab.dataset.tab);
   if (tab.dataset.tab === 'ronde') invalidateMapSize();
+  if (tab.dataset.tab === 'bilan') ui.renderBilanStats();
 });
 
-// ===== SOUS-STATION =====
-function onSubstationChange() {
-  const id = document.getElementById('rondeSubstation').value;
-  const substation = state.substations.find((s) => s.id === id);
+// ===== SOUS-STATIONS =====
+function onSubstationInput() {
+  const name = document.getElementById('rondeSubstation').value;
+  const substation = ui.findSubstationByName(name);
   ui.renderAccessNotes(substation);
   if (substation) focusSubstation(substation);
 }
-document.getElementById('rondeSubstation').addEventListener('change', onSubstationChange);
+document.getElementById('rondeSubstation').addEventListener('input', onSubstationInput);
+
+async function resolveOrCreateSubstation(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  let substation = ui.findSubstationByName(trimmed);
+  if (substation) return substation;
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false };
+  state.substations.push(substation);
+  await dbLayer.put('substations', substation);
+  await dbLayer.queueSync('substation', 'upsert', substation);
+  ui.renderSubstationDatalist();
+  return substation;
+}
+
+async function upsertSubstationWithCoords(name, lat, lon) {
+  let substation = ui.findSubstationByName(name);
+  if (substation) {
+    substation.lat = lat;
+    substation.lon = lon;
+  } else {
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false };
+    state.substations.push(substation);
+  }
+  await dbLayer.put('substations', substation);
+  await dbLayer.queueSync('substation', 'upsert', substation);
+  ui.renderSubstationDatalist();
+  renderMarkers(state.substations, (id) => {
+    const s = state.substations.find((x) => x.id === id);
+    if (s) {
+      document.getElementById('rondeSubstation').value = s.name;
+      onSubstationInput();
+    }
+  });
+  return substation;
+}
+
+document.getElementById('registerGeoBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    ui.showToast('Géolocalisation indisponible sur cet appareil');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const current = document.getElementById('rondeSubstation').value.trim();
+      const name = window.prompt('Nom de la sous-station à enregistrer à cette position :', current);
+      if (!name || !name.trim()) return;
+      const substation = await upsertSubstationWithCoords(name.trim(), pos.coords.latitude, pos.coords.longitude);
+      document.getElementById('rondeSubstation').value = substation.name;
+      onSubstationInput();
+      ui.showToast('Sous-station enregistrée avec sa position');
+    },
+    (err) => ui.showToast(`Position indisponible (${err.message})`),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
 
 // ===== CONTRÔLES =====
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 document.getElementById('controlsList').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action="set-status"]');
-  if (!btn) return;
-  const index = Number(btn.dataset.index);
-  const status = btn.dataset.status;
-  state.controls[index].status = status;
-  if (status === 'ok' || status === 'na') state.controls[index].comment = '';
-  ui.renderControls();
-  ui.renderBilan();
+  const statusBtn = e.target.closest('[data-action="set-status"]');
+  if (statusBtn) {
+    const index = Number(statusBtn.dataset.index);
+    const status = statusBtn.dataset.status;
+    state.controls[index].status = status;
+    if (status === 'ok' || status === 'na') {
+      state.controls[index].comment = '';
+      state.controls[index].photo = null;
+    }
+    ui.renderControls();
+    ui.renderBilan();
+    return;
+  }
+  const removePhotoBtn = e.target.closest('[data-action="remove-photo"]');
+  if (removePhotoBtn) {
+    state.controls[Number(removePhotoBtn.dataset.index)].photo = null;
+    ui.renderControls();
+  }
 });
+
 document.getElementById('controlsList').addEventListener('input', (e) => {
   const field = e.target.closest('[data-action="set-comment"]');
   if (!field) return;
   state.controls[Number(field.dataset.index)].comment = field.value;
 });
 
+document.getElementById('controlsList').addEventListener('change', async (e) => {
+  const fileInput = e.target.closest('[data-action="set-photo"]');
+  if (!fileInput || !fileInput.files[0]) return;
+  const dataUrl = await fileToDataUrl(fileInput.files[0]);
+  state.controls[Number(fileInput.dataset.index)].photo = dataUrl;
+  ui.renderControls();
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
-  const substationId = document.getElementById('rondeSubstation').value;
-  if (!substationId) {
-    ui.showToast('Choisir une sous-station');
+  const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
+  if (!substation) {
+    ui.showToast('Indique une sous-station');
     return;
   }
 
   const ronde = {
     id: `RONDE_${Date.now()}`,
-    substation_id: substationId,
+    substation_id: substation.id,
     date: document.getElementById('rondeDate').value,
     heure: document.getElementById('rondeHeure').value,
     tech: document.getElementById('rondeTech').value,
     controls: JSON.parse(JSON.stringify(state.controls)),
     observations: document.getElementById('rondeObservations').value,
+    ts: Date.now(),
   };
 
   await dbLayer.put('rondes', ronde);
   await dbLayer.queueSync('ronde', 'upsert', ronde);
   state.rondes.push(ronde);
 
+  // Anomalies -> actions en attente
+  const anomalies = state.controls.filter((c) => c.status === 'warning' || c.status === 'danger');
+  for (const c of anomalies) {
+    const action = {
+      id: `ACTION_${Date.now()}_${c.id}`,
+      substation_id: substation.id,
+      ronde_id: ronde.id,
+      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      severity: c.status === 'danger' ? 'danger' : 'warning',
+      source: 'ronde',
+      photo: c.photo || null,
+      done: false,
+      date: new Date().toLocaleString('fr-FR'),
+      ts: Date.now(),
+    };
+    await dbLayer.put('actions', action);
+    await dbLayer.queueSync('action', 'upsert', action);
+    state.actions.push(action);
+  }
+
   document.getElementById('rondeObservations').value = '';
   resetControls();
   ui.renderControls();
   ui.renderBilan();
+  ui.renderBilanStats();
   ui.renderDiagnostic(null);
+  ui.renderActions();
   ui.renderHistorique();
-  ui.showToast('Ronde enregistrée');
+  ui.showToast(anomalies.length ? `Ronde enregistrée · ${anomalies.length} action(s) créée(s)` : 'Ronde enregistrée');
 
   await refreshSyncStatus();
   syncNow().catch(() => {});
@@ -214,36 +344,44 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 
 // ===== FICHES =====
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
-  const type = document.getElementById('ficheType').value;
-  const description = document.getElementById('ficheDesc').value.trim();
-  if (!type || !description) {
-    ui.showToast('Complétez les champs');
+  const title = document.getElementById('ficheTitle').value.trim();
+  const cause_probable = document.getElementById('ficheCause').value.trim();
+  const solution = document.getElementById('ficheSolution').value.trim();
+  if (!title) {
+    ui.showToast('Le titre est requis');
     return;
   }
   const fiche = {
     id: `FICHE_${Date.now()}`,
-    substation_id: document.getElementById('rondeSubstation').value || null,
-    type,
-    description,
+    title,
+    cause_probable,
+    solution,
+    is_reference: false,
     date: new Date().toLocaleString('fr-FR'),
+    ts: Date.now(),
   };
   await dbLayer.put('fiches', fiche);
   await dbLayer.queueSync('fiche', 'upsert', fiche);
   state.fiches.push(fiche);
-  document.getElementById('ficheType').value = '';
-  document.getElementById('ficheDesc').value = '';
-  ui.renderFiches();
+  ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
+  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderHistorique();
   ui.showToast('Fiche ajoutée');
 });
+
+document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value));
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action="delete-fiche"]');
   if (!btn) return;
   const id = btn.dataset.id;
+  const fiche = state.fiches.find((f) => f.id === id);
+  if (!fiche || fiche.is_reference) return;
   await dbLayer.remove('fiches', id);
   await dbLayer.queueSync('fiche', 'delete', { id });
   state.fiches = state.fiches.filter((f) => f.id !== id);
-  ui.renderFiches();
+  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderHistorique();
 });
 
 // ===== ACTIONS =====
@@ -251,18 +389,25 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   const input = document.getElementById('actionInput');
   const text = input.value.trim();
   if (!text) return;
+  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
   const action = {
     id: `ACTION_${Date.now()}`,
-    substation_id: document.getElementById('rondeSubstation').value || null,
+    substation_id: substation ? substation.id : null,
     text,
+    severity: document.getElementById('actionSeverity').value,
+    source: 'manuelle',
+    photo: null,
     done: false,
     date: new Date().toLocaleString('fr-FR'),
+    ts: Date.now(),
   };
   await dbLayer.put('actions', action);
   await dbLayer.queueSync('action', 'upsert', action);
   state.actions.push(action);
   input.value = '';
   ui.renderActions();
+  ui.renderBilanStats();
+  ui.renderHistorique();
   ui.showToast('Action ajoutée');
 });
 
@@ -274,6 +419,8 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
     await dbLayer.queueSync('action', 'delete', { id });
     state.actions = state.actions.filter((a) => a.id !== id);
     ui.renderActions();
+    ui.renderBilanStats();
+    ui.renderHistorique();
   }
 });
 
@@ -287,34 +434,94 @@ document.getElementById('actionsList').addEventListener('change', async (e) => {
   await dbLayer.put('actions', action);
   await dbLayer.queueSync('action', 'upsert', action);
   ui.renderActions();
+  ui.renderBilanStats();
 });
 
 // ===== MES =====
+document.getElementById('mesChecksList').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="set-mes-status"]');
+  if (!btn) return;
+  state.mesChecks[Number(btn.dataset.index)].status = btn.dataset.status;
+  ui.renderMesChecks();
+});
+
+document.getElementById('mesChecksList').addEventListener('input', (e) => {
+  const valueField = e.target.closest('[data-action="set-mes-value"]');
+  if (valueField) {
+    state.mesChecks[Number(valueField.dataset.index)].valeur = valueField.value;
+    return;
+  }
+  const commentField = e.target.closest('[data-action="set-mes-comment"]');
+  if (commentField) {
+    state.mesChecks[Number(commentField.dataset.index)].commentaire = commentField.value;
+  }
+});
+
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
-  const record = {
+  const substation = await resolveOrCreateSubstation(document.getElementById('mesSubstation').value);
+  if (!substation) {
+    ui.showToast('Indique une sous-station');
+    return;
+  }
+  const session = {
     id: `MES_${Date.now()}`,
-    substation_id: document.getElementById('rondeSubstation').value || null,
-    phase: document.getElementById('mesPhase').value,
-    puissance: document.getElementById('mesPuissance').value || null,
-    debit: document.getElementById('mesDebit').value || null,
-    temperature: document.getElementById('mesTemp').value || null,
+    substation_id: substation.id,
+    checks: JSON.parse(JSON.stringify(state.mesChecks)),
+    notes: document.getElementById('mesNotes').value,
     date: new Date().toLocaleString('fr-FR'),
+    ts: Date.now(),
   };
-  await dbLayer.put('mes', record);
-  await dbLayer.queueSync('mes', 'upsert', record);
-  state.mesRecords.push(record);
-  ['mesPhase', 'mesPuissance', 'mesDebit', 'mesTemp'].forEach((id) => (document.getElementById(id).value = ''));
-  ui.showToast('MES enregistrée');
+  await dbLayer.put('mes', session);
+  await dbLayer.queueSync('mes_session', 'upsert', session);
+  state.mesSessions.push(session);
+  document.getElementById('mesNotes').value = '';
+  document.getElementById('mesSubstation').value = '';
+  resetMesChecks();
+  ui.renderMesChecks();
+  ui.renderMesHistory();
+  ui.renderHistorique();
+  ui.showToast('Session MES enregistrée');
+});
+
+document.getElementById('mesHistoryList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="delete-mes"]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  await dbLayer.remove('mes', id);
+  await dbLayer.queueSync('mes_session', 'delete', { id });
+  state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+  ui.renderMesHistory();
+  ui.renderHistorique();
 });
 
 // ===== HISTORIQUE =====
 document.getElementById('historiqueContent').addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-action="delete-ronde"]');
+  const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const id = btn.dataset.id;
-  await dbLayer.remove('rondes', id);
-  await dbLayer.queueSync('ronde', 'delete', { id });
-  state.rondes = state.rondes.filter((r) => r.id !== id);
+  const action = btn.dataset.action;
+
+  if (action === 'delete-ronde') {
+    await dbLayer.remove('rondes', id);
+    await dbLayer.queueSync('ronde', 'delete', { id });
+    state.rondes = state.rondes.filter((r) => r.id !== id);
+  } else if (action === 'delete-fiche') {
+    const fiche = state.fiches.find((f) => f.id === id);
+    if (!fiche || fiche.is_reference) return;
+    await dbLayer.remove('fiches', id);
+    await dbLayer.queueSync('fiche', 'delete', { id });
+    state.fiches = state.fiches.filter((f) => f.id !== id);
+  } else if (action === 'delete-action') {
+    await dbLayer.remove('actions', id);
+    await dbLayer.queueSync('action', 'delete', { id });
+    state.actions = state.actions.filter((a) => a.id !== id);
+  } else if (action === 'delete-mes') {
+    await dbLayer.remove('mes', id);
+    await dbLayer.queueSync('mes_session', 'delete', { id });
+    state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+  } else {
+    return;
+  }
   ui.renderHistorique();
 });
 
@@ -329,7 +536,7 @@ document.getElementById('runDiagnosticBtn').addEventListener('click', async (e) 
     return;
   }
 
-  const substation = state.substations.find((s) => s.id === document.getElementById('rondeSubstation').value);
+  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
   const btn = e.currentTarget;
   btn.disabled = true;
   btn.textContent = 'Analyse en cours...';
