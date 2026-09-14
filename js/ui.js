@@ -1,6 +1,14 @@
 import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS } from './state.js';
 import { icon } from './icons.js';
 
+// Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
+// un enregistrement pas encore synchronisé n'a pas encore de user_id assigné
+// par le serveur, on le traite comme le sien tant qu'il n'a pas été prouvé
+// appartenir à quelqu'un d'autre.
+function isOwned(item) {
+  return !item.user_id || item.user_id === state.user?.id;
+}
+
 export function showToast(message) {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
@@ -357,7 +365,7 @@ export function renderActions() {
           <div class="item-meta">${escapeHtml(a.date || '')}</div>
           ${a.photo ? `<div class="photo-row"><div class="photo-thumb"><img src="${a.photo}"></div></div>` : ''}
         </div>
-        <button class="btn-ghost" data-action="delete-action" data-id="${a.id}">✕</button>
+        ${isOwned(a) ? `<button class="btn-ghost" data-action="delete-action" data-id="${a.id}">✕</button>` : ''}
       </div>
     </div>`
     )
@@ -560,7 +568,7 @@ export function renderMesHistory() {
         return `<div class="item">
         <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
         <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK</div>
-        <div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>
+        ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
       </div>`;
       })
       .join('') +
@@ -590,20 +598,21 @@ export function buildHistoriqueItems() {
       statut: r.statut || 'operationnel',
       anomalies,
       substation_id: r.substation_id || null,
+      owned: isOwned(r),
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
+      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, searchable: a.text.toLowerCase() });
+    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: a.date || '', body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), searchable: a.text.toLowerCase() });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
-    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
+    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: m.date || '', body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
   items.sort((a, b) => b.ts - a.ts);
   return items;
@@ -633,7 +642,7 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       <div class="item-title">${escapeHtml(it.title)}</div>
       <div class="item-meta">${escapeHtml(it.meta)}</div>
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
-      <div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>
+      ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
     )
     .join('');

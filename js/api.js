@@ -64,6 +64,27 @@ export async function fetchFiches() {
   return data.fiches;
 }
 
+export async function fetchRondes() {
+  const res = await authedFetch('/api/rondes');
+  if (!res.ok) throw new Error('Impossible de récupérer les rondes');
+  const data = await res.json();
+  return data.rondes;
+}
+
+export async function fetchActions() {
+  const res = await authedFetch('/api/actions');
+  if (!res.ok) throw new Error('Impossible de récupérer les actions');
+  const data = await res.json();
+  return data.actions;
+}
+
+export async function fetchMesSessions() {
+  const res = await authedFetch('/api/mes-sessions');
+  if (!res.ok) throw new Error('Impossible de récupérer les sessions MES');
+  const data = await res.json();
+  return data.sessions;
+}
+
 export async function pushSyncQueue(queue) {
   const res = await authedFetch('/api/sync', {
     method: 'POST',

@@ -149,9 +149,32 @@ async function loadAppData() {
     state.fiches = cachedFiches;
   }
 
-  state.rondes = await dbLayer.getAll('rondes');
-  state.actions = await dbLayer.getAll('actions');
-  state.mesSessions = await dbLayer.getAll('mes');
+  const cachedRondes = await dbLayer.getAll('rondes');
+  try {
+    const fresh = await api.fetchRondes();
+    state.rondes = mergeById(cachedRondes, fresh);
+    await dbLayer.putAll('rondes', state.rondes);
+  } catch {
+    state.rondes = cachedRondes;
+  }
+
+  const cachedActions = await dbLayer.getAll('actions');
+  try {
+    const fresh = await api.fetchActions();
+    state.actions = mergeById(cachedActions, fresh);
+    await dbLayer.putAll('actions', state.actions);
+  } catch {
+    state.actions = cachedActions;
+  }
+
+  const cachedMes = await dbLayer.getAll('mes');
+  try {
+    const fresh = await api.fetchMesSessions();
+    state.mesSessions = mergeById(cachedMes, fresh);
+    await dbLayer.putAll('mes', state.mesSessions);
+  } catch {
+    state.mesSessions = cachedMes;
+  }
 
   ui.renderSubstationDatalist();
   ui.renderSiteList();
@@ -800,23 +823,45 @@ document.getElementById('importBackupFile').addEventListener('change', async (e)
 });
 
 document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
-  if (!window.confirm('Effacer tout l\'historique local (rondes, actions, fiches ajoutées, sessions MES) ? Cette action est irréversible sur cet appareil.')) return;
-  for (const r of state.rondes) await dbLayer.queueSync('ronde', 'delete', { id: r.id });
-  for (const a of state.actions) await dbLayer.queueSync('action', 'delete', { id: a.id });
-  for (const f of state.fiches.filter((f) => !f.is_reference)) await dbLayer.queueSync('fiche', 'delete', { id: f.id });
-  for (const m of state.mesSessions) await dbLayer.queueSync('mes_session', 'delete', { id: m.id });
-  await dbLayer.clearStore('rondes');
-  await dbLayer.clearStore('actions');
-  await dbLayer.clearStore('mes');
-  state.rondes = [];
-  state.actions = [];
+  // Rondes/actions/MES sont partagées entre techniciens : on n'efface que ce
+  // que cet appareil/compte a créé, jamais l'activité des collègues.
+  if (!window.confirm('Effacer mes propres rondes, actions et sessions MES (et mes fiches ajoutées) ? Cette action est irréversible. L\'activité des autres techniciens n\'est pas affectée.')) return;
+  const isMine = (item) => !item.user_id || item.user_id === state.user.id;
+  const ownRondes = state.rondes.filter(isMine);
+  const ownActions = state.actions.filter(isMine);
+  const ownMes = state.mesSessions.filter(isMine);
+  const ownFiches = state.fiches.filter((f) => !f.is_reference);
+
+  for (const r of ownRondes) {
+    await dbLayer.remove('rondes', r.id);
+    await dbLayer.queueSync('ronde', 'delete', { id: r.id });
+  }
+  for (const a of ownActions) {
+    await dbLayer.remove('actions', a.id);
+    await dbLayer.queueSync('action', 'delete', { id: a.id });
+  }
+  for (const f of ownFiches) {
+    await dbLayer.remove('fiches', f.id);
+    await dbLayer.queueSync('fiche', 'delete', { id: f.id });
+  }
+  for (const m of ownMes) {
+    await dbLayer.remove('mes', m.id);
+    await dbLayer.queueSync('mes_session', 'delete', { id: m.id });
+  }
+
+  const ownRondeIds = new Set(ownRondes.map((r) => r.id));
+  const ownActionIds = new Set(ownActions.map((a) => a.id));
+  const ownMesIds = new Set(ownMes.map((m) => m.id));
+  state.rondes = state.rondes.filter((r) => !ownRondeIds.has(r.id));
+  state.actions = state.actions.filter((a) => !ownActionIds.has(a.id));
   state.fiches = state.fiches.filter((f) => f.is_reference);
-  state.mesSessions = [];
+  state.mesSessions = state.mesSessions.filter((m) => !ownMesIds.has(m.id));
+
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.renderActions();
   ui.renderBilanStats();
   ui.renderMesHistory();
-  ui.showToast('Historique effacé');
+  ui.showToast('Ton historique a été effacé');
   syncNow().catch(() => {});
 });
 
