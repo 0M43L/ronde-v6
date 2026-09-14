@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   try {
     const result = await db.execute(
-      `SELECT id, name, lat, lon, notes_acces, needs_review FROM substations ORDER BY name`
+      `SELECT id, name, lat, lon, notes_acces, needs_review, photos_json FROM substations ORDER BY name`
     );
 
     return res.json({
@@ -25,6 +25,7 @@ export default async function handler(req, res) {
         lon: r.lon,
         notes_acces: r.notes_acces,
         needs_review: !!r.needs_review,
+        photos: JSON.parse(r.photos_json || '[]'),
       })),
     });
   } catch (error) {

@@ -250,10 +250,33 @@ document.getElementById('siteList').addEventListener('click', (e) => {
   ui.selectSite(item.dataset.id);
 });
 
-document.getElementById('siteDetail').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action="back-to-sites"]');
-  if (!btn) return;
-  ui.backToSiteList();
+document.getElementById('siteDetail').addEventListener('click', async (e) => {
+  const backBtn = e.target.closest('[data-action="back-to-sites"]');
+  if (backBtn) {
+    ui.backToSiteList();
+    return;
+  }
+  const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
+  if (removeBtn) {
+    const site = ui.getSelectedSite();
+    if (!site) return;
+    site.photos = (site.photos || []).filter((p) => p.id !== removeBtn.dataset.photoId);
+    await dbLayer.put('substations', site);
+    await dbLayer.queueSync('substation', 'upsert', site);
+    ui.renderSiteDetail();
+  }
+});
+
+document.getElementById('siteDetail').addEventListener('change', async (e) => {
+  const fileInput = e.target.closest('[data-action="add-site-photo"]');
+  if (!fileInput || !fileInput.files[0]) return;
+  const site = ui.getSelectedSite();
+  if (!site) return;
+  const dataUrl = await fileToDataUrl(fileInput.files[0]);
+  site.photos = [...(site.photos || []), { id: `PHOTO_${Date.now()}`, url: dataUrl }];
+  await dbLayer.put('substations', site);
+  await dbLayer.queueSync('substation', 'upsert', site);
+  ui.renderSiteDetail();
 });
 
 // ===== SOUS-STATIONS =====
@@ -549,17 +572,24 @@ document.getElementById('ficheCategoryChips').addEventListener('click', (e) => {
 });
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-action="delete-fiche"]');
-  if (!btn) return;
-  const id = btn.dataset.id;
-  const fiche = state.fiches.find((f) => f.id === id);
-  if (!fiche || fiche.is_reference) return;
-  await dbLayer.remove('fiches', id);
-  await dbLayer.queueSync('fiche', 'delete', { id });
-  state.fiches = state.fiches.filter((f) => f.id !== id);
-  ui.renderFicheCategoryChips(ficheCategory);
-  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  const delBtn = e.target.closest('[data-action="delete-fiche"]');
+  if (delBtn) {
+    const id = delBtn.dataset.id;
+    const fiche = state.fiches.find((f) => f.id === id);
+    if (!fiche || fiche.is_reference) return;
+    await dbLayer.remove('fiches', id);
+    await dbLayer.queueSync('fiche', 'delete', { id });
+    state.fiches = state.fiches.filter((f) => f.id !== id);
+    ui.renderFicheCategoryChips(ficheCategory);
+    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
+  }
+  const toggleEl = e.target.closest('[data-action="toggle-fiche"]');
+  if (toggleEl) {
+    ui.toggleFicheExpanded(toggleEl.dataset.id);
+    ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+  }
 });
 
 // ===== ACTIONS =====
