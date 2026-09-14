@@ -4,7 +4,7 @@ import * as dbLayer from './db.js';
 import * as ui from './ui.js';
 import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
 import { prefetchTilesAround } from './tiles.js';
-import { refreshSyncStatus, syncNow, setSyncStatusListener } from './sync.js';
+import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener } from './sync.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -36,6 +36,17 @@ setSyncStatusListener((status, count) => {
   const label = document.getElementById('syncLabel');
   pill.className = `sync-pill ${status === 'synced' ? '' : status}`;
   label.textContent = status === 'synced' ? 'à jour' : status === 'offline' ? `hors-ligne (${count})` : `en attente (${count})`;
+});
+
+// Le serveur a rejeté certaines entrées (ex : donnée invalide) : elles
+// restent en file (pas de perte silencieuse) et on prévient le technicien
+// pour qu'il sache qu'un élément n'est toujours pas partagé.
+setSyncErrorListener((failedItems) => {
+  ui.showToast(
+    failedItems.length === 1
+      ? "1 élément n'a pas pu être synchronisé, nouvelle tentative automatique"
+      : `${failedItems.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
+  );
 });
 
 // ===== LOGIN =====
@@ -136,6 +147,13 @@ async function loadAppData() {
   try {
     const fresh = await api.fetchSubstations();
     state.substations = mergeById(cachedSubstations, fresh);
+    // La liste globale n'inclut plus les photos (voir api/substations.js —
+    // chargées à la demande sur la fiche Site). Sans ça, chaque rechargement
+    // de l'appli écraserait les photos déjà récupérées localement.
+    const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
+    state.substations = state.substations.map((s) =>
+      s.photos === undefined ? { ...s, photos: cachedById.get(s.id)?.photos } : s
+    );
     await dbLayer.putAll('substations', state.substations);
   } catch {
     state.substations = cachedSubstations;
@@ -247,7 +265,24 @@ document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
   if (!item) return;
   ui.selectSite(item.dataset.id);
+  loadSitePhotosIfNeeded(item.dataset.id);
 });
+
+// Les photos ne sont pas incluses dans la liste globale des sous-stations
+// (voir api/substations.js) : on les récupère au moment où le technicien
+// ouvre réellement la fiche du site, pas à chaque chargement de l'appli.
+async function loadSitePhotosIfNeeded(id) {
+  const site = state.substations.find((s) => s.id === id);
+  if (!site || site.photos !== undefined) return; // déjà chargées (ou site créé localement)
+  try {
+    const detail = await api.fetchSubstationDetail(id);
+    site.photos = detail.photos || [];
+    await dbLayer.put('substations', site);
+    if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
+  } catch {
+    // Hors-ligne ou site pas encore synchronisé : on retentera à la prochaine ouverture.
+  }
+}
 
 document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const backBtn = e.target.closest('[data-action="back-to-sites"]');
@@ -259,7 +294,11 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   if (removeBtn) {
     const site = ui.getSelectedSite();
     if (!site) return;
-    site.photos = (site.photos || []).filter((p) => p.id !== removeBtn.dataset.photoId);
+    if (site.photos === undefined) {
+      ui.showToast('Chargement des photos en cours, réessaie dans un instant');
+      return;
+    }
+    site.photos = site.photos.filter((p) => p.id !== removeBtn.dataset.photoId);
     await dbLayer.put('substations', site);
     await dbLayer.queueSync('substation', 'upsert', site);
     ui.renderSiteDetail();
@@ -271,8 +310,13 @@ document.getElementById('siteDetail').addEventListener('change', async (e) => {
   if (!fileInput || !fileInput.files[0]) return;
   const site = ui.getSelectedSite();
   if (!site) return;
+  if (site.photos === undefined) {
+    ui.showToast('Chargement des photos en cours, réessaie dans un instant');
+    fileInput.value = '';
+    return;
+  }
   const dataUrl = await fileToDataUrl(fileInput.files[0]);
-  site.photos = [...(site.photos || []), { id: `PHOTO_${Date.now()}`, url: dataUrl }];
+  site.photos = [...site.photos, { id: `PHOTO_${Date.now()}`, url: dataUrl }];
   await dbLayer.put('substations', site);
   await dbLayer.queueSync('substation', 'upsert', site);
   ui.renderSiteDetail();
@@ -295,7 +339,7 @@ async function resolveOrCreateSubstation(name) {
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false };
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [] };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
@@ -309,7 +353,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
     substation.lat = lat;
     substation.lon = lon;
   } else {
-    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false };
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [] };
     state.substations.push(substation);
   }
   await dbLayer.put('substations', substation);
@@ -861,7 +905,11 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
   const id = btn.dataset.id;
   const action = btn.dataset.action;
 
-  if (action === 'delete-ronde') {
+  if (action === 'load-more-historique') {
+    ui.loadMoreHistorique();
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
+  } else if (action === 'delete-ronde') {
     await dbLayer.remove('rondes', id);
     await dbLayer.queueSync('ronde', 'delete', { id });
     state.rondes = state.rondes.filter((r) => r.id !== id);

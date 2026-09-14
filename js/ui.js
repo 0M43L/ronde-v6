@@ -265,16 +265,19 @@ export function renderDiagnostic(result) {
 // sert à parcourir la base comme un catalogue (grille de catégories, puis
 // liste au tap), sur le modèle de l'app de référence d'Axel : symptômes/
 // composants précis plutôt qu'un seul gros bloc "Hydraulique".
+// Mots-clés élargis à partir des vrais textes rencontrés dans les fiches et
+// les contrôles de ronde (ENE-64-AFD-530, procédure automate, points MES),
+// pour réduire les fiches mal classées dans "Général" faute de correspondance.
 const FICHE_CATEGORIES = [
-  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord'] },
-  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage'] },
-  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre'] },
-  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques'] },
-  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'circuit', 'tuyauterie', 'air', 'debit', 'delta'] },
-  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
-  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
-  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature'] },
-  { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
+  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord', 'purgeur', 'presse-etoupe', 'goutte', 'suintement'] },
+  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage', 'bruit', 'vibration'] },
+  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre', 'graissage', 'actionneur', 'servomoteur'] },
+  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques', 'encrassement'] },
+  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'isolant', 'circuit', 'tuyauterie', 'air', 'debit', 'delta', 'purge'] },
+  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur', 'micrologix', 'chargement', 'parametrage', 'cas_poste', 'ccw'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression', 'index', 'kamstrup', 'itron'] },
+  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature', 'loi d\'eau'] },
+  { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli', 'epi', 'consignation'] },
   { key: 'general', label: 'Général', icon: 'building', colorVar: '--text-muted', softVar: '--neutral-soft', keywords: ['proprete', 'local', 'acces'] },
 ];
 const FICHE_CATEGORY_BY_KEY = Object.fromEntries(FICHE_CATEGORIES.map((c) => [c.key, c]));
@@ -739,9 +742,27 @@ export function buildHistoriqueItems() {
   return items;
 }
 
+// Rendu paginé : au-delà de quelques mois d'usage quotidien sur 140 sites,
+// afficher tout l'historique d'un coup finit par ralentir l'appli (surtout
+// sur téléphone ancien). On affiche par lots, avec un bouton "Afficher
+// plus". Le lot courant se réinitialise seulement quand la recherche/le
+// filtre changent réellement, pas à chaque re-render (ex: après suppression).
+const HISTORIQUE_PAGE_SIZE = 60;
+let historiqueVisibleCount = HISTORIQUE_PAGE_SIZE;
+let historiqueLastQuery = null;
+
+export function loadMoreHistorique() {
+  historiqueVisibleCount += HISTORIQUE_PAGE_SIZE;
+}
+
 export function renderHistorique(filter = 'tous', searchTerm = '') {
   const content = document.getElementById('historiqueContent');
   const needle = searchTerm.trim().toLowerCase();
+  const queryKey = `${filter}::${needle}`;
+  if (queryKey !== historiqueLastQuery) {
+    historiqueVisibleCount = HISTORIQUE_PAGE_SIZE;
+    historiqueLastQuery = queryKey;
+  }
 
   let items = buildHistoriqueItems();
   if (filter === 'anomalies') items = items.filter((it) => it.anomalies > 0);
@@ -755,9 +776,13 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
 
   const statutBadge = { operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">OK</span>', reserve: '<span class="badge a_planifier">Réserve</span>', arret: '<span class="badge immediat">Arrêt</span>' };
 
-  content.innerHTML = items
-    .map(
-      (it) => `
+  const visible = items.slice(0, historiqueVisibleCount);
+  const remaining = items.length - visible.length;
+
+  content.innerHTML =
+    visible
+      .map(
+        (it) => `
     <div class="item">
       <div class="hist-type">${it.type} ${it.statut ? statutBadge[it.statut] || '' : ''}</div>
       <div class="item-title">${escapeHtml(it.title)}</div>
@@ -765,8 +790,11 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
       ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
-    )
-    .join('');
+      )
+      .join('') +
+    (remaining > 0
+      ? `<button class="btn-secondary" style="width:100%; margin-top:10px;" data-action="load-more-historique">Afficher plus (${remaining} restant${remaining > 1 ? 's' : ''})</button>`
+      : '');
 }
 
 export async function renderStorageUsage() {
@@ -1014,6 +1042,7 @@ export function renderSiteDetail() {
     <div class="card">
       <div class="card-header">${icon('image', 12)} Photos du site</div>
       <div class="card-body">
+        ${site.photos === undefined ? `<p class="hint" style="margin:0 0 8px;">Chargement des photos...</p>` : ''}
         <div class="photo-row">
           ${(site.photos || [])
             .map(
