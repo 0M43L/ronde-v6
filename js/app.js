@@ -534,6 +534,12 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 // ===== FICHES =====
 let ficheCategory = 'toutes';
 
+document.getElementById('toggleAddFicheBtn').addEventListener('click', () => {
+  const card = document.getElementById('addFicheCard');
+  card.hidden = !card.hidden;
+  if (!card.hidden) document.getElementById('ficheTitle').focus();
+});
+
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
   const title = document.getElementById('ficheTitle').value.trim();
   const cause_probable = document.getElementById('ficheCause').value.trim();
@@ -555,6 +561,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
   await dbLayer.queueSync('fiche', 'upsert', fiche);
   state.fiches.push(fiche);
   ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
+  document.getElementById('addFicheCard').hidden = true;
   ui.renderFicheCategoryChips(ficheCategory);
   ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);

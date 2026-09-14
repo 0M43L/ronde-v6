@@ -313,9 +313,44 @@ export function toggleFicheExpanded(id) {
   else expandedFicheIds.add(id);
 }
 
+function truncate(str, n) {
+  if (!str) return '';
+  return str.length > n ? `${str.slice(0, n).trim()}…` : str;
+}
+
+function renderFicheTile(f, autoExpand) {
+  const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
+  const isExpanded = autoExpand || expandedFicheIds.has(f.id);
+  const preview = truncate(f.cause_probable || f.solution || '', 78);
+  return `
+    <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
+      <div class="fiche-tile-row">
+        <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
+        <div class="fiche-tile-body">
+          <div class="fiche-tile-title">${escapeHtml(f.title)}${!f.is_reference ? '<span class="badge a_surveiller">Perso</span>' : ''}</div>
+          ${preview && !isExpanded ? `<div class="fiche-tile-preview">${escapeHtml(preview)}</div>` : ''}
+        </div>
+        <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
+      </div>
+      ${
+        isExpanded
+          ? `<div class="fiche-tile-detail">
+              <dl>
+                ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
+                ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
+              </dl>
+              ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
+            </div>`
+          : ''
+      }
+    </div>`;
+}
+
 export function renderFiches(searchTerm = '', category = 'toutes') {
   const list = document.getElementById('fichesList');
   const needle = searchTerm.trim().toLowerCase();
+  const isFiltering = Boolean(needle) || category !== 'toutes';
+
   const filtered = state.fiches.filter((f) => {
     if (category !== 'toutes' && classifyFiche(f) !== category) return false;
     if (!needle) return true;
@@ -333,33 +368,28 @@ export function renderFiches(searchTerm = '', category = 'toutes') {
 
   // Si une recherche/filtre ne laisse qu'une poignée de résultats, autant les
   // montrer dépliés directement plutôt que d'imposer un tap supplémentaire.
-  const autoExpand = (needle || category !== 'toutes') && filtered.length <= 3;
+  const autoExpand = isFiltering && filtered.length <= 3;
 
-  list.innerHTML = filtered
-    .map((f) => {
-      const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
-      const isExpanded = autoExpand || expandedFicheIds.has(f.id);
+  if (isFiltering) {
+    // Résultat de recherche/filtre : liste à plat, peu importe la catégorie.
+    list.innerHTML = filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
+    return;
+  }
+
+  // Vue catalogue par défaut : sections par catégorie (comme des chapitres),
+  // pour parcourir toute la base organisée plutôt qu'une liste indifférenciée.
+  const sections = FICHE_CATEGORIES.filter((cat) => filtered.some((f) => classifyFiche(f) === cat.key));
+  list.innerHTML = sections
+    .map((cat) => {
+      const items = filtered.filter((f) => classifyFiche(f) === cat.key);
       return `
-    <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
-      <div class="fiche-tile-row">
-        <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
-        <div class="fiche-tile-body">
-          <div class="fiche-tile-title">${escapeHtml(f.title)}${f.is_reference ? '<span class="badge a_surveiller">Référence</span>' : ''}</div>
-          <div class="fiche-tile-meta">${escapeHtml(cat.label)}</div>
-        </div>
-        <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
+    <div class="fiche-section">
+      <div class="fiche-section-header" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});">
+        <div class="fiche-section-icon">${icon(cat.icon, 15)}</div>
+        <span class="fiche-section-label">${escapeHtml(cat.label)}</span>
+        <span class="fiche-section-count">${items.length}</span>
       </div>
-      ${
-        isExpanded
-          ? `<div class="fiche-tile-detail">
-              <dl>
-                ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
-                ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
-              </dl>
-              ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
-            </div>`
-          : ''
-      }
+      ${items.map((f) => renderFicheTile(f, false)).join('')}
     </div>`;
     })
     .join('');
