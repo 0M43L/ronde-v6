@@ -253,10 +253,52 @@ export function renderDiagnostic(result) {
 }
 
 // ===== FICHES (base de connaissances) =====
-export function renderFiches(searchTerm = '') {
+// Catégorisation par mots-clés (déduite du contenu, pas de champ en base) —
+// sert uniquement à filtrer/parcourir rapidement la base complète des fiches,
+// par exemple pour retrouver et montrer une procédure précise à un collègue.
+const FICHE_CATEGORIES = [
+  { key: 'hydraulique', label: 'Hydraulique', keywords: ['fuite', 'vanne', 'purge', 'calorifuge', 'corrosion', 'entartrage', 'echangeur', 'joint', 'debit', 'bruit', 'vibration', 'cavitation'] },
+  { key: 'electrique', label: 'Électrique / Automate', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
+  { key: 'regulation', label: 'Régulation', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteur', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
+  { key: 'securite', label: 'Sécurité', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
+  { key: 'general', label: 'Général', keywords: ['proprete', 'local', 'acces'] },
+];
+
+function classifyFiche(f) {
+  const tokens = tokenize(`${f.title} ${f.cause_probable || ''}`);
+  let best = null;
+  let bestScore = 0;
+  FICHE_CATEGORIES.forEach((cat) => {
+    const score = tokens.reduce((n, w) => n + (cat.keywords.includes(w) ? 1 : 0), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = cat;
+    }
+  });
+  return best ? best.key : 'general';
+}
+
+export function renderFicheCategoryChips(activeCategory = 'toutes') {
+  const el = document.getElementById('ficheCategoryChips');
+  if (!el) return;
+  const present = new Set(state.fiches.map((f) => classifyFiche(f)));
+  const cats = FICHE_CATEGORIES.filter((c) => present.has(c.key));
+  el.innerHTML =
+    `<button class="chip ${activeCategory === 'toutes' ? 'active' : ''}" data-category="toutes">Toutes (${state.fiches.length})</button>` +
+    cats
+      .map((c) => {
+        const count = state.fiches.filter((f) => classifyFiche(f) === c.key).length;
+        return `<button class="chip ${activeCategory === c.key ? 'active' : ''}" data-category="${c.key}">${escapeHtml(c.label)} (${count})</button>`;
+      })
+      .join('');
+}
+
+export function renderFiches(searchTerm = '', category = 'toutes') {
   const list = document.getElementById('fichesList');
   const needle = searchTerm.trim().toLowerCase();
   const filtered = state.fiches.filter((f) => {
+    if (category !== 'toutes' && classifyFiche(f) !== category) return false;
     if (!needle) return true;
     return (
       f.title.toLowerCase().includes(needle) ||

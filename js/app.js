@@ -163,7 +163,8 @@ async function loadAppData() {
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
   ui.renderActionsRetardSite();
-  ui.renderFiches();
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
@@ -476,6 +477,8 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 });
 
 // ===== FICHES =====
+let ficheCategory = 'toutes';
+
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
   const title = document.getElementById('ficheTitle').value.trim();
   const cause_probable = document.getElementById('ficheCause').value.trim();
@@ -497,12 +500,21 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
   await dbLayer.queueSync('fiche', 'upsert', fiche);
   state.fiches.push(fiche);
   ['ficheTitle', 'ficheCause', 'ficheSolution'].forEach((id) => (document.getElementById(id).value = ''));
-  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Fiche ajoutée');
 });
 
-document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value));
+document.getElementById('ficheSearch').addEventListener('input', (e) => ui.renderFiches(e.target.value, ficheCategory));
+
+document.getElementById('ficheCategoryChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  ficheCategory = chip.dataset.category;
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
+});
 
 document.getElementById('fichesList').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action="delete-fiche"]');
@@ -513,7 +525,8 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
   await dbLayer.remove('fiches', id);
   await dbLayer.queueSync('fiche', 'delete', { id });
   state.fiches = state.fiches.filter((f) => f.id !== id);
-  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheCategoryChips(ficheCategory);
+  ui.renderFiches(document.getElementById('ficheSearch').value, ficheCategory);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
