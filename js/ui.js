@@ -518,7 +518,7 @@ export function renderFicheConflicts() {
             (c) => `
           <div class="item">
             <div class="item-title">${escapeHtml(c.serverFiche.title)}</div>
-            <div class="item-meta">Modifiée par un collègue pendant que tu la modifiais</div>
+            <div class="item-meta">Modifiée par ${escapeHtml(c.serverFiche.tech || 'un collègue')} pendant que tu la modifiais</div>
             <div class="item-actions"><button class="btn-secondary" data-action="open-fiche-conflict" data-id="${c.id}">Comparer et fusionner</button></div>
           </div>`
           )
@@ -527,7 +527,7 @@ export function renderFicheConflicts() {
     </div>`;
 }
 
-function conflictFieldChoice(conflictId, field, label, localVal, serverVal) {
+function conflictFieldChoice(conflictId, field, label, localVal, serverVal, theirName) {
   const local = (localVal || '').trim();
   const server = (serverVal || '').trim();
   if (local === server) return ''; // rien à choisir, les deux versions sont identiques sur ce champ
@@ -540,14 +540,15 @@ function conflictFieldChoice(conflictId, field, label, localVal, serverVal) {
       </label>
       <label class="conflict-choice">
         <input type="radio" name="conflict-${conflictId}-${field}" value="server">
-        <div class="conflict-value"><span class="conflict-tag theirs">Version du collègue</span>${server ? escapeHtml(server) : '<em>(vide)</em>'}</div>
+        <div class="conflict-value"><span class="conflict-tag theirs">${escapeHtml(theirName)}</span>${server ? escapeHtml(server) : '<em>(vide)</em>'}</div>
       </label>
     </div>`;
 }
 
 function renderFicheConflictForm(conflict) {
   const { id, localFiche, serverFiche } = conflict;
-  const fieldsHtml = FICHE_CONFLICT_FIELDS.map((f) => conflictFieldChoice(id, f.field, f.label, localFiche[f.field], serverFiche[f.field])).join('');
+  const theirName = serverFiche.tech || 'Version du collègue';
+  const fieldsHtml = FICHE_CONFLICT_FIELDS.map((f) => conflictFieldChoice(id, f.field, f.label, localFiche[f.field], serverFiche[f.field], theirName)).join('');
   const hasFieldDiffs = fieldsHtml.trim().length > 0;
 
   const localPhotos = localFiche.photos || [];
@@ -558,11 +559,11 @@ function renderFicheConflictForm(conflict) {
     <div class="card" style="border-left:4px solid var(--danger);">
       <div class="card-header">${icon('alertTriangle', 14)} Conflit — ${escapeHtml(serverFiche.title)}</div>
       <div class="card-body">
-        <p class="hint">Un collègue a modifié cette fiche pendant que tu la modifiais. Choisis quoi garder pour chaque champ différent, puis valide.</p>
+        <p class="hint">${escapeHtml(serverFiche.tech || 'Un collègue')} a modifié cette fiche pendant que tu la modifiais. Choisis quoi garder pour chaque champ différent, puis valide.</p>
         ${hasFieldDiffs ? fieldsHtml : `<p class="hint"><em>Aucun champ texte en conflit — seules les photos diffèrent peut-être.</em></p>`}
         ${
           newLocalPhotos.length > 0
-            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo(s) que tu as ajoutée(s) seront conservées en plus de celles du collègue — rien n'est perdu.</p></div>`
+            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo(s) que tu as ajoutée(s) seront conservées en plus de celles de ${escapeHtml(serverFiche.tech || 'ton collègue')} — rien n'est perdu.</p></div>`
             : ''
         }
         <div class="btn-row">

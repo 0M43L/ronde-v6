@@ -12,10 +12,12 @@ export default async function handler(req, res) {
 
   try {
     const result = await db.execute(
-      `SELECT id, title, symptomes, cause_probable, procedure_intervention, securite, outillage,
-              pieces_rechange, solution, urgence, photos_json, notes, is_reference, substation_id,
-              user_id, version, created_at
-       FROM fiches ORDER BY is_reference DESC, title ASC`
+      `SELECT f.id, f.title, f.symptomes, f.cause_probable, f.procedure_intervention, f.securite, f.outillage,
+              f.pieces_rechange, f.solution, f.urgence, f.photos_json, f.notes, f.is_reference, f.substation_id,
+              f.user_id, f.version, f.created_at,
+              u.prenom AS user_prenom, u.nom AS user_nom
+       FROM fiches f LEFT JOIN users u ON u.id = f.user_id
+       ORDER BY f.is_reference DESC, f.title ASC`
     );
 
     return res.json({
@@ -36,6 +38,7 @@ export default async function handler(req, res) {
         is_reference: !!r.is_reference,
         substation_id: r.substation_id,
         user_id: r.user_id,
+        tech: [r.user_prenom, r.user_nom].filter(Boolean).join(' ').trim() || null,
         version: r.version || 1,
         created_at: r.created_at,
       })),

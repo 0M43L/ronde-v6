@@ -96,7 +96,7 @@ async function captureFicheConflict(item) {
   ui.renderFicheConflicts();
   if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-  ui.showToast(`Un collègue a modifié "${serverFiche.title}" en même temps que toi — va dans l'onglet Fiches pour comparer et fusionner.`);
+  ui.showToast(`${serverFiche.tech || 'Un collègue'} a modifié "${serverFiche.title}" en même temps que toi — va dans l'onglet Fiches pour comparer et fusionner.`);
 }
 
 document.getElementById('ficheConflicts').addEventListener('click', async (e) => {
