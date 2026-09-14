@@ -80,16 +80,30 @@ async function syncItem(item, userId) {
 
     case 'fiche':
       return db.execute({
-        sql: `INSERT INTO fiches (id, title, cause_probable, solution, notes, is_reference, ronde_id, substation_id, user_id)
-              VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+        sql: `INSERT INTO fiches (id, title, symptomes, cause_probable, procedure_intervention, securite,
+                outillage, pieces_rechange, solution, urgence, photos_json, notes, is_reference,
+                ronde_id, substation_id, user_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
-                title = excluded.title, cause_probable = excluded.cause_probable,
-                solution = excluded.solution, notes = excluded.notes`,
+                title = excluded.title, symptomes = excluded.symptomes,
+                cause_probable = excluded.cause_probable,
+                procedure_intervention = excluded.procedure_intervention,
+                securite = excluded.securite, outillage = excluded.outillage,
+                pieces_rechange = excluded.pieces_rechange, solution = excluded.solution,
+                urgence = excluded.urgence, photos_json = excluded.photos_json,
+                notes = excluded.notes`,
         args: [
           payload.id,
           payload.title,
+          payload.symptomes || '',
           payload.cause_probable || '',
+          payload.procedure_intervention || '',
+          payload.securite || '',
+          payload.outillage || '',
+          payload.pieces_rechange || '',
           payload.solution || '',
+          payload.urgence || '',
+          JSON.stringify(payload.photos || []),
           payload.notes || '',
           payload.ronde_id || null,
           payload.substation_id || null,

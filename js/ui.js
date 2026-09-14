@@ -319,21 +319,49 @@ export function getFicheCatalogView() {
   return ficheCatalogView;
 }
 
+export function getFicheById(id) {
+  return state.fiches.find((f) => f.id === id) || null;
+}
+
+export function renderFicheFormPhotos(photos) {
+  const row = document.getElementById('ficheFormPhotoRow');
+  const addLabel = row.querySelector('label');
+  row.querySelectorAll('.photo-thumb').forEach((el) => el.remove());
+  photos.forEach((p) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = `<img src="${p.url}"><button class="remove-photo" data-action="remove-fiche-form-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button>`;
+    row.insertBefore(thumb, addLabel);
+  });
+}
+
 function truncate(str, n) {
   if (!str) return '';
   return str.length > n ? `${str.slice(0, n).trim()}…` : str;
 }
 
+const URGENCE_BADGE_CLASS = { immediat: 'immediat', a_planifier: 'a_planifier', a_surveiller: 'a_surveiller' };
+
+function renderProcedureSteps(text) {
+  const steps = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (steps.length === 0) return '';
+  return `<ol class="fiche-procedure">${steps.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`;
+}
+
 function renderFicheTile(f, autoExpand) {
   const cat = FICHE_CATEGORY_BY_KEY[classifyFiche(f)];
   const isExpanded = autoExpand || expandedFicheIds.has(f.id);
-  const preview = truncate(f.cause_probable || f.solution || '', 78);
+  const preview = truncate(f.symptomes || f.cause_probable || f.solution || '', 78);
   return `
     <div class="fiche-tile ${isExpanded ? 'expanded' : ''}" style="--cat-color:var(${cat.colorVar});--cat-soft:var(${cat.softVar});" data-action="toggle-fiche" data-id="${f.id}">
       <div class="fiche-tile-row">
         <div class="fiche-tile-icon">${icon(cat.icon, 17)}</div>
         <div class="fiche-tile-body">
-          <div class="fiche-tile-title">${escapeHtml(f.title)}${!f.is_reference ? '<span class="badge a_surveiller">Perso</span>' : ''}</div>
+          <div class="fiche-tile-title">
+            ${escapeHtml(f.title)}
+            ${!f.is_reference ? '<span class="badge a_surveiller">Perso</span>' : ''}
+            ${f.urgence && URGENCE_BADGE_CLASS[f.urgence] ? `<span class="badge ${URGENCE_BADGE_CLASS[f.urgence]}">${escapeHtml(URGENCE_LABEL[f.urgence] || f.urgence)}</span>` : ''}
+          </div>
           ${preview && !isExpanded ? `<div class="fiche-tile-preview">${escapeHtml(preview)}</div>` : ''}
         </div>
         <div class="fiche-tile-chevron">${icon('chevronDown', 16)}</div>
@@ -341,11 +369,32 @@ function renderFicheTile(f, autoExpand) {
       ${
         isExpanded
           ? `<div class="fiche-tile-detail">
-              <dl>
-                ${f.cause_probable ? `<dt>Cause probable</dt><dd>${escapeHtml(f.cause_probable)}</dd>` : ''}
-                ${f.solution ? `<dt>Solution</dt><dd>${escapeHtml(f.solution)}</dd>` : ''}
-              </dl>
-              ${!f.is_reference ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button></div>` : ''}
+              ${f.symptomes ? `<div class="fiche-block"><div class="fiche-block-label">${icon('search', 13)} Symptômes / signes observés</div><p>${escapeHtml(f.symptomes)}</p></div>` : ''}
+              ${f.cause_probable ? `<div class="fiche-block"><div class="fiche-block-label">${icon('alertTriangle', 13)} Cause probable</div><p>${escapeHtml(f.cause_probable)}</p></div>` : ''}
+              ${
+                f.procedure_intervention
+                  ? `<div class="fiche-block"><div class="fiche-block-label">${icon('clipboard', 13)} Procédure d'intervention</div>${renderProcedureSteps(f.procedure_intervention)}</div>`
+                  : ''
+              }
+              ${f.securite ? `<div class="fiche-safety">${icon('alertTriangle', 15)} <div><strong>Sécurité / précautions</strong><p>${escapeHtml(f.securite)}</p></div></div>` : ''}
+              ${
+                f.outillage || f.pieces_rechange
+                  ? `<div class="fiche-block-row">
+                      ${f.outillage ? `<div class="fiche-block"><div class="fiche-block-label">${icon('wrench', 13)} Outillage</div><p>${escapeHtml(f.outillage)}</p></div>` : ''}
+                      ${f.pieces_rechange ? `<div class="fiche-block"><div class="fiche-block-label">${icon('gauge', 13)} Pièces de rechange</div><p>${escapeHtml(f.pieces_rechange)}</p></div>` : ''}
+                    </div>`
+                  : ''
+              }
+              ${f.solution ? `<div class="fiche-block"><div class="fiche-block-label">${icon('check', 13)} Solution / résumé</div><p>${escapeHtml(f.solution)}</p></div>` : ''}
+              ${
+                (f.photos || []).length
+                  ? `<div class="photo-row">${f.photos.map((p) => `<div class="photo-thumb"><img src="${p.url}"></div>`).join('')}</div>`
+                  : ''
+              }
+              <div class="item-actions">
+                <button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>
+                ${!f.is_reference ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
+              </div>
             </div>`
           : ''
       }
