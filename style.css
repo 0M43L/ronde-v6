@@ -436,6 +436,40 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 /* ===== HISTORIQUE (unifié) ===== */
 .hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
 
+/* ===== STATUT À L'ISSUE ===== */
+.statut-choices { display: flex; flex-direction: column; gap: 8px; }
+.statut-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px; border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); color: var(--text); font-size: 14px; font-weight: 500;
+  cursor: pointer; text-align: left; width: 100%;
+}
+.statut-btn.sel.operationnel { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+.statut-btn.sel.reserve { border-color: var(--warning); background: var(--warning-soft); color: var(--warning); }
+.statut-btn.sel.arret { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+
+/* ===== MES progress ===== */
+.mes-progress { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-muted); }
+.mes-progress-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--neutral-soft); overflow: hidden; }
+.mes-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.2s; }
+
+/* ===== FILTER CHIPS (historique) ===== */
+.filter-chips { display: flex; gap: 6px; overflow-x: auto; margin-top: 12px; padding-bottom: 2px; }
+.chip {
+  flex: 0 0 auto; padding: 7px 12px; border-radius: 999px;
+  border: 1.5px solid var(--border); background: var(--bg); color: var(--text-muted);
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
+/* ===== SVG trend chart ===== */
+.trend-chart { width: 100%; height: auto; }
+.trend-chart text { font-size: 9px; fill: var(--text-muted); }
+.trend-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+
+/* ===== ECHANGEUR card ===== */
+.echangeur-card .card-header { background: var(--accent-soft); color: var(--accent); }
+
 @media (max-width: 480px) {
   .form-row { grid-template-columns: 1fr; }
   .check-buttons { grid-template-columns: repeat(2, 1fr); }

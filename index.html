@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -120,8 +121,15 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-header">Statut à l'issue</div>
+        <div class="card-body">
+          <div class="statut-choices" id="rondeStatutChoices"></div>
+        </div>
+      </div>
+
       <div class="btn-row">
-        <button class="btn" id="saveRondeBtn">Enregistrer la ronde</button>
+        <button class="btn" id="saveRondeBtn">Archiver la ronde</button>
         <button class="btn btn-secondary" id="exportPdfBtn">Export PDF</button>
       </div>
     </div>
@@ -181,11 +189,42 @@
 
     <!-- BILAN -->
     <div class="page" id="page-bilan">
+      <button class="btn btn-secondary" id="weeklyReportBtn" style="width:100%; margin-bottom:14px;">📋 Générer rapport hebdomadaire</button>
+
       <div class="card">
-        <div class="card-header">Suivi d'activité</div>
+        <div class="card-header">Suivi d'activité (30 jours)</div>
         <div class="card-body">
           <div class="stat-grid" id="bilanStats"></div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Tendance hebdomadaire (rondes)</div>
+        <div class="card-body" id="bilanTrend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Sites non visités</div>
+        <div class="card-body">
+          <div class="form-row" style="align-items:flex-end;">
+            <div class="form-group" style="margin:0;">
+              <label>Seuil (jours)</label>
+              <input type="number" id="siteThresholdDays" min="1" value="30">
+            </div>
+            <button class="btn-secondary" id="enableRemindersBtn" style="flex:1;">🔔 Activer les rappels de retard</button>
+          </div>
+          <div id="sitesNonVisites" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Points récurrents dégradés</div>
+        <div class="card-body" id="pointsRecurrents"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Actions en retard par site</div>
+        <div class="card-body" id="actionsRetardSite"></div>
       </div>
 
       <div class="card">
@@ -211,13 +250,45 @@
     <!-- MES -->
     <div class="page" id="page-mes">
       <div class="card">
-        <div class="card-header">Mise en service</div>
+        <div class="card-body">
+          <div class="mes-progress">
+            <span id="mesProgressLabel">0/41 points</span>
+            <div class="mes-progress-bar"><div class="mes-progress-fill" id="mesProgressFill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Identification du poste</div>
         <div class="card-body">
           <div class="form-group">
             <label>Sous-station</label>
             <input type="text" id="mesSubstation" list="substationsDatalist" placeholder="Nom de la sous-station..." autocomplete="off">
           </div>
-          <div id="mesChecksList"></div>
+          <div class="form-group">
+            <label>Intervenant IDEX</label>
+            <input type="text" id="mesIntervenant" disabled>
+          </div>
+          <div class="form-group">
+            <label>Représentant client présent</label>
+            <input type="text" id="mesRepresentantClient" placeholder="Nom (laisser vide si absent)">
+          </div>
+          <div class="form-group">
+            <label>Type de poste (configuration CAS_Poste)</label>
+            <select id="mesCasPoste"></select>
+          </div>
+          <div class="form-group">
+            <label>Nombre d'échangeurs</label>
+            <input type="number" id="mesNbEchangeurs" min="1" max="3" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div id="mesEchangeursList"></div>
+
+      <div id="mesChecksList"></div>
+      <div class="card">
+        <div class="card-body">
           <div class="form-group">
             <label>Notes générales</label>
             <textarea id="mesNotes" placeholder="Remarques sur la session..."></textarea>
@@ -230,6 +301,28 @@
 
     <!-- HISTORIQUE -->
     <div class="page" id="page-historique">
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="text" id="histSearch" placeholder="Rechercher site, intervenant, anomalie...">
+          </div>
+          <button class="btn btn-secondary" id="exportExcelBtn" style="width:100%; margin-bottom:10px;">📊 Exporter Excel (.xlsx)</button>
+          <p class="hint" id="storageUsage" style="margin-bottom:10px;"></p>
+          <div class="btn-row" style="margin-top:0;">
+            <button class="btn btn-secondary" id="exportBackupBtn">💾 Sauvegarder toutes les données</button>
+            <button class="btn btn-secondary" id="importBackupBtn">📥 Importer une sauvegarde</button>
+          </div>
+          <input type="file" id="importBackupFile" accept="application/json" style="display:none;">
+          <button class="btn-ghost" id="clearHistoryBtn" style="width:100%; text-align:center; margin-top:10px;">🗑 Effacer tout l'historique</button>
+          <div class="filter-chips" id="histFilterChips">
+            <button class="chip active" data-filter="tous">Tous</button>
+            <button class="chip" data-filter="operationnel">OK</button>
+            <button class="chip" data-filter="reserve">Réserve</button>
+            <button class="chip" data-filter="arret">Arrêt</button>
+            <button class="chip" data-filter="anomalies">Anomalies</button>
+          </div>
+        </div>
+      </div>
       <div id="historiqueContent"></div>
     </div>
 
