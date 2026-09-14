@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS fiches (
   ronde_id              TEXT REFERENCES rondes(id),
   substation_id         TEXT REFERENCES substations(id),
   user_id               TEXT REFERENCES users(id),
+  version               INTEGER NOT NULL DEFAULT 1,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

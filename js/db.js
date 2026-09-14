@@ -72,7 +72,10 @@ export async function clearStore(store) {
 
 // ===== File d'attente de synchronisation =====
 export async function queueSync(entity_type, action, payload) {
-  await put('sync_queue', { id: `${entity_type}_${payload.id}_${Date.now()}`, entity_type, action, payload });
+  // La plupart des payloads ont un .id, mais les opérations ciblées (ex :
+  // ajout/retrait d'une photo de site) portent plutôt un .substation_id.
+  const key = payload.id ?? payload.substation_id ?? 'x';
+  await put('sync_queue', { id: `${entity_type}_${key}_${Date.now()}`, entity_type, action, payload });
 }
 
 export async function getSyncQueue() {

@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const result = await db.execute(
       `SELECT id, title, symptomes, cause_probable, procedure_intervention, securite, outillage,
               pieces_rechange, solution, urgence, photos_json, notes, is_reference, substation_id,
-              user_id, created_at
+              user_id, version, created_at
        FROM fiches ORDER BY is_reference DESC, title ASC`
     );
 
@@ -36,6 +36,7 @@ export default async function handler(req, res) {
         is_reference: !!r.is_reference,
         substation_id: r.substation_id,
         user_id: r.user_id,
+        version: r.version || 1,
         created_at: r.created_at,
       })),
     });

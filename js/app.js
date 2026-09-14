@@ -38,16 +38,60 @@ setSyncStatusListener((status, count) => {
   label.textContent = status === 'synced' ? 'à jour' : status === 'offline' ? `hors-ligne (${count})` : `en attente (${count})`;
 });
 
-// Le serveur a rejeté certaines entrées (ex : donnée invalide) : elles
-// restent en file (pas de perte silencieuse) et on prévient le technicien
-// pour qu'il sache qu'un élément n'est toujours pas partagé.
-setSyncErrorListener((failedItems) => {
-  ui.showToast(
-    failedItems.length === 1
-      ? "1 élément n'a pas pu être synchronisé, nouvelle tentative automatique"
-      : `${failedItems.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
-  );
+// Le serveur a rejeté certaines entrées : soit une donnée invalide (reste en
+// file, sera retentée), soit un conflit d'édition sur une fiche (deux
+// techniciens l'ont modifiée hors ligne en même temps) — dans ce cas on ne
+// retente jamais l'envoi (il échouerait indéfiniment), on met plutôt les
+// modifications du technicien de côté dans une fiche séparée pour qu'il
+// puisse les reporter à la main, sans jamais rien perdre silencieusement.
+setSyncErrorListener(async (failedItems, errors) => {
+  const errorById = new Map(errors.map((e) => [e.id, e.error]));
+  const other = [];
+  for (const item of failedItems) {
+    if (item.entity_type === 'fiche' && errorById.get(item.id) === 'CONFLICT') {
+      await resolveFicheConflict(item);
+    } else {
+      other.push(item);
+    }
+  }
+  if (other.length > 0) {
+    ui.showToast(
+      other.length === 1
+        ? "1 élément n'a pas pu être synchronisé, nouvelle tentative automatique"
+        : `${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
+    );
+  }
 });
+
+async function resolveFicheConflict(item) {
+  const localFiche = item.payload;
+  // Cette version précise n'existe plus côté serveur : retenter l'envoi tel
+  // quel échouerait indéfiniment (le toast reviendrait à chaque synchro).
+  await dbLayer.clearSyncQueueItems([item.id]);
+
+  // On garde les modifications du technicien dans une fiche à part — jamais
+  // perdues — plutôt que de les jeter ou d'écraser le travail du collègue.
+  const forked = { ...localFiche, id: `${localFiche.id}_CONFLIT_${Date.now()}`, title: `${localFiche.title} (modifs en attente de fusion)` };
+  delete forked.version;
+  await dbLayer.put('fiches', forked);
+  await dbLayer.queueSync('fiche', 'upsert', forked);
+  state.fiches.push(forked);
+
+  try {
+    const fresh = await api.fetchFiches();
+    const original = fresh.find((f) => f.id === localFiche.id);
+    if (original) {
+      state.fiches = state.fiches.map((f) => (f.id === original.id ? original : f));
+      await dbLayer.put('fiches', original);
+    }
+  } catch {
+    // Hors-ligne : la version à jour arrivera au prochain chargement de l'appli.
+  }
+
+  if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.showToast(`Un collègue a modifié "${localFiche.title}" en même temps que toi : tes changements ont été gardés dans une fiche séparée à fusionner à la main.`);
+}
 
 // ===== LOGIN =====
 window.addEventListener('load', async () => {
@@ -102,10 +146,19 @@ async function enterApp() {
 
 // ===== FUSION LOCAL / SERVEUR (offline-first) =====
 // Le serveur écrase les entrées connues, mais on garde les entrées créées
-// localement (hors-ligne) qui n'ont pas encore été synchronisées.
-function mergeById(local, server) {
+// localement (hors-ligne) qui n'ont pas encore été synchronisées. On garde
+// aussi telles quelles les entrées qui ont une modification encore en file
+// d'attente (pendingIds) : sinon un rechargement de l'appli avant que cette
+// modification n'ait fini de synchroniser affiche la version serveur
+// (encore ancienne) à la place de la modification du technicien — pas une
+// perte de données (la file la renverra), mais une régression d'affichage
+// trompeuse le temps que ça synchronise.
+function mergeById(local, server, pendingIds) {
   const map = new Map(local.map((item) => [item.id, item]));
-  server.forEach((item) => map.set(item.id, item));
+  server.forEach((item) => {
+    if (pendingIds && pendingIds.has(item.id)) return;
+    map.set(item.id, item);
+  });
   return Array.from(map.values());
 }
 
@@ -143,10 +196,14 @@ function checkOverdueReminders() {
 
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
+  const queue = await dbLayer.getSyncQueue();
+  const pendingIdsFor = (entityType) =>
+    new Set(queue.filter((q) => q.entity_type === entityType && q.action === 'upsert').map((q) => q.payload.id));
+
   const cachedSubstations = await dbLayer.getAll('substations');
   try {
     const fresh = await api.fetchSubstations();
-    state.substations = mergeById(cachedSubstations, fresh);
+    state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
     // La liste globale n'inclut plus les photos (voir api/substations.js —
     // chargées à la demande sur la fiche Site). Sans ça, chaque rechargement
     // de l'appli écraserait les photos déjà récupérées localement.
@@ -162,7 +219,7 @@ async function loadAppData() {
   const cachedFiches = await dbLayer.getAll('fiches');
   try {
     const fresh = await api.fetchFiches();
-    state.fiches = mergeById(cachedFiches, fresh);
+    state.fiches = mergeById(cachedFiches, fresh, pendingIdsFor('fiche'));
     await dbLayer.putAll('fiches', state.fiches);
   } catch {
     state.fiches = cachedFiches;
@@ -171,7 +228,7 @@ async function loadAppData() {
   const cachedRondes = await dbLayer.getAll('rondes');
   try {
     const fresh = await api.fetchRondes();
-    state.rondes = mergeById(cachedRondes, fresh);
+    state.rondes = mergeById(cachedRondes, fresh, pendingIdsFor('ronde'));
     await dbLayer.putAll('rondes', state.rondes);
   } catch {
     state.rondes = cachedRondes;
@@ -180,7 +237,7 @@ async function loadAppData() {
   const cachedActions = await dbLayer.getAll('actions');
   try {
     const fresh = await api.fetchActions();
-    state.actions = mergeById(cachedActions, fresh);
+    state.actions = mergeById(cachedActions, fresh, pendingIdsFor('action'));
     await dbLayer.putAll('actions', state.actions);
   } catch {
     state.actions = cachedActions;
@@ -189,7 +246,7 @@ async function loadAppData() {
   const cachedMes = await dbLayer.getAll('mes');
   try {
     const fresh = await api.fetchMesSessions();
-    state.mesSessions = mergeById(cachedMes, fresh);
+    state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
     await dbLayer.putAll('mes', state.mesSessions);
   } catch {
     state.mesSessions = cachedMes;
@@ -298,9 +355,13 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
       ui.showToast('Chargement des photos en cours, réessaie dans un instant');
       return;
     }
-    site.photos = site.photos.filter((p) => p.id !== removeBtn.dataset.photoId);
+    const photoId = removeBtn.dataset.photoId;
+    site.photos = site.photos.filter((p) => p.id !== photoId);
     await dbLayer.put('substations', site);
-    await dbLayer.queueSync('substation', 'upsert', site);
+    // Envoyée comme une opération ciblée (retirer CETTE photo), pas comme un
+    // remplacement du tableau entier : si un collègue ajoute une photo sur ce
+    // même site avant que ça ne synchronise, sa photo n'est pas perdue.
+    await dbLayer.queueSync('substation_photo', 'remove', { substation_id: site.id, photo_id: photoId });
     ui.renderSiteDetail();
   }
 });
@@ -316,9 +377,13 @@ document.getElementById('siteDetail').addEventListener('change', async (e) => {
     return;
   }
   const dataUrl = await fileToDataUrl(fileInput.files[0]);
-  site.photos = [...site.photos, { id: `PHOTO_${Date.now()}`, url: dataUrl }];
+  const photo = { id: `PHOTO_${Date.now()}`, url: dataUrl };
+  site.photos = [...site.photos, photo];
   await dbLayer.put('substations', site);
-  await dbLayer.queueSync('substation', 'upsert', site);
+  // Même logique : opération d'ajout ciblée plutôt qu'un upsert du site
+  // entier, pour que deux techniciens puissent ajouter des photos au même
+  // site hors ligne sans que l'un écrase l'ajout de l'autre à la synchro.
+  await dbLayer.queueSync('substation_photo', 'add', { substation_id: site.id, photo });
   ui.renderSiteDetail();
 });
 
