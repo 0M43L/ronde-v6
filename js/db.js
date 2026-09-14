@@ -1,7 +1,7 @@
 // IndexedDB — stockage local offline-first.
 const DB_NAME = 'ronde_v6';
-const DB_VERSION = 1;
-const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue'];
+const DB_VERSION = 2;
+const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue', 'fiche_conflicts'];
 
 let dbPromise = null;
 
@@ -84,4 +84,17 @@ export async function getSyncQueue() {
 
 export async function clearSyncQueueItems(ids) {
   for (const id of ids) await remove('sync_queue', id);
+}
+
+// ===== Conflits de fiches en attente de fusion manuelle =====
+export async function getFicheConflicts() {
+  return getAll('fiche_conflicts');
+}
+
+export async function addFicheConflict(conflict) {
+  await put('fiche_conflicts', conflict);
+}
+
+export async function removeFicheConflict(id) {
+  await remove('fiche_conflicts', id);
 }

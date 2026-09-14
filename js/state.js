@@ -131,6 +131,10 @@ export const state = {
   rondes: [],
   lastDiagnostic: null,
   pendingGeoSubstation: null,
+  // Conflits d'édition de fiches en attente d'une fusion manuelle par le
+  // technicien (voir js/app.js resolveFicheConflict et js/ui.js les
+  // fonctions de rendu associées).
+  ficheConflicts: [],
 };
 
 export function resetControls() {

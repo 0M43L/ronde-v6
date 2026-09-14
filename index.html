@@ -58,7 +58,7 @@
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="ronde">Ronde</div>
     <div class="tab" data-tab="sites">Sites</div>
-    <div class="tab" data-tab="fiches">Fiches</div>
+    <div class="tab" data-tab="fiches">Fiches<span class="tab-badge" id="fichesTabBadge" hidden></span></div>
     <div class="tab" data-tab="actions">Actions</div>
     <div class="tab" data-tab="bilan">Bilan</div>
     <div class="tab" data-tab="diagnostic">Diagnostic</div>
@@ -150,6 +150,7 @@
 
     <!-- FICHES -->
     <div class="page" id="page-fiches">
+      <div id="ficheConflicts"></div>
       <button class="btn-outline-accent" id="toggleAddFicheBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Créer une fiche terrain</button>
       <div class="card" id="addFicheCard" hidden>
         <div class="card-header" id="addFicheCardTitle">Nouvelle fiche</div>

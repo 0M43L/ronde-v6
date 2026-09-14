@@ -459,6 +459,120 @@ export function renderFiches(searchTerm = '') {
   list.innerHTML = backBar + filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
 }
 
+// ===== CONFLITS DE FICHES (édition simultanée par deux techniciens) =====
+// Champs texte comparés un par un lors d'une fusion. Les photos sont
+// gérées à part (fusionnées automatiquement, pas de choix à faire — voir
+// resolveFicheConflictMerge dans app.js).
+export const FICHE_CONFLICT_FIELDS = [
+  { field: 'title', label: 'Titre' },
+  { field: 'urgence', label: 'Urgence' },
+  { field: 'symptomes', label: 'Symptômes' },
+  { field: 'cause_probable', label: 'Cause probable' },
+  { field: 'procedure_intervention', label: "Procédure d'intervention" },
+  { field: 'securite', label: 'Sécurité' },
+  { field: 'outillage', label: 'Outillage' },
+  { field: 'pieces_rechange', label: 'Pièces de rechange' },
+  { field: 'solution', label: 'Solution' },
+  { field: 'notes', label: 'Notes' },
+];
+
+let openConflictId = null;
+
+export function openFicheConflict(id) {
+  openConflictId = id;
+  renderFicheConflicts();
+}
+
+export function closeFicheConflict() {
+  openConflictId = null;
+  renderFicheConflicts();
+}
+
+export function getOpenFicheConflict() {
+  return state.ficheConflicts.find((c) => c.id === openConflictId) || null;
+}
+
+export function renderFicheConflicts() {
+  const el = document.getElementById('ficheConflicts');
+  if (!el) return;
+  const conflicts = state.ficheConflicts;
+  const badge = document.getElementById('fichesTabBadge');
+  if (badge) badge.hidden = conflicts.length === 0;
+  if (conflicts.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const open = conflicts.find((c) => c.id === openConflictId);
+  if (open) {
+    el.innerHTML = renderFicheConflictForm(open);
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card" style="border-left:4px solid var(--danger);">
+      <div class="card-header">${icon('alertTriangle', 14)} ${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} de fiche à résoudre</div>
+      <div class="card-body">
+        ${conflicts
+          .map(
+            (c) => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(c.serverFiche.title)}</div>
+            <div class="item-meta">Modifiée par un collègue pendant que tu la modifiais</div>
+            <div class="item-actions"><button class="btn-secondary" data-action="open-fiche-conflict" data-id="${c.id}">Comparer et fusionner</button></div>
+          </div>`
+          )
+          .join('')}
+      </div>
+    </div>`;
+}
+
+function conflictFieldChoice(conflictId, field, label, localVal, serverVal) {
+  const local = (localVal || '').trim();
+  const server = (serverVal || '').trim();
+  if (local === server) return ''; // rien à choisir, les deux versions sont identiques sur ce champ
+  return `
+    <div class="conflict-field">
+      <div class="conflict-field-label">${escapeHtml(label)}</div>
+      <label class="conflict-choice">
+        <input type="radio" name="conflict-${conflictId}-${field}" value="local" checked>
+        <div class="conflict-value"><span class="conflict-tag mine">Ta version</span>${local ? escapeHtml(local) : '<em>(vide)</em>'}</div>
+      </label>
+      <label class="conflict-choice">
+        <input type="radio" name="conflict-${conflictId}-${field}" value="server">
+        <div class="conflict-value"><span class="conflict-tag theirs">Version du collègue</span>${server ? escapeHtml(server) : '<em>(vide)</em>'}</div>
+      </label>
+    </div>`;
+}
+
+function renderFicheConflictForm(conflict) {
+  const { id, localFiche, serverFiche } = conflict;
+  const fieldsHtml = FICHE_CONFLICT_FIELDS.map((f) => conflictFieldChoice(id, f.field, f.label, localFiche[f.field], serverFiche[f.field])).join('');
+  const hasFieldDiffs = fieldsHtml.trim().length > 0;
+
+  const localPhotos = localFiche.photos || [];
+  const serverPhotos = serverFiche.photos || [];
+  const newLocalPhotos = localPhotos.filter((p) => !serverPhotos.some((sp) => sp.id === p.id));
+
+  return `
+    <div class="card" style="border-left:4px solid var(--danger);">
+      <div class="card-header">${icon('alertTriangle', 14)} Conflit — ${escapeHtml(serverFiche.title)}</div>
+      <div class="card-body">
+        <p class="hint">Un collègue a modifié cette fiche pendant que tu la modifiais. Choisis quoi garder pour chaque champ différent, puis valide.</p>
+        ${hasFieldDiffs ? fieldsHtml : `<p class="hint"><em>Aucun champ texte en conflit — seules les photos diffèrent peut-être.</em></p>`}
+        ${
+          newLocalPhotos.length > 0
+            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo(s) que tu as ajoutée(s) seront conservées en plus de celles du collègue — rien n'est perdu.</p></div>`
+            : ''
+        }
+        <div class="btn-row">
+          <button class="btn" data-action="confirm-fiche-conflict" data-id="${id}">Valider la fusion</button>
+          <button class="btn-secondary" data-action="close-fiche-conflict">Retour à la liste</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 

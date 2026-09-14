@@ -41,15 +41,16 @@ setSyncStatusListener((status, count) => {
 // Le serveur a rejeté certaines entrées : soit une donnée invalide (reste en
 // file, sera retentée), soit un conflit d'édition sur une fiche (deux
 // techniciens l'ont modifiée hors ligne en même temps) — dans ce cas on ne
-// retente jamais l'envoi (il échouerait indéfiniment), on met plutôt les
-// modifications du technicien de côté dans une fiche séparée pour qu'il
-// puisse les reporter à la main, sans jamais rien perdre silencieusement.
+// retente jamais l'envoi tel quel (il échouerait indéfiniment). Les deux
+// versions sont mises de côté pour que le technicien les compare et
+// choisisse lui-même quoi garder, champ par champ — jamais un écrasement
+// automatique et jamais une perte silencieuse.
 setSyncErrorListener(async (failedItems, errors) => {
   const errorById = new Map(errors.map((e) => [e.id, e.error]));
   const other = [];
   for (const item of failedItems) {
     if (item.entity_type === 'fiche' && errorById.get(item.id) === 'CONFLICT') {
-      await resolveFicheConflict(item);
+      await captureFicheConflict(item);
     } else {
       other.push(item);
     }
@@ -63,35 +64,84 @@ setSyncErrorListener(async (failedItems, errors) => {
   }
 });
 
-async function resolveFicheConflict(item) {
+async function captureFicheConflict(item) {
   const localFiche = item.payload;
   // Cette version précise n'existe plus côté serveur : retenter l'envoi tel
   // quel échouerait indéfiniment (le toast reviendrait à chaque synchro).
   await dbLayer.clearSyncQueueItems([item.id]);
 
-  // On garde les modifications du technicien dans une fiche à part — jamais
-  // perdues — plutôt que de les jeter ou d'écraser le travail du collègue.
-  const forked = { ...localFiche, id: `${localFiche.id}_CONFLIT_${Date.now()}`, title: `${localFiche.title} (modifs en attente de fusion)` };
-  delete forked.version;
-  await dbLayer.put('fiches', forked);
-  await dbLayer.queueSync('fiche', 'upsert', forked);
-  state.fiches.push(forked);
-
+  let serverFiche = null;
   try {
     const fresh = await api.fetchFiches();
-    const original = fresh.find((f) => f.id === localFiche.id);
-    if (original) {
-      state.fiches = state.fiches.map((f) => (f.id === original.id ? original : f));
-      await dbLayer.put('fiches', original);
-    }
+    serverFiche = fresh.find((f) => f.id === localFiche.id) || null;
   } catch {
-    // Hors-ligne : la version à jour arrivera au prochain chargement de l'appli.
+    // Hors-ligne : on retentera de récupérer la version serveur au prochain
+    // cycle de synchro (le conflit reste affiché en attendant).
   }
+  if (!serverFiche) return;
 
+  // La liste affichée doit refléter la vraie version en base tant que le
+  // conflit n'est pas résolu (jamais la tentative locale rejetée).
+  state.fiches = state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f));
+  await dbLayer.put('fiches', serverFiche);
+
+  const conflict = { id: `CONFLICT_${localFiche.id}_${Date.now()}`, ficheId: localFiche.id, localFiche, serverFiche, detectedAt: Date.now() };
+  await dbLayer.addFicheConflict(conflict);
+  state.ficheConflicts.push(conflict);
+
+  // Le conteneur du bandeau de conflit existe toujours dans le DOM (même
+  // onglet caché) : le remettre à jour tout de suite, pas seulement si
+  // l'onglet Fiches est déjà ouvert, sinon le technicien ne le verrait
+  // qu'après un rechargement complet de l'appli.
+  ui.renderFicheConflicts();
   if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-  ui.showToast(`Un collègue a modifié "${localFiche.title}" en même temps que toi : tes changements ont été gardés dans une fiche séparée à fusionner à la main.`);
+  ui.showToast(`Un collègue a modifié "${serverFiche.title}" en même temps que toi — va dans l'onglet Fiches pour comparer et fusionner.`);
 }
+
+document.getElementById('ficheConflicts').addEventListener('click', async (e) => {
+  const openBtn = e.target.closest('[data-action="open-fiche-conflict"]');
+  if (openBtn) {
+    ui.openFicheConflict(openBtn.dataset.id);
+    return;
+  }
+  const closeBtn = e.target.closest('[data-action="close-fiche-conflict"]');
+  if (closeBtn) {
+    ui.closeFicheConflict();
+    return;
+  }
+  const confirmBtn = e.target.closest('[data-action="confirm-fiche-conflict"]');
+  if (confirmBtn) {
+    const conflict = state.ficheConflicts.find((c) => c.id === confirmBtn.dataset.id);
+    if (!conflict) return;
+
+    // Reconstitue le champ choisi (local/serveur) pour chaque champ affiché,
+    // en partant de la version serveur à jour (donc son .version courant,
+    // indispensable pour que la synchro qui suit soit acceptée).
+    const merged = { ...conflict.serverFiche };
+    for (const { field } of ui.FICHE_CONFLICT_FIELDS) {
+      const picked = document.querySelector(`input[name="conflict-${conflict.id}-${field}"]:checked`);
+      if (picked && picked.value === 'local') merged[field] = conflict.localFiche[field];
+    }
+    // Photos : fusionnées (les deux techniciens ont pu en ajouter chacun de leur côté).
+    const serverPhotos = conflict.serverFiche.photos || [];
+    const localPhotos = conflict.localFiche.photos || [];
+    const byId = new Map(serverPhotos.map((p) => [p.id, p]));
+    for (const p of localPhotos) if (!byId.has(p.id)) byId.set(p.id, p);
+    merged.photos = Array.from(byId.values());
+
+    await dbLayer.put('fiches', merged);
+    await dbLayer.queueSync('fiche', 'upsert', merged);
+    state.fiches = state.fiches.map((f) => (f.id === merged.id ? merged : f));
+
+    await dbLayer.removeFicheConflict(conflict.id);
+    state.ficheConflicts = state.ficheConflicts.filter((c) => c.id !== conflict.id);
+    ui.closeFicheConflict();
+    ui.renderFiches(document.getElementById('ficheSearch').value);
+    ui.showToast('Fusion enregistrée, en cours de synchronisation');
+    syncNow().catch(() => {});
+  }
+});
 
 // ===== LOGIN =====
 window.addEventListener('load', async () => {
@@ -252,6 +302,8 @@ async function loadAppData() {
     state.mesSessions = cachedMes;
   }
 
+  state.ficheConflicts = await dbLayer.getFicheConflicts();
+
   ui.renderSubstationDatalist();
   ui.renderSiteList();
   ui.renderControls();
@@ -263,6 +315,7 @@ async function loadAppData() {
   ui.renderPointsRecurrents();
   ui.renderActionsRetardSite();
   ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheConflicts();
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
