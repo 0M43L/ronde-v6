@@ -1284,26 +1284,64 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   XLSX.writeFile(workbook, `Historique_Ronde_V6_${Date.now()}.xlsx`);
 });
 
+// Limite le nombre de requêtes en parallèle (140 sites -> pas question de
+// tirer 140 fetch simultanés au clic sur "Sauvegarder").
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 document.getElementById('exportBackupBtn').addEventListener('click', async () => {
-  const backup = {
-    version: 1,
-    exported_at: new Date().toISOString(),
-    substations: await dbLayer.getAll('substations'),
-    rondes: await dbLayer.getAll('rondes'),
-    fiches: await dbLayer.getAll('fiches'),
-    actions: await dbLayer.getAll('actions'),
-    mes: await dbLayer.getAll('mes'),
-  };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sauvegarde_ronde_v6_${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  ui.showToast('Sauvegarde téléchargée');
+  const exportBtn = document.getElementById('exportBackupBtn');
+  exportBtn.disabled = true;
+  ui.showToast('Préparation de la sauvegarde (récupération des photos)...');
+  try {
+    const substations = await dbLayer.getAll('substations');
+    // La liste locale ne contient les photos/commentaires QUE pour les sites
+    // déjà ouverts sur cet appareil (chargement à la demande — voir
+    // loadSiteDetailIfNeeded) : sans ce complément, "Sauvegarder toutes les
+    // données" oublierait les photos de tous les sites jamais visités depuis
+    // ce téléphone, ce qui n'a rien d'une sauvegarde complète.
+    const completeSubstations = await mapWithConcurrency(substations, 6, async (s) => {
+      if (s.photos !== undefined && s.comments !== undefined) return s;
+      try {
+        const detail = await api.fetchSubstationDetail(s.id);
+        return { ...s, photos: detail.photos || [], comments: detail.comments || [] };
+      } catch {
+        return s; // hors-ligne : on sauvegarde ce qu'on a localement pour ce site
+      }
+    });
+
+    const backup = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      substations: completeSubstations,
+      rondes: await dbLayer.getAll('rondes'),
+      fiches: await dbLayer.getAll('fiches'),
+      actions: await dbLayer.getAll('actions'),
+      mes: await dbLayer.getAll('mes'),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sauvegarde_ronde_v6_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    ui.showToast('Sauvegarde téléchargée (avec toutes les photos)');
+  } finally {
+    exportBtn.disabled = false;
+  }
 });
 
 document.getElementById('importBackupBtn').addEventListener('click', () => {
@@ -1322,6 +1360,22 @@ document.getElementById('importBackupFile').addEventListener('change', async (e)
         for (const item of backup[store]) {
           const entityType = { substations: 'substation', rondes: 'ronde', fiches: 'fiche', actions: 'action', mes: 'mes_session' }[store];
           await dbLayer.queueSync(entityType, 'upsert', item);
+          if (store === 'substations') {
+            // L'upsert 'substation' n'écrit plus photos_json/comments_json
+            // (voir api/sync.js — gérés en opérations ciblées pour ne jamais
+            // écraser l'ajout d'un collègue). Sans ça, importer une
+            // sauvegarde ne renverrait jamais ses photos/commentaires au
+            // serveur : l'import aurait l'air de marcher en local, mais rien
+            // ne serait vraiment restauré côté serveur. Le dédoublonnage par
+            // id côté serveur rend cette réémission sans risque pour ce qui
+            // est déjà synchronisé.
+            for (const photo of item.photos || []) {
+              await dbLayer.queueSync('substation_photo', 'add', { substation_id: item.id, photo });
+            }
+            for (const comment of item.comments || []) {
+              await dbLayer.queueSync('substation_comment', 'add', { substation_id: item.id, comment });
+            }
+          }
         }
       }
     }
