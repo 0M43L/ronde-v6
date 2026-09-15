@@ -613,7 +613,11 @@ export function renderActions() {
           ${
             expanded
               ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
-                  <div class="item-meta">${substation ? `Site : ${escapeHtml(substation.name)}` : "Site : introuvable (site peut-être supprimé)"}</div>
+                  ${
+                    a.substation_id
+                      ? `<div class="item-meta">${substation ? `Site : ${escapeHtml(substation.name)}` : 'Site : introuvable (site peut-être supprimé)'}</div>`
+                      : `<div class="item-meta">Aucun site associé à cette action</div>`
+                  }
                   <div class="item-meta" style="margin-top:2px;">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
                   ${a.photo ? `<img src="${a.photo}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
                   ${substation ? `<button class="btn-secondary" data-action="goto-action-site" data-site-id="${substation.id}" style="width:100%;margin-top:10px;">Voir la fiche du site</button>` : ''}
