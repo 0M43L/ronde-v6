@@ -280,13 +280,20 @@ async function loadAppData() {
   try {
     const fresh = await api.fetchSubstations();
     state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
-    // La liste globale n'inclut plus les photos (voir api/substations.js —
-    // chargées à la demande sur la fiche Site). Sans ça, chaque rechargement
-    // de l'appli écraserait les photos déjà récupérées localement.
+    // La liste globale n'inclut plus les photos ni les commentaires (voir
+    // api/substations.js — chargés à la demande sur la fiche Site). Sans ça,
+    // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré
+    // (ou ajouté localement hors-ligne, voir loadSiteDetailIfNeeded).
     const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
-    state.substations = state.substations.map((s) =>
-      s.photos === undefined ? { ...s, photos: cachedById.get(s.id)?.photos } : s
-    );
+    state.substations = state.substations.map((s) => {
+      const cached = cachedById.get(s.id);
+      return {
+        ...s,
+        photos: s.photos !== undefined ? s.photos : cached?.photos,
+        comments: s.comments !== undefined ? s.comments : cached?.comments,
+        detailLoaded: s.detailLoaded !== undefined ? s.detailLoaded : cached?.detailLoaded,
+      };
+    });
     await dbLayer.putAll('substations', state.substations);
   } catch {
     state.substations = cachedSubstations;
@@ -403,7 +410,7 @@ document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
   if (!item) return;
   ui.selectSite(item.dataset.id);
-  loadSitePhotosIfNeeded(item.dataset.id);
+  loadSiteDetailIfNeeded(item.dataset.id);
 });
 
 document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
@@ -412,22 +419,45 @@ document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
   ui.switchTab('sites');
   ui.renderSiteList();
   ui.selectSite(item.dataset.id);
-  loadSitePhotosIfNeeded(item.dataset.id);
+  loadSiteDetailIfNeeded(item.dataset.id);
 });
 
-// Les photos ne sont pas incluses dans la liste globale des sous-stations
-// (voir api/substations.js) : on les récupère au moment où le technicien
-// ouvre réellement la fiche du site, pas à chaque chargement de l'appli.
-async function loadSitePhotosIfNeeded(id) {
+// Les photos et commentaires ne sont pas inclus dans la liste globale des
+// sous-stations (voir api/substations.js) : on les récupère au moment où le
+// technicien ouvre réellement la fiche du site, pas à chaque chargement de
+// l'appli.
+//
+// Le fait d'avoir déjà chargé le détail est suivi par site.detailLoaded
+// (persisté), PAS par la simple présence de site.photos/comments : sur le
+// terrain sans réseau, on ajoute quand même localement une photo ou un
+// commentaire (voir plus bas) avant même d'avoir pu récupérer le détail
+// serveur, donc photos/comments existent sans que detailLoaded soit vrai.
+// Sans cette distinction, le premier ajout hors-ligne rendait "déjà chargé"
+// pour de bon et l'appli n'essayait plus jamais de récupérer le vrai détail
+// serveur une fois reconnectée (photos/commentaires des collègues jamais
+// vus sur cet appareil).
+function unionById(serverItems, localItems) {
+  const map = new Map(serverItems.map((item) => [item.id, item]));
+  (localItems || []).forEach((item) => {
+    if (!map.has(item.id)) map.set(item.id, item);
+  });
+  return Array.from(map.values());
+}
+
+async function loadSiteDetailIfNeeded(id) {
   const site = state.substations.find((s) => s.id === id);
-  if (!site || site.photos !== undefined) return; // déjà chargées (ou site créé localement)
+  if (!site || site.detailLoaded) return;
   try {
     const detail = await api.fetchSubstationDetail(id);
-    site.photos = detail.photos || [];
+    site.photos = unionById(detail.photos || [], site.photos);
+    site.comments = unionById(detail.comments || [], site.comments);
+    site.detailLoaded = true;
     await dbLayer.put('substations', site);
     if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
   } catch {
-    // Hors-ligne ou site pas encore synchronisé : on retentera à la prochaine ouverture.
+    // Hors-ligne : on garde ce qui est déjà en local (y compris les photos et
+    // commentaires ajoutés hors-ligne) et on retentera le chargement complet
+    // à la prochaine ouverture avec réseau.
   }
 }
 
@@ -440,11 +470,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
   if (removeBtn) {
     const site = ui.getSelectedSite();
-    if (!site) return;
-    if (site.photos === undefined) {
-      ui.showToast('Chargement des photos en cours, réessaie dans un instant');
-      return;
-    }
+    if (!site || !site.photos) return;
     const photoId = removeBtn.dataset.photoId;
     site.photos = site.photos.filter((p) => p.id !== photoId);
     await dbLayer.put('substations', site);
@@ -452,6 +478,35 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     // remplacement du tableau entier : si un collègue ajoute une photo sur ce
     // même site avant que ça ne synchronise, sa photo n'est pas perdue.
     await dbLayer.queueSync('substation_photo', 'remove', { substation_id: site.id, photo_id: photoId });
+    ui.renderSiteDetail();
+    return;
+  }
+  const removeCommentBtn = e.target.closest('[data-action="remove-site-comment"]');
+  if (removeCommentBtn) {
+    const site = ui.getSelectedSite();
+    if (!site || !site.comments) return;
+    const commentId = removeCommentBtn.dataset.commentId;
+    site.comments = site.comments.filter((c) => c.id !== commentId);
+    await dbLayer.put('substations', site);
+    await dbLayer.queueSync('substation_comment', 'remove', { substation_id: site.id, comment_id: commentId });
+    ui.renderSiteDetail();
+    return;
+  }
+  const addCommentBtn = e.target.closest('[data-action="add-site-comment"]');
+  if (addCommentBtn) {
+    const site = ui.getSelectedSite();
+    if (!site) return;
+    const textarea = document.getElementById('siteCommentInput');
+    const text = textarea.value.trim();
+    if (!text) return;
+    const comment = { id: `COMMENT_${Date.now()}`, text, user_id: state.user.id, tech: `${state.user.prenom} ${state.user.nom}`.trim(), date: new Date().toISOString() };
+    site.comments = [...(site.comments || []), comment];
+    await dbLayer.put('substations', site);
+    // Même logique que les photos : opération d'ajout ciblée, pas un upsert
+    // du site entier — deux techniciens qui commentent le même site hors
+    // ligne se retrouvent bien tous les deux dans la liste.
+    await dbLayer.queueSync('substation_comment', 'add', { substation_id: site.id, comment });
+    textarea.value = '';
     ui.renderSiteDetail();
   }
 });
@@ -461,14 +516,9 @@ document.getElementById('siteDetail').addEventListener('change', async (e) => {
   if (!fileInput || !fileInput.files[0]) return;
   const site = ui.getSelectedSite();
   if (!site) return;
-  if (site.photos === undefined) {
-    ui.showToast('Chargement des photos en cours, réessaie dans un instant');
-    fileInput.value = '';
-    return;
-  }
   const dataUrl = await fileToDataUrl(fileInput.files[0]);
   const photo = { id: `PHOTO_${Date.now()}`, url: dataUrl };
-  site.photos = [...site.photos, photo];
+  site.photos = [...(site.photos || []), photo];
   await dbLayer.put('substations', site);
   // Même logique : opération d'ajout ciblée plutôt qu'un upsert du site
   // entier, pour que deux techniciens puissent ajouter des photos au même
@@ -495,7 +545,7 @@ async function resolveOrCreateSubstation(name) {
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [] };
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [], comments: [], detailLoaded: true };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
@@ -509,7 +559,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
     substation.lat = lat;
     substation.lon = lon;
   } else {
-    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [] };
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [], comments: [], detailLoaded: true };
     state.substations.push(substation);
   }
   await dbLayer.put('substations', substation);
@@ -544,6 +594,81 @@ document.getElementById('registerGeoBtn').addEventListener('click', () => {
     (err) => ui.showToast(`Position indisponible (${err.message})`),
     { enableHighAccuracy: true, timeout: 10000 }
   );
+});
+
+// ===== AJOUT MANUEL D'UNE SOUS-STATION (onglet Sites) =====
+// Pour enregistrer un site sans avoir à démarrer une ronde ni attendre un
+// signal GPS (armoire en sous-sol, technicien qui veut juste préparer la
+// liste avant de partir sur site...). La position reste optionnelle : sans
+// elle, le site est marqué "à vérifier" pour rappeler qu'il faudra la
+// compléter plus tard (bouton GPS déjà utilisé côté Localisation).
+let newSiteCoords = null;
+
+document.getElementById('addSiteBtn').addEventListener('click', () => {
+  document.getElementById('newSiteName').value = '';
+  document.getElementById('newSiteNotes').value = '';
+  newSiteCoords = null;
+  document.getElementById('newSiteGeoStatus').textContent = 'Position GPS non renseignée — tu pourras la préciser plus tard.';
+  document.getElementById('siteListCard').style.display = 'none';
+  document.getElementById('addSiteForm').hidden = false;
+});
+
+document.getElementById('cancelNewSiteBtn').addEventListener('click', () => {
+  document.getElementById('addSiteForm').hidden = true;
+  document.getElementById('siteListCard').style.display = '';
+});
+
+document.getElementById('newSiteGeoBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    ui.showToast('Géolocalisation indisponible sur cet appareil');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      newSiteCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      document.getElementById('newSiteGeoStatus').textContent = 'Position GPS enregistrée.';
+    },
+    (err) => ui.showToast(`Position indisponible (${err.message})`),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+document.getElementById('saveNewSiteBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newSiteName').value.trim();
+  if (!name) {
+    ui.showToast('Indique un nom de sous-station');
+    return;
+  }
+  if (ui.findSubstationByName(name)) {
+    ui.showToast('Une sous-station porte déjà ce nom');
+    return;
+  }
+  const substation = {
+    id: `SUB_${Date.now()}`,
+    name,
+    lat: newSiteCoords?.lat ?? null,
+    lon: newSiteCoords?.lon ?? null,
+    notes_acces: document.getElementById('newSiteNotes').value.trim(),
+    needs_review: !newSiteCoords,
+    photos: [],
+    comments: [],
+    detailLoaded: true,
+  };
+  state.substations.push(substation);
+  await dbLayer.put('substations', substation);
+  await dbLayer.queueSync('substation', 'upsert', substation);
+  ui.renderSubstationDatalist();
+  ui.renderSiteList(document.getElementById('siteSearch').value);
+  document.getElementById('addSiteForm').hidden = true;
+  renderMarkers(state.substations, (id) => {
+    const s = state.substations.find((x) => x.id === id);
+    if (s) {
+      document.getElementById('rondeSubstation').value = s.name;
+      onSubstationInput();
+    }
+  });
+  ui.showToast('Sous-station créée');
+  ui.selectSite(substation.id);
 });
 
 // ===== CONTRÔLES =====
@@ -1159,26 +1284,64 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
   XLSX.writeFile(workbook, `Historique_Ronde_V6_${Date.now()}.xlsx`);
 });
 
+// Limite le nombre de requêtes en parallèle (140 sites -> pas question de
+// tirer 140 fetch simultanés au clic sur "Sauvegarder").
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 document.getElementById('exportBackupBtn').addEventListener('click', async () => {
-  const backup = {
-    version: 1,
-    exported_at: new Date().toISOString(),
-    substations: await dbLayer.getAll('substations'),
-    rondes: await dbLayer.getAll('rondes'),
-    fiches: await dbLayer.getAll('fiches'),
-    actions: await dbLayer.getAll('actions'),
-    mes: await dbLayer.getAll('mes'),
-  };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sauvegarde_ronde_v6_${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  ui.showToast('Sauvegarde téléchargée');
+  const exportBtn = document.getElementById('exportBackupBtn');
+  exportBtn.disabled = true;
+  ui.showToast('Préparation de la sauvegarde (récupération des photos)...');
+  try {
+    const substations = await dbLayer.getAll('substations');
+    // La liste locale ne contient les photos/commentaires QUE pour les sites
+    // déjà ouverts sur cet appareil (chargement à la demande — voir
+    // loadSiteDetailIfNeeded) : sans ce complément, "Sauvegarder toutes les
+    // données" oublierait les photos de tous les sites jamais visités depuis
+    // ce téléphone, ce qui n'a rien d'une sauvegarde complète.
+    const completeSubstations = await mapWithConcurrency(substations, 6, async (s) => {
+      if (s.photos !== undefined && s.comments !== undefined) return s;
+      try {
+        const detail = await api.fetchSubstationDetail(s.id);
+        return { ...s, photos: detail.photos || [], comments: detail.comments || [] };
+      } catch {
+        return s; // hors-ligne : on sauvegarde ce qu'on a localement pour ce site
+      }
+    });
+
+    const backup = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      substations: completeSubstations,
+      rondes: await dbLayer.getAll('rondes'),
+      fiches: await dbLayer.getAll('fiches'),
+      actions: await dbLayer.getAll('actions'),
+      mes: await dbLayer.getAll('mes'),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sauvegarde_ronde_v6_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    ui.showToast('Sauvegarde téléchargée (avec toutes les photos)');
+  } finally {
+    exportBtn.disabled = false;
+  }
 });
 
 document.getElementById('importBackupBtn').addEventListener('click', () => {
@@ -1197,6 +1360,22 @@ document.getElementById('importBackupFile').addEventListener('change', async (e)
         for (const item of backup[store]) {
           const entityType = { substations: 'substation', rondes: 'ronde', fiches: 'fiche', actions: 'action', mes: 'mes_session' }[store];
           await dbLayer.queueSync(entityType, 'upsert', item);
+          if (store === 'substations') {
+            // L'upsert 'substation' n'écrit plus photos_json/comments_json
+            // (voir api/sync.js — gérés en opérations ciblées pour ne jamais
+            // écraser l'ajout d'un collègue). Sans ça, importer une
+            // sauvegarde ne renverrait jamais ses photos/commentaires au
+            // serveur : l'import aurait l'air de marcher en local, mais rien
+            // ne serait vraiment restauré côté serveur. Le dédoublonnage par
+            // id côté serveur rend cette réémission sans risque pour ce qui
+            // est déjà synchronisé.
+            for (const photo of item.photos || []) {
+              await dbLayer.queueSync('substation_photo', 'add', { substation_id: item.id, photo });
+            }
+            for (const comment of item.comments || []) {
+              await dbLayer.queueSync('substation_comment', 'add', { substation_id: item.id, comment });
+            }
+          }
         }
       }
     }

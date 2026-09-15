@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS substations (
   needs_review INTEGER NOT NULL DEFAULT 0,
   source       TEXT NOT NULL DEFAULT 'kml',
   photos_json  TEXT,
+  comments_json TEXT,
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

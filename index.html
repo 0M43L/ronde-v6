@@ -143,8 +143,28 @@
           <div class="form-group" style="margin:0;">
             <input type="text" id="siteSearch" placeholder="Rechercher une sous-station...">
           </div>
+          <button class="btn-secondary" id="addSiteBtn" style="width:100%;margin-top:10px;">+ Ajouter une sous-station</button>
         </div>
         <div id="siteList"></div>
+      </div>
+      <div class="card" id="addSiteForm" hidden>
+        <div class="card-header">Nouvelle sous-station</div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Nom</label>
+            <input type="text" id="newSiteName" placeholder="Nom de la sous-station">
+          </div>
+          <div class="form-group">
+            <label>Notes d'accès (optionnel)</label>
+            <textarea id="newSiteNotes" placeholder="Code portail, accès, etc."></textarea>
+          </div>
+          <p class="hint" id="newSiteGeoStatus" style="margin:0 0 10px;">Position GPS non renseignée — tu pourras la préciser plus tard.</p>
+          <button class="btn btn-secondary" id="newSiteGeoBtn" style="width:100%;" type="button"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6.5-9 12.5-9 12.5S3 16.5 3 10a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg> Utiliser ma position actuelle</button>
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn" id="saveNewSiteBtn">Créer la sous-station</button>
+            <button class="btn btn-secondary" id="cancelNewSiteBtn">Annuler</button>
+          </div>
+        </div>
       </div>
       <div id="siteDetail"></div>
     </div>
