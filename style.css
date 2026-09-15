@@ -164,10 +164,14 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   z-index: 100;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
-  height: var(--header-h);
+  /* viewport-fit=cover laisse le contenu s'étendre sous l'encoche/la barre de
+     statut (status-bar-style=black-translucent) : sans cette marge, le
+     logo/titre/badge de synchro se retrouvent masqués dessous, et l'appli a
+     l'air de démarrer directement sur les onglets. */
+  height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: env(safe-area-inset-top, 0px) 16px 0;
   gap: 12px;
 }
 
@@ -220,7 +224,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: var(--header-h);
+  top: calc(var(--header-h) + env(safe-area-inset-top, 0px));
   z-index: 90;
   scrollbar-width: none;
 }
