@@ -93,6 +93,7 @@
             <label>Notes d'accès</label>
             <div class="alert warning" id="accessNotesText" style="margin:0;"></div>
           </div>
+          <div id="rondeSiteAlert"></div>
           <div class="form-group">
             <label>Intervenant</label>
             <input type="text" id="rondeTech" disabled>
@@ -272,6 +273,12 @@
       <div class="card">
         <div class="card-header">Points récurrents dégradés</div>
         <div class="card-body" id="pointsRecurrents"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Sites à surveiller</div>
+        <p class="hint" style="padding:0 14px;">Un même point dégradé plusieurs fois de suite sur un site — à traiter avant que ça ne devienne une vraie panne.</p>
+        <div class="card-body" id="sitesASurveiller"></div>
       </div>
 
       <div class="card">

@@ -339,6 +339,7 @@ async function loadAppData() {
   ui.renderBilanTrend();
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
+  ui.renderSitesASurveiller();
   ui.renderActionsRetardSite();
   ui.renderFiches(document.getElementById('ficheSearch').value);
   ui.renderFicheConflicts();
@@ -388,6 +389,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderBilanTrend();
     ui.renderSitesNonVisites(getSiteThreshold());
     ui.renderPointsRecurrents();
+    ui.renderSitesASurveiller();
     ui.renderActionsRetardSite();
   }
   if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
@@ -400,6 +402,15 @@ document.getElementById('siteSearch').addEventListener('input', (e) => ui.render
 document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
   if (!item) return;
+  ui.selectSite(item.dataset.id);
+  loadSitePhotosIfNeeded(item.dataset.id);
+});
+
+document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="goto-site-alert"]');
+  if (!item) return;
+  ui.switchTab('sites');
+  ui.renderSiteList();
   ui.selectSite(item.dataset.id);
   loadSitePhotosIfNeeded(item.dataset.id);
 });
@@ -471,6 +482,7 @@ function onSubstationInput() {
   const name = document.getElementById('rondeSubstation').value;
   const substation = ui.findSubstationByName(name);
   ui.renderAccessNotes(substation);
+  ui.renderRondeSiteAlert(substation);
   if (substation) {
     focusSubstation(substation);
     prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
@@ -693,6 +705,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   ui.renderBilanStats();
   ui.renderBilanTrend();
   ui.renderPointsRecurrents();
+  ui.renderSitesASurveiller();
   ui.renderDiagnostic(null);
   ui.renderActions();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);

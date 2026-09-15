@@ -1022,6 +1022,104 @@ export function renderPointsRecurrents() {
   el.innerHTML = recurrent.map(([label, n]) => `<div class="alert warning"><strong>${escapeHtml(label)}</strong> — ${n} rondes</div>`).join('');
 }
 
+// ===== ALERTES PRÉDICTIVES (anomalies récurrentes par site) =====
+// Un même point de contrôle relevé dégradé/défaillant à plusieurs reprises
+// récemment sur un site est un signal qu'il vaut mieux traiter avant que ça
+// ne devienne une panne franche, plutôt que d'attendre. Fenêtre glissante
+// sur les dernières visites du site (pas une durée fixe) : un point qui
+// redevient OK sort naturellement de la fenêtre et l'alerte disparaît.
+const RECURRING_LOOKBACK = 5;
+const RECURRING_THRESHOLD = 2;
+
+export function computeSiteAlerts() {
+  const bySite = {};
+  state.rondes.forEach((r) => {
+    if (!r.substation_id) return;
+    (bySite[r.substation_id] ||= []).push(r);
+  });
+
+  const alerts = [];
+  Object.entries(bySite).forEach(([substationId, rondes]) => {
+    const recent = rondes
+      .slice()
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, RECURRING_LOOKBACK);
+    const byControl = {};
+    recent.forEach((r) => {
+      (r.controls || []).forEach((c) => {
+        if (c.status !== 'warning' && c.status !== 'danger') return;
+        const key = c.id || c.label;
+        const entry = (byControl[key] ||= { label: c.label, occurrences: [], maxSeverity: 'warning' });
+        entry.occurrences.push({ date: r.date, comment: c.comment });
+        if (c.status === 'danger') entry.maxSeverity = 'danger';
+      });
+    });
+    Object.values(byControl).forEach((entry) => {
+      if (entry.occurrences.length >= RECURRING_THRESHOLD) {
+        alerts.push({
+          substation_id: substationId,
+          label: entry.label,
+          count: entry.occurrences.length,
+          outOf: recent.length,
+          severity: entry.maxSeverity,
+          lastDate: entry.occurrences[0].date,
+          lastComment: entry.occurrences[0].comment,
+        });
+      }
+    });
+  });
+
+  alerts.sort((a, b) => (b.severity === 'danger' ? 1 : 0) - (a.severity === 'danger' ? 1 : 0) || b.count - a.count);
+  return alerts;
+}
+
+export function getSiteAlertsFor(substationId) {
+  return computeSiteAlerts().filter((a) => a.substation_id === substationId);
+}
+
+export function renderSitesASurveiller() {
+  const el = document.getElementById('sitesASurveiller');
+  if (!el) return;
+  const alerts = computeSiteAlerts();
+  if (alerts.length === 0) {
+    el.innerHTML = '<div class="alert success">✅ Aucune anomalie récurrente détectée</div>';
+    return;
+  }
+  el.innerHTML = alerts
+    .map((a) => {
+      const s = state.substations.find((x) => x.id === a.substation_id);
+      return `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" data-action="goto-site-alert" data-id="${a.substation_id}" style="cursor:pointer;">
+        <strong>${escapeHtml(s ? s.name : a.substation_id)}</strong> — ${escapeHtml(a.label)}
+        <br><span style="font-size:12px;opacity:.85;">${a.count}/${a.outOf} dernières visites${a.lastComment ? ` · "${escapeHtml(a.lastComment)}"` : ''}</span>
+      </div>`;
+    })
+    .join('');
+}
+
+// Affiché dans l'onglet Ronde dès qu'une sous-station à risque est
+// sélectionnée : avertir AVANT la visite plutôt que de laisser le
+// technicien découvrir le problème en cours de ronde.
+export function renderRondeSiteAlert(substation) {
+  const el = document.getElementById('rondeSiteAlert');
+  if (!el) return;
+  if (!substation) {
+    el.innerHTML = '';
+    return;
+  }
+  const alerts = getSiteAlertsFor(substation.id);
+  if (alerts.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = alerts
+    .map(
+      (a) => `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" style="margin-bottom:6px;">
+      ${icon('alertTriangle', 13)} <strong>${escapeHtml(a.label)}</strong> dégradé sur ${a.count}/${a.outOf} dernières visites de ce site — à vérifier en priorité.
+    </div>`
+    )
+    .join('');
+}
+
 export function renderActionsRetardSite(thresholdDays = 7) {
   const el = document.getElementById('actionsRetardSite');
   const now = Date.now();
@@ -1073,6 +1171,7 @@ export function renderSiteList(searchTerm = '') {
     const t = new Date(r.date).getTime();
     if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
   });
+  const alertedSiteIds = new Set(computeSiteAlerts().map((a) => a.substation_id));
 
   listEl.innerHTML = sites
     .map((s) => {
@@ -1080,7 +1179,7 @@ export function renderSiteList(searchTerm = '') {
       const days = last ? Math.floor((Date.now() - last) / 86400000) : null;
       const sub = days === null ? 'Jamais visitée' : `Vue il y a ${days} j`;
       return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
-        <div><div class="name">${escapeHtml(s.name)}</div><div class="sub">${sub}</div></div>
+        <div><div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}</div><div class="sub">${sub}</div></div>
         ${icon('chevronRight', 16)}
       </div>`;
     })
@@ -1128,6 +1227,22 @@ export function renderSiteDetail() {
     </div></div>`;
   }
 
+  const siteAlerts = getSiteAlertsFor(site.id);
+  const alertsHtml = siteAlerts.length
+    ? `<div class="card">
+        <div class="card-header">${icon('alertTriangle', 13)} Anomalies récurrentes</div>
+        <div class="card-body">
+          ${siteAlerts
+            .map(
+              (a) => `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" style="margin-bottom:6px;">
+                <strong>${escapeHtml(a.label)}</strong> — ${a.count}/${a.outOf} dernières visites${a.lastComment ? `<br><span style="font-size:12px;opacity:.85;">"${escapeHtml(a.lastComment)}"</span>` : ''}
+              </div>`
+            )
+            .join('')}
+        </div>
+      </div>`
+    : '';
+
   const historiqueItems = buildHistoriqueItems().filter((it) => it.substation_id === site.id);
   const historiqueHtml = historiqueItems.length
     ? historiqueItems
@@ -1154,6 +1269,7 @@ export function renderSiteDetail() {
         ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}
       </div>
     </div>
+    ${alertsHtml}
     <div class="card">
       <div class="card-header">${icon('image', 12)} Photos du site</div>
       <div class="card-body">
