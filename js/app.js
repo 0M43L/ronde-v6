@@ -282,12 +282,17 @@ async function loadAppData() {
     state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
     // La liste globale n'inclut plus les photos ni les commentaires (voir
     // api/substations.js — chargés à la demande sur la fiche Site). Sans ça,
-    // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré.
+    // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré
+    // (ou ajouté localement hors-ligne, voir loadSiteDetailIfNeeded).
     const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
     state.substations = state.substations.map((s) => {
-      if (s.photos !== undefined && s.comments !== undefined) return s;
       const cached = cachedById.get(s.id);
-      return { ...s, photos: s.photos === undefined ? cached?.photos : s.photos, comments: s.comments === undefined ? cached?.comments : s.comments };
+      return {
+        ...s,
+        photos: s.photos !== undefined ? s.photos : cached?.photos,
+        comments: s.comments !== undefined ? s.comments : cached?.comments,
+        detailLoaded: s.detailLoaded !== undefined ? s.detailLoaded : cached?.detailLoaded,
+      };
     });
     await dbLayer.putAll('substations', state.substations);
   } catch {
@@ -421,17 +426,38 @@ document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
 // sous-stations (voir api/substations.js) : on les récupère au moment où le
 // technicien ouvre réellement la fiche du site, pas à chaque chargement de
 // l'appli.
+//
+// Le fait d'avoir déjà chargé le détail est suivi par site.detailLoaded
+// (persisté), PAS par la simple présence de site.photos/comments : sur le
+// terrain sans réseau, on ajoute quand même localement une photo ou un
+// commentaire (voir plus bas) avant même d'avoir pu récupérer le détail
+// serveur, donc photos/comments existent sans que detailLoaded soit vrai.
+// Sans cette distinction, le premier ajout hors-ligne rendait "déjà chargé"
+// pour de bon et l'appli n'essayait plus jamais de récupérer le vrai détail
+// serveur une fois reconnectée (photos/commentaires des collègues jamais
+// vus sur cet appareil).
+function unionById(serverItems, localItems) {
+  const map = new Map(serverItems.map((item) => [item.id, item]));
+  (localItems || []).forEach((item) => {
+    if (!map.has(item.id)) map.set(item.id, item);
+  });
+  return Array.from(map.values());
+}
+
 async function loadSiteDetailIfNeeded(id) {
   const site = state.substations.find((s) => s.id === id);
-  if (!site || (site.photos !== undefined && site.comments !== undefined)) return; // déjà chargés (ou site créé localement)
+  if (!site || site.detailLoaded) return;
   try {
     const detail = await api.fetchSubstationDetail(id);
-    site.photos = detail.photos || [];
-    site.comments = detail.comments || [];
+    site.photos = unionById(detail.photos || [], site.photos);
+    site.comments = unionById(detail.comments || [], site.comments);
+    site.detailLoaded = true;
     await dbLayer.put('substations', site);
     if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
   } catch {
-    // Hors-ligne ou site pas encore synchronisé : on retentera à la prochaine ouverture.
+    // Hors-ligne : on garde ce qui est déjà en local (y compris les photos et
+    // commentaires ajoutés hors-ligne) et on retentera le chargement complet
+    // à la prochaine ouverture avec réseau.
   }
 }
 
@@ -444,11 +470,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
   if (removeBtn) {
     const site = ui.getSelectedSite();
-    if (!site) return;
-    if (site.photos === undefined) {
-      ui.showToast('Chargement des photos en cours, réessaie dans un instant');
-      return;
-    }
+    if (!site || !site.photos) return;
     const photoId = removeBtn.dataset.photoId;
     site.photos = site.photos.filter((p) => p.id !== photoId);
     await dbLayer.put('substations', site);
@@ -462,7 +484,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const removeCommentBtn = e.target.closest('[data-action="remove-site-comment"]');
   if (removeCommentBtn) {
     const site = ui.getSelectedSite();
-    if (!site || site.comments === undefined) return;
+    if (!site || !site.comments) return;
     const commentId = removeCommentBtn.dataset.commentId;
     site.comments = site.comments.filter((c) => c.id !== commentId);
     await dbLayer.put('substations', site);
@@ -474,15 +496,11 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   if (addCommentBtn) {
     const site = ui.getSelectedSite();
     if (!site) return;
-    if (site.comments === undefined) {
-      ui.showToast('Chargement des commentaires en cours, réessaie dans un instant');
-      return;
-    }
     const textarea = document.getElementById('siteCommentInput');
     const text = textarea.value.trim();
     if (!text) return;
     const comment = { id: `COMMENT_${Date.now()}`, text, user_id: state.user.id, tech: `${state.user.prenom} ${state.user.nom}`.trim(), date: new Date().toISOString() };
-    site.comments = [...site.comments, comment];
+    site.comments = [...(site.comments || []), comment];
     await dbLayer.put('substations', site);
     // Même logique que les photos : opération d'ajout ciblée, pas un upsert
     // du site entier — deux techniciens qui commentent le même site hors
@@ -498,14 +516,9 @@ document.getElementById('siteDetail').addEventListener('change', async (e) => {
   if (!fileInput || !fileInput.files[0]) return;
   const site = ui.getSelectedSite();
   if (!site) return;
-  if (site.photos === undefined) {
-    ui.showToast('Chargement des photos en cours, réessaie dans un instant');
-    fileInput.value = '';
-    return;
-  }
   const dataUrl = await fileToDataUrl(fileInput.files[0]);
   const photo = { id: `PHOTO_${Date.now()}`, url: dataUrl };
-  site.photos = [...site.photos, photo];
+  site.photos = [...(site.photos || []), photo];
   await dbLayer.put('substations', site);
   // Même logique : opération d'ajout ciblée plutôt qu'un upsert du site
   // entier, pour que deux techniciens puissent ajouter des photos au même
@@ -532,7 +545,7 @@ async function resolveOrCreateSubstation(name) {
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [], comments: [] };
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [], comments: [], detailLoaded: true };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
@@ -546,7 +559,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
     substation.lat = lat;
     substation.lon = lon;
   } else {
-    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [], comments: [] };
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [], comments: [], detailLoaded: true };
     state.substations.push(substation);
   }
   await dbLayer.put('substations', substation);
@@ -581,6 +594,81 @@ document.getElementById('registerGeoBtn').addEventListener('click', () => {
     (err) => ui.showToast(`Position indisponible (${err.message})`),
     { enableHighAccuracy: true, timeout: 10000 }
   );
+});
+
+// ===== AJOUT MANUEL D'UNE SOUS-STATION (onglet Sites) =====
+// Pour enregistrer un site sans avoir à démarrer une ronde ni attendre un
+// signal GPS (armoire en sous-sol, technicien qui veut juste préparer la
+// liste avant de partir sur site...). La position reste optionnelle : sans
+// elle, le site est marqué "à vérifier" pour rappeler qu'il faudra la
+// compléter plus tard (bouton GPS déjà utilisé côté Localisation).
+let newSiteCoords = null;
+
+document.getElementById('addSiteBtn').addEventListener('click', () => {
+  document.getElementById('newSiteName').value = '';
+  document.getElementById('newSiteNotes').value = '';
+  newSiteCoords = null;
+  document.getElementById('newSiteGeoStatus').textContent = 'Position GPS non renseignée — tu pourras la préciser plus tard.';
+  document.getElementById('siteListCard').style.display = 'none';
+  document.getElementById('addSiteForm').hidden = false;
+});
+
+document.getElementById('cancelNewSiteBtn').addEventListener('click', () => {
+  document.getElementById('addSiteForm').hidden = true;
+  document.getElementById('siteListCard').style.display = '';
+});
+
+document.getElementById('newSiteGeoBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    ui.showToast('Géolocalisation indisponible sur cet appareil');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      newSiteCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      document.getElementById('newSiteGeoStatus').textContent = 'Position GPS enregistrée.';
+    },
+    (err) => ui.showToast(`Position indisponible (${err.message})`),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+document.getElementById('saveNewSiteBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newSiteName').value.trim();
+  if (!name) {
+    ui.showToast('Indique un nom de sous-station');
+    return;
+  }
+  if (ui.findSubstationByName(name)) {
+    ui.showToast('Une sous-station porte déjà ce nom');
+    return;
+  }
+  const substation = {
+    id: `SUB_${Date.now()}`,
+    name,
+    lat: newSiteCoords?.lat ?? null,
+    lon: newSiteCoords?.lon ?? null,
+    notes_acces: document.getElementById('newSiteNotes').value.trim(),
+    needs_review: !newSiteCoords,
+    photos: [],
+    comments: [],
+    detailLoaded: true,
+  };
+  state.substations.push(substation);
+  await dbLayer.put('substations', substation);
+  await dbLayer.queueSync('substation', 'upsert', substation);
+  ui.renderSubstationDatalist();
+  ui.renderSiteList(document.getElementById('siteSearch').value);
+  document.getElementById('addSiteForm').hidden = true;
+  renderMarkers(state.substations, (id) => {
+    const s = state.substations.find((x) => x.id === id);
+    if (s) {
+      document.getElementById('rondeSubstation').value = s.name;
+      onSubstationInput();
+    }
+  });
+  ui.showToast('Sous-station créée');
+  ui.selectSite(substation.id);
 });
 
 // ===== CONTRÔLES =====
