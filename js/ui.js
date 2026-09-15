@@ -576,6 +576,12 @@ function renderFicheConflictForm(conflict) {
 
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
+let expandedActionId = null;
+
+export function toggleActionDetail(id) {
+  expandedActionId = expandedActionId === id ? null : id;
+  renderActions();
+}
 
 export function renderActions() {
   const list = document.getElementById('actionsList');
@@ -591,9 +597,11 @@ export function renderActions() {
   });
 
   list.innerHTML = sorted
-    .map(
-      (a) => `
-    <div class="item">
+    .map((a) => {
+      const expanded = expandedActionId === a.id;
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      return `
+    <div class="item" data-action="toggle-action-detail" data-id="${a.id}" style="cursor:pointer;">
       <div class="item-row">
         <input type="checkbox" ${a.done ? 'checked' : ''} data-action="toggle-action" data-id="${a.id}">
         <div style="flex:1;">
@@ -602,12 +610,23 @@ export function renderActions() {
             ${escapeHtml(a.text)}
           </div>
           <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}</div>
-          ${a.photo ? `<div class="photo-row"><div class="photo-thumb"><img src="${a.photo}"></div></div>` : ''}
+          ${
+            expanded
+              ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+                  <div class="item-meta">${substation ? `Site : ${escapeHtml(substation.name)}` : "Site : introuvable (site peut-être supprimé)"}</div>
+                  <div class="item-meta" style="margin-top:2px;">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
+                  ${a.photo ? `<img src="${a.photo}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
+                  ${substation ? `<button class="btn-secondary" data-action="goto-action-site" data-site-id="${substation.id}" style="width:100%;margin-top:10px;">Voir la fiche du site</button>` : ''}
+                </div>`
+              : a.photo
+                ? `<div class="photo-row"><div class="photo-thumb"><img src="${a.photo}"></div></div>`
+                : ''
+          }
         </div>
         ${isOwned(a) ? `<button class="btn-ghost" data-action="delete-action" data-id="${a.id}">✕</button>` : ''}
       </div>
-    </div>`
-    )
+    </div>`;
+    })
     .join('');
 }
 

@@ -1244,7 +1244,22 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
     ui.renderActions();
     ui.renderBilanStats();
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
   }
+  // La case à cocher a son propre gestionnaire sur l'événement 'change' :
+  // ici on se contente de ne pas la laisser déplier/replier le détail en
+  // plus de cocher.
+  if (e.target.closest('[data-action="toggle-action"]')) return;
+  const gotoSite = e.target.closest('[data-action="goto-action-site"]');
+  if (gotoSite) {
+    ui.switchTab('sites');
+    ui.renderSiteList();
+    ui.selectSite(gotoSite.dataset.siteId);
+    loadSiteDetailIfNeeded(gotoSite.dataset.siteId);
+    return;
+  }
+  const item = e.target.closest('[data-action="toggle-action-detail"]');
+  if (item) ui.toggleActionDetail(item.dataset.id);
 });
 
 document.getElementById('actionsList').addEventListener('change', async (e) => {
