@@ -52,11 +52,41 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 });
 
 // ===== SYNC PILL =====
-setSyncStatusListener((status, count) => {
+let errorToastShown = false;
+setSyncStatusListener((status, count, error) => {
   const pill = document.getElementById('syncPill');
   const label = document.getElementById('syncLabel');
   pill.className = `sync-pill ${status === 'synced' ? '' : status}`;
-  label.textContent = status === 'synced' ? 'à jour' : status === 'offline' ? `hors-ligne (${count})` : `en attente (${count})`;
+  if (status === 'synced') label.textContent = 'à jour';
+  else if (status === 'offline') label.textContent = `hors-ligne (${count})`;
+  else if (status === 'error') {
+    label.textContent = error?.code === 'UNAUTHORIZED' ? `session expirée (${count})` : `échec de synchro (${count})`;
+    // Un seul toast à l'entrée dans cet état, pas un à chaque nouvelle
+    // tentative ratée (toutes les 5 min) : sinon ça spamme le technicien
+    // sans rien lui apprendre de plus après le premier.
+    if (!errorToastShown) {
+      errorToastShown = true;
+      ui.showToast(
+        error?.code === 'UNAUTHORIZED'
+          ? `Session expirée : déconnecte-toi puis reconnecte-toi pour synchroniser tes ${count} élément(s) en attente. Rien n'est perdu, ils sont toujours sur ce téléphone.`
+          : `Impossible de synchroniser tes ${count} élément(s) en attente. Touche le badge "${label.textContent}" en haut pour réessayer.`
+      );
+    }
+  } else {
+    errorToastShown = false;
+    label.textContent = `en attente (${count})`;
+  }
+});
+
+document.getElementById('syncPill').addEventListener('click', async () => {
+  ui.showToast('Tentative de synchronisation...');
+  try {
+    const result = await syncNow();
+    if (result.skipped) ui.showToast('Toujours hors-ligne — réessaie quand tu as du réseau');
+    else if ((result.errors || []).length === 0) ui.showToast('Synchronisation réussie');
+  } catch (err) {
+    ui.showToast(err.code === 'UNAUTHORIZED' ? 'Session expirée : déconnecte-toi puis reconnecte-toi' : 'Échec de synchronisation, nouvelle tentative dans quelques minutes');
+  }
 });
 
 // Le serveur a rejeté certaines entrées : soit une donnée invalide (reste en

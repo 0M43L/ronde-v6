@@ -100,6 +100,14 @@ export async function pushSyncQueue(queue) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ queue }),
   });
+  if (res.status === 401) {
+    // Session expirée (token de plus de 7 jours) : retenter tel quel
+    // échouerait indéfiniment tant que le technicien ne se reconnecte pas —
+    // ne jamais confondre ça avec un simple "en attente de réseau".
+    const err = new Error('Session expirée');
+    err.code = 'UNAUTHORIZED';
+    throw err;
+  }
   if (!res.ok) throw new Error('Échec de synchronisation');
   return res.json();
 }

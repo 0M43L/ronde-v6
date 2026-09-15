@@ -202,10 +202,13 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-radius: 999px;
   background: var(--neutral-soft);
   white-space: nowrap;
+  cursor: pointer;
 }
 .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
 .sync-pill.pending .sync-dot { background: var(--warning); }
 .sync-pill.offline .sync-dot { background: var(--text-muted); }
+.sync-pill.error { color: var(--danger); }
+.sync-pill.error .sync-dot { background: var(--danger); }
 
 /* ===== TABS ===== */
 .tabs {
