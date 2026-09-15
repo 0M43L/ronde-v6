@@ -15,10 +15,22 @@ export function setSyncErrorListener(fn) {
   onSyncErrors = fn;
 }
 
+// Compte les échecs consécutifs de la requête de synchro ENTIÈRE (pas les
+// rejets d'un élément précis, déjà gérés par onSyncErrors) : session expirée,
+// serveur en erreur, ou "en ligne" au sens du navigateur mais requête qui ne
+// passe pas vraiment (signal faible). Sans ce compteur, ce genre de panne
+// reste indiscernable d'un simple "en attente, ça va synchroniser d'un
+// instant à l'autre" — pile ce qui rendait la file de 9 éléments d'Axel
+// incompréhensible : ni erreur ni signe que quelque chose n'allait pas.
+let consecutiveFailures = 0;
+let lastError = null;
+
 export async function refreshSyncStatus() {
   const queue = await getSyncQueue();
   if (!navigator.onLine) {
     onStatusChange('offline', queue.length);
+  } else if (queue.length > 0 && consecutiveFailures >= 2) {
+    onStatusChange('error', queue.length, lastError);
   } else if (queue.length > 0) {
     onStatusChange('pending', queue.length);
   } else {
@@ -35,12 +47,16 @@ export async function syncNow() {
 
   const queue = await getSyncQueue();
   if (queue.length === 0) {
+    consecutiveFailures = 0;
+    lastError = null;
     await refreshSyncStatus();
     return { synced: 0, skipped: false };
   }
 
   try {
     const result = await pushSyncQueue(queue);
+    consecutiveFailures = 0;
+    lastError = null;
     // Le serveur traite chaque entrée individuellement et peut en rejeter
     // certaines (ex : donnée invalide) sans faire échouer toute la requête.
     // Ne retirer de la file que ce qui a réellement été accepté : sinon une
@@ -56,6 +72,8 @@ export async function syncNow() {
     }
     return { synced: result.synced, skipped: false, errors: result.errors || [] };
   } catch (err) {
+    consecutiveFailures++;
+    lastError = err;
     await refreshSyncStatus();
     throw err;
   }
