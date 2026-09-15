@@ -443,6 +443,9 @@ async function loadAppData() {
   document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
   document.getElementById('siteThresholdDays').value = getSiteThreshold();
 
+  restoreRondeDraft();
+  restoreMesDraft();
+
   checkOverdueReminders();
 
   initMap();
@@ -682,7 +685,10 @@ function onSubstationInput() {
     prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
   }
 }
-document.getElementById('rondeSubstation').addEventListener('input', onSubstationInput);
+document.getElementById('rondeSubstation').addEventListener('input', () => {
+  onSubstationInput();
+  saveRondeDraft();
+});
 
 async function resolveOrCreateSubstation(name) {
   const trimmed = (name || '').trim();
@@ -862,6 +868,61 @@ function fileToDataUrl(file) {
   });
 }
 
+// ===== BROUILLON DE RONDE (anti-perte) =====
+// state.controls/rondeStatut/observations ne sont écrits en base qu'au clic
+// sur "Archiver la ronde" — un rechargement de page avant ça (mise à jour de
+// l'appli, appli tuée en arrière-plan par l'OS, coupure réseau pendant une
+// saisie...) perdait tout le travail en cours, sans aucun moyen de le
+// récupérer : rien n'existait encore nulle part, ni en local ni sur le
+// serveur. Un brouillon est maintenant sauvegardé en continu dans
+// localStorage (synchrone, survit à un rechargement immédiatement) et
+// restauré au prochain chargement tant que la ronde n'a pas été réellement
+// archivée.
+const RONDE_DRAFT_KEY = 'ronde_draft_v6';
+
+function saveRondeDraft() {
+  try {
+    localStorage.setItem(
+      RONDE_DRAFT_KEY,
+      JSON.stringify({
+        substation: document.getElementById('rondeSubstation').value,
+        observations: document.getElementById('rondeObservations').value,
+        controls: state.controls,
+        rondeStatut: state.rondeStatut,
+      })
+    );
+  } catch {
+    // Quota localStorage dépassé (beaucoup de photos non compressées en
+    // cours) : tant pis pour le brouillon, pas pire qu'avant ce correctif.
+  }
+}
+
+function clearRondeDraft() {
+  localStorage.removeItem(RONDE_DRAFT_KEY);
+}
+
+function restoreRondeDraft() {
+  let draft;
+  try {
+    draft = JSON.parse(localStorage.getItem(RONDE_DRAFT_KEY) || 'null');
+  } catch {
+    draft = null;
+  }
+  if (!draft) return;
+  document.getElementById('rondeSubstation').value = draft.substation || '';
+  document.getElementById('rondeObservations').value = draft.observations || '';
+  if (Array.isArray(draft.controls) && draft.controls.length === state.controls.length) {
+    state.controls = draft.controls;
+  }
+  if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
+  onSubstationInput();
+  ui.renderControls();
+  ui.renderRondeStatut();
+  ui.showToast('Ronde en cours restaurée (travail non archivé récupéré)');
+}
+
+document.getElementById('rondeObservations').addEventListener('input', saveRondeDraft);
+
 document.getElementById('controlsList').addEventListener('click', async (e) => {
   const statusBtn = e.target.closest('[data-action="set-status"]');
   if (statusBtn) {
@@ -876,18 +937,21 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     }
     ui.renderControls();
     ui.renderBilan();
+    saveRondeDraft();
     return;
   }
   const removePhotoBtn = e.target.closest('[data-action="remove-photo"]');
   if (removePhotoBtn) {
     state.controls[Number(removePhotoBtn.dataset.index)].photo = null;
     ui.renderControls();
+    saveRondeDraft();
     return;
   }
   const removePhotoApresBtn = e.target.closest('[data-action="remove-photo-apres"]');
   if (removePhotoApresBtn) {
     state.controls[Number(removePhotoApresBtn.dataset.index)].photoApres = null;
     ui.renderControls();
+    saveRondeDraft();
     return;
   }
   const createActionBtn = e.target.closest('[data-action="create-action-inline"]');
@@ -929,6 +993,7 @@ document.getElementById('controlsList').addEventListener('input', (e) => {
   const index = Number(field.dataset.index);
   state.controls[index].comment = field.value;
   ui.updateFicheSuggestions(index);
+  saveRondeDraft();
 });
 
 document.getElementById('controlsList').addEventListener('change', async (e) => {
@@ -937,6 +1002,7 @@ document.getElementById('controlsList').addEventListener('change', async (e) => 
     const dataUrl = await fileToDataUrl(fileInput.files[0]);
     state.controls[Number(fileInput.dataset.index)].photo = dataUrl;
     ui.renderControls();
+    saveRondeDraft();
     return;
   }
   const fileInputApres = e.target.closest('[data-action="set-photo-apres"]');
@@ -944,6 +1010,7 @@ document.getElementById('controlsList').addEventListener('change', async (e) => 
     const dataUrl = await fileToDataUrl(fileInputApres.files[0]);
     state.controls[Number(fileInputApres.dataset.index)].photoApres = dataUrl;
     ui.renderControls();
+    saveRondeDraft();
   }
 });
 
@@ -953,6 +1020,7 @@ document.getElementById('rondeStatutChoices').addEventListener('click', (e) => {
   if (!btn) return;
   state.rondeStatut = btn.dataset.statut;
   ui.renderRondeStatut();
+  saveRondeDraft();
 });
 
 // ===== ENREGISTRER LA RONDE =====
@@ -1005,6 +1073,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
 
   document.getElementById('rondeObservations').value = '';
   resetControls();
+  clearRondeDraft();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
@@ -1281,11 +1350,67 @@ document.getElementById('actionsList').addEventListener('change', async (e) => {
 });
 
 // ===== MES =====
+// ===== BROUILLON DE SESSION MES (anti-perte) =====
+// Même raisonnement que le brouillon de ronde : les 41 points de contrôle et
+// les paramètres de poste peuvent prendre du temps à renseigner sur place,
+// et rien n'était sauvegardé avant le clic final sur "Enregistrer" — un
+// rechargement entre-temps perdait tout.
+const MES_DRAFT_KEY = 'mes_draft_v6';
+
+function saveMesDraft() {
+  try {
+    localStorage.setItem(
+      MES_DRAFT_KEY,
+      JSON.stringify({
+        substation: document.getElementById('mesSubstation').value,
+        notes: document.getElementById('mesNotes').value,
+        checks: state.mesChecks,
+        poste: state.mesPoste,
+      })
+    );
+  } catch {
+    // Quota localStorage dépassé : tant pis pour le brouillon.
+  }
+}
+
+function clearMesDraft() {
+  localStorage.removeItem(MES_DRAFT_KEY);
+}
+
+function restoreMesDraft() {
+  let draft;
+  try {
+    draft = JSON.parse(localStorage.getItem(MES_DRAFT_KEY) || 'null');
+  } catch {
+    draft = null;
+  }
+  if (!draft) return;
+  document.getElementById('mesSubstation').value = draft.substation || '';
+  document.getElementById('mesNotes').value = draft.notes || '';
+  if (Array.isArray(draft.checks) && draft.checks.length === state.mesChecks.length) {
+    state.mesChecks = draft.checks;
+  }
+  if (draft.poste && Array.isArray(draft.poste.echangeurs) && draft.poste.echangeurs.length > 0) {
+    state.mesPoste = draft.poste;
+  }
+  document.getElementById('mesNbEchangeurs').value = state.mesPoste.echangeurs.length;
+  ui.renderMesChecks();
+  ui.renderMesCasPosteSelect();
+  ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
+  ui.refreshAllDeviationHints();
+  ui.showToast('Session MES en cours restaurée (travail non enregistré récupéré)');
+}
+
+document.getElementById('mesSubstation').addEventListener('input', saveMesDraft);
+document.getElementById('mesNotes').addEventListener('input', saveMesDraft);
+
 document.getElementById('mesChecksList').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action="set-mes-status"]');
   if (!btn) return;
   state.mesChecks[Number(btn.dataset.index)].status = btn.dataset.status;
   ui.renderMesChecks();
+  saveMesDraft();
 });
 
 document.getElementById('mesChecksList').addEventListener('input', (e) => {
@@ -1294,21 +1419,25 @@ document.getElementById('mesChecksList').addEventListener('input', (e) => {
     const index = Number(valueField.dataset.index);
     state.mesChecks[index].valeur = valueField.value;
     ui.updateDeviationHint(index);
+    saveMesDraft();
     return;
   }
   const commentField = e.target.closest('[data-action="set-mes-comment"]');
   if (commentField) {
     state.mesChecks[Number(commentField.dataset.index)].commentaire = commentField.value;
+    saveMesDraft();
   }
 });
 
 // ===== MES : identification du poste =====
 document.getElementById('mesCasPoste').addEventListener('change', (e) => {
   state.mesPoste.cas_poste = e.target.value;
+  saveMesDraft();
 });
 
 document.getElementById('mesRepresentantClient').addEventListener('input', (e) => {
   state.mesPoste.representant_client = e.target.value;
+  saveMesDraft();
 });
 
 document.getElementById('mesNbEchangeurs').addEventListener('change', (e) => {
@@ -1320,6 +1449,7 @@ document.getElementById('mesNbEchangeurs').addEventListener('change', (e) => {
   ui.renderMesEchangeurs();
   ui.renderMesNominalRecap();
   ui.refreshAllDeviationHints();
+  saveMesDraft();
 });
 
 document.getElementById('mesEchangeursList').addEventListener('input', (e) => {
@@ -1328,6 +1458,7 @@ document.getElementById('mesEchangeursList').addEventListener('input', (e) => {
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
   ui.renderMesNominalRecap();
   ui.refreshAllDeviationHints();
+  saveMesDraft();
 });
 document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
   const field = e.target.closest('[data-action="set-echangeur"]');
@@ -1335,6 +1466,7 @@ document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
   state.mesPoste.echangeurs[Number(field.dataset.index)][field.dataset.field] = field.value;
   ui.renderMesNominalRecap();
   ui.refreshAllDeviationHints();
+  saveMesDraft();
 });
 
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
@@ -1361,6 +1493,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
   document.getElementById('mesRepresentantClient').value = '';
   document.getElementById('mesNbEchangeurs').value = 1;
   resetMesChecks();
+  clearMesDraft();
   ui.renderMesChecks();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
