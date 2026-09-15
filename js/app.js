@@ -23,6 +23,15 @@ if ('serviceWorker' in navigator) {
           if (installing.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
         });
       });
+      // Le navigateur ne revérifie pas systématiquement à chaque réouverture
+      // (surtout si l'appli n'a pas été complètement fermée entre-temps) :
+      // sans ça, un technicien qui rouvre l'appli juste après un déploiement
+      // peut encore tourner un moment sur l'ancienne version avant que le
+      // navigateur ne fasse sa propre vérification. On la force nous-mêmes
+      // à chaque fois que l'appli redevient visible.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
     }).catch(() => {});
   });
 }

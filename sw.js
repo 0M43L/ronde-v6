@@ -1,6 +1,6 @@
 // Service worker — met en cache la coquille applicative pour un fonctionnement hors-ligne.
 // Les appels /api/* ne sont jamais mis en cache (auth, données sensibles, toujours frais).
-const CACHE_NAME = 'ronde-v6-shell-v7';
+const CACHE_NAME = 'ronde-v6-shell-v8';
 // Cache séparée et non-versionnée pour les tuiles de carte préchargées
 // (js/tiles.js) : ne doit jamais être purgée lors d'une mise à jour du
 // service worker, contrairement à CACHE_NAME qui change à chaque version.
