@@ -336,64 +336,82 @@ async function loadAppData() {
   const pendingIdsFor = (entityType) =>
     new Set(queue.filter((q) => q.entity_type === entityType && q.action === 'upsert').map((q) => q.payload.id));
 
-  const cachedSubstations = await dbLayer.getAll('substations');
-  try {
-    const fresh = await api.fetchSubstations();
-    state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
-    // La liste globale n'inclut plus les photos ni les commentaires (voir
-    // api/substations.js — chargés à la demande sur la fiche Site). Sans ça,
-    // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré
-    // (ou ajouté localement hors-ligne, voir loadSiteDetailIfNeeded).
-    const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
-    state.substations = state.substations.map((s) => {
-      const cached = cachedById.get(s.id);
-      return {
-        ...s,
-        photos: s.photos !== undefined ? s.photos : cached?.photos,
-        comments: s.comments !== undefined ? s.comments : cached?.comments,
-        detailLoaded: s.detailLoaded !== undefined ? s.detailLoaded : cached?.detailLoaded,
-      };
-    });
-    await dbLayer.putAll('substations', state.substations);
-  } catch {
-    state.substations = cachedSubstations;
-  }
+  const [cachedSubstations, cachedFiches, cachedRondes, cachedActions, cachedMes] = await Promise.all([
+    dbLayer.getAll('substations'),
+    dbLayer.getAll('fiches'),
+    dbLayer.getAll('rondes'),
+    dbLayer.getAll('actions'),
+    dbLayer.getAll('mes'),
+  ]);
 
-  const cachedFiches = await dbLayer.getAll('fiches');
-  try {
-    const fresh = await api.fetchFiches();
-    state.fiches = mergeById(cachedFiches, fresh, pendingIdsFor('fiche'));
-    await dbLayer.putAll('fiches', state.fiches);
-  } catch {
-    state.fiches = cachedFiches;
-  }
-
-  const cachedRondes = await dbLayer.getAll('rondes');
-  try {
-    const fresh = await api.fetchRondes();
-    state.rondes = mergeById(cachedRondes, fresh, pendingIdsFor('ronde'));
-    await dbLayer.putAll('rondes', state.rondes);
-  } catch {
-    state.rondes = cachedRondes;
-  }
-
-  const cachedActions = await dbLayer.getAll('actions');
-  try {
-    const fresh = await api.fetchActions();
-    state.actions = mergeById(cachedActions, fresh, pendingIdsFor('action'));
-    await dbLayer.putAll('actions', state.actions);
-  } catch {
-    state.actions = cachedActions;
-  }
-
-  const cachedMes = await dbLayer.getAll('mes');
-  try {
-    const fresh = await api.fetchMesSessions();
-    state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
-    await dbLayer.putAll('mes', state.mesSessions);
-  } catch {
-    state.mesSessions = cachedMes;
-  }
+  // Les 5 entités sont récupérées EN PARALLÈLE plutôt que l'une après
+  // l'autre : sur un réseau de sous-sol lent, 5 allers-retours séquentiels
+  // pouvaient prendre plusieurs secondes avant que l'appli n'affiche quoi
+  // que ce soit de frais au démarrage. En parallèle, l'attente totale est
+  // celle de la requête la plus lente des 5, pas leur somme. Chaque entité
+  // garde son propre repli sur le cache local en cas d'échec individuel
+  // (une fiche indisponible ne doit pas bloquer les rondes, par exemple).
+  await Promise.all([
+    (async () => {
+      try {
+        const fresh = await api.fetchSubstations();
+        state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
+        // La liste globale n'inclut plus les photos ni les commentaires (voir
+        // api/substations.js — chargés à la demande sur la fiche Site). Sans ça,
+        // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré
+        // (ou ajouté localement hors-ligne, voir loadSiteDetailIfNeeded).
+        const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
+        state.substations = state.substations.map((s) => {
+          const cached = cachedById.get(s.id);
+          return {
+            ...s,
+            photos: s.photos !== undefined ? s.photos : cached?.photos,
+            comments: s.comments !== undefined ? s.comments : cached?.comments,
+            detailLoaded: s.detailLoaded !== undefined ? s.detailLoaded : cached?.detailLoaded,
+          };
+        });
+        await dbLayer.putAll('substations', state.substations);
+      } catch {
+        state.substations = cachedSubstations;
+      }
+    })(),
+    (async () => {
+      try {
+        const fresh = await api.fetchFiches();
+        state.fiches = mergeById(cachedFiches, fresh, pendingIdsFor('fiche'));
+        await dbLayer.putAll('fiches', state.fiches);
+      } catch {
+        state.fiches = cachedFiches;
+      }
+    })(),
+    (async () => {
+      try {
+        const fresh = await api.fetchRondes();
+        state.rondes = mergeById(cachedRondes, fresh, pendingIdsFor('ronde'));
+        await dbLayer.putAll('rondes', state.rondes);
+      } catch {
+        state.rondes = cachedRondes;
+      }
+    })(),
+    (async () => {
+      try {
+        const fresh = await api.fetchActions();
+        state.actions = mergeById(cachedActions, fresh, pendingIdsFor('action'));
+        await dbLayer.putAll('actions', state.actions);
+      } catch {
+        state.actions = cachedActions;
+      }
+    })(),
+    (async () => {
+      try {
+        const fresh = await api.fetchMesSessions();
+        state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
+        await dbLayer.putAll('mes', state.mesSessions);
+      } catch {
+        state.mesSessions = cachedMes;
+      }
+    })(),
+  ]);
 
   state.ficheConflicts = await dbLayer.getFicheConflicts();
 
@@ -798,10 +816,47 @@ document.getElementById('saveNewSiteBtn').addEventListener('click', async () => 
 });
 
 // ===== CONTRÔLES =====
+// Une photo prise directement avec l'appareil (pas depuis la galerie) pèse
+// souvent plusieurs Mo en taille native. Stockée telle quelle (en base64,
+// donc encore +33%) dans IndexedDB puis renvoyée telle quelle au serveur à
+// chaque synchro, ça ralentit tout à la fois : le démarrage de l'appli (des
+// Mo à recharger depuis IndexedDB), l'affichage des galeries (des <img>
+// énormes à décoder), et la synchro elle-même sur un réseau de sous-sol déjà
+// faible. Redimensionner et recompresser avant stockage règle les trois
+// d'un coup, avec une perte de qualité invisible pour de la documentation
+// d'intervention. Utilisé pour tous les points d'entrée photo (contrôles,
+// avant/après, fiches, sites) puisqu'ils passent tous par cette fonction.
+const MAX_PHOTO_DIMENSION = 1600;
+const PHOTO_JPEG_QUALITY = 0.75;
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width <= MAX_PHOTO_DIMENSION && height <= MAX_PHOTO_DIMENSION) {
+          // Déjà assez petite (déjà compressée, capture d'écran...) : inutile
+          // de repasser par un canvas, on garde l'original tel quel.
+          resolve(reader.result);
+          return;
+        }
+        const scale = MAX_PHOTO_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; // évite un fond noir si l'original a une transparence (PNG)
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY));
+      };
+      img.onerror = () => resolve(reader.result); // image illisible par le canvas : on garde l'original plutôt que de bloquer
+      img.src = reader.result;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
