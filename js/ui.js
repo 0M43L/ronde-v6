@@ -1285,6 +1285,31 @@ export function renderSiteDetail() {
       </div>
     </div>
     <div class="card">
+      <div class="card-header">${icon('clipboard', 12)} Commentaires</div>
+      <div class="card-body">
+        ${site.comments === undefined ? `<p class="hint" style="margin:0 0 8px;">Chargement des commentaires...</p>` : ''}
+        ${
+          (site.comments || []).length
+            ? (site.comments || [])
+                .slice()
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(
+                  (c) => `<div class="item" style="margin-bottom:8px;">
+                    <div class="item-meta">${escapeHtml(c.tech || 'Technicien')} · ${new Date(c.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div class="item-body" style="margin-top:2px;">${escapeHtml(c.text)}</div>
+                    ${isOwned(c) ? `<button class="btn-ghost" data-action="remove-site-comment" data-comment-id="${c.id}" style="margin-top:2px;">Supprimer</button>` : ''}
+                  </div>`
+                )
+                .join('')
+            : `<p class="hint" style="margin:0 0 10px;">Aucun commentaire pour ce site.</p>`
+        }
+        <div class="form-group" style="margin:10px 0 0;">
+          <textarea id="siteCommentInput" placeholder="Ajouter un commentaire (remarque générale, historique, point de vigilance...)"></textarea>
+        </div>
+        <button class="btn-secondary" data-action="add-site-comment" style="width:100%;">Ajouter le commentaire</button>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-header">Activité</div>
       <div class="card-body stat-grid">
         <div class="stat-tile"><div class="value">${siteRondes.length}</div><div class="label">Rondes enregistrées</div></div>

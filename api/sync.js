@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     for (const item of queue) {
       try {
-        await syncItem(item, user.id);
+        await syncItem(item, user.id, user);
         synced++;
       } catch (err) {
         console.error('Sync item error:', item.id, err);
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function syncItem(item, userId) {
+async function syncItem(item, userId, user) {
   const { entity_type, action, payload } = item;
 
   if (action === 'delete') {
@@ -96,6 +96,32 @@ async function syncItem(item, userId) {
           : photos.filter((p) => p.id !== payload.photo_id);
       return db.execute({
         sql: `UPDATE substations SET photos_json = ?, updated_at = datetime('now') WHERE id = ?`,
+        args: [JSON.stringify(next), payload.substation_id],
+      });
+    }
+
+    // Même principe que les photos : opération ciblée (ajouter/retirer CE
+    // commentaire), pas un remplacement du tableau complet. L'auteur et la
+    // date sont fixés côté serveur (jamais fournis par le client) pour que
+    // l'attribution soit fiable.
+    case 'substation_comment': {
+      const result = await db.execute({ sql: `SELECT comments_json FROM substations WHERE id = ?`, args: [payload.substation_id] });
+      if (!result.rows[0]) throw new Error('Sous-station introuvable');
+      const comments = JSON.parse(result.rows[0].comments_json || '[]');
+      let next;
+      if (action === 'add') {
+        if (comments.some((c) => c.id === payload.comment.id)) {
+          next = comments;
+        } else {
+          const tech = [user?.prenom, user?.nom].filter(Boolean).join(' ').trim() || null;
+          next = [...comments, { id: payload.comment.id, text: payload.comment.text, user_id: userId, tech, date: new Date().toISOString() }];
+        }
+      } else {
+        // Retrait limité à ses propres commentaires.
+        next = comments.filter((c) => !(c.id === payload.comment_id && c.user_id === userId));
+      }
+      return db.execute({
+        sql: `UPDATE substations SET comments_json = ?, updated_at = datetime('now') WHERE id = ?`,
         args: [JSON.stringify(next), payload.substation_id],
       });
     }

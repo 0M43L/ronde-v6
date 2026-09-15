@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     if (id) {
       const result = await db.execute({
-        sql: `SELECT id, name, lat, lon, notes_acces, needs_review, photos_json FROM substations WHERE id = ?`,
+        sql: `SELECT id, name, lat, lon, notes_acces, needs_review, photos_json, comments_json FROM substations WHERE id = ?`,
         args: [id],
       });
       const r = result.rows[0];
@@ -38,6 +38,7 @@ export default async function handler(req, res) {
           notes_acces: r.notes_acces,
           needs_review: !!r.needs_review,
           photos: JSON.parse(r.photos_json || '[]'),
+          comments: JSON.parse(r.comments_json || '[]'),
         },
       });
     }

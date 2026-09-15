@@ -280,13 +280,15 @@ async function loadAppData() {
   try {
     const fresh = await api.fetchSubstations();
     state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
-    // La liste globale n'inclut plus les photos (voir api/substations.js —
-    // chargées à la demande sur la fiche Site). Sans ça, chaque rechargement
-    // de l'appli écraserait les photos déjà récupérées localement.
+    // La liste globale n'inclut plus les photos ni les commentaires (voir
+    // api/substations.js — chargés à la demande sur la fiche Site). Sans ça,
+    // chaque rechargement de l'appli écraserait ce qui a déjà été récupéré.
     const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
-    state.substations = state.substations.map((s) =>
-      s.photos === undefined ? { ...s, photos: cachedById.get(s.id)?.photos } : s
-    );
+    state.substations = state.substations.map((s) => {
+      if (s.photos !== undefined && s.comments !== undefined) return s;
+      const cached = cachedById.get(s.id);
+      return { ...s, photos: s.photos === undefined ? cached?.photos : s.photos, comments: s.comments === undefined ? cached?.comments : s.comments };
+    });
     await dbLayer.putAll('substations', state.substations);
   } catch {
     state.substations = cachedSubstations;
@@ -403,7 +405,7 @@ document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
   if (!item) return;
   ui.selectSite(item.dataset.id);
-  loadSitePhotosIfNeeded(item.dataset.id);
+  loadSiteDetailIfNeeded(item.dataset.id);
 });
 
 document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
@@ -412,18 +414,20 @@ document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
   ui.switchTab('sites');
   ui.renderSiteList();
   ui.selectSite(item.dataset.id);
-  loadSitePhotosIfNeeded(item.dataset.id);
+  loadSiteDetailIfNeeded(item.dataset.id);
 });
 
-// Les photos ne sont pas incluses dans la liste globale des sous-stations
-// (voir api/substations.js) : on les récupère au moment où le technicien
-// ouvre réellement la fiche du site, pas à chaque chargement de l'appli.
-async function loadSitePhotosIfNeeded(id) {
+// Les photos et commentaires ne sont pas inclus dans la liste globale des
+// sous-stations (voir api/substations.js) : on les récupère au moment où le
+// technicien ouvre réellement la fiche du site, pas à chaque chargement de
+// l'appli.
+async function loadSiteDetailIfNeeded(id) {
   const site = state.substations.find((s) => s.id === id);
-  if (!site || site.photos !== undefined) return; // déjà chargées (ou site créé localement)
+  if (!site || (site.photos !== undefined && site.comments !== undefined)) return; // déjà chargés (ou site créé localement)
   try {
     const detail = await api.fetchSubstationDetail(id);
     site.photos = detail.photos || [];
+    site.comments = detail.comments || [];
     await dbLayer.put('substations', site);
     if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
   } catch {
@@ -452,6 +456,39 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     // remplacement du tableau entier : si un collègue ajoute une photo sur ce
     // même site avant que ça ne synchronise, sa photo n'est pas perdue.
     await dbLayer.queueSync('substation_photo', 'remove', { substation_id: site.id, photo_id: photoId });
+    ui.renderSiteDetail();
+    return;
+  }
+  const removeCommentBtn = e.target.closest('[data-action="remove-site-comment"]');
+  if (removeCommentBtn) {
+    const site = ui.getSelectedSite();
+    if (!site || site.comments === undefined) return;
+    const commentId = removeCommentBtn.dataset.commentId;
+    site.comments = site.comments.filter((c) => c.id !== commentId);
+    await dbLayer.put('substations', site);
+    await dbLayer.queueSync('substation_comment', 'remove', { substation_id: site.id, comment_id: commentId });
+    ui.renderSiteDetail();
+    return;
+  }
+  const addCommentBtn = e.target.closest('[data-action="add-site-comment"]');
+  if (addCommentBtn) {
+    const site = ui.getSelectedSite();
+    if (!site) return;
+    if (site.comments === undefined) {
+      ui.showToast('Chargement des commentaires en cours, réessaie dans un instant');
+      return;
+    }
+    const textarea = document.getElementById('siteCommentInput');
+    const text = textarea.value.trim();
+    if (!text) return;
+    const comment = { id: `COMMENT_${Date.now()}`, text, user_id: state.user.id, tech: `${state.user.prenom} ${state.user.nom}`.trim(), date: new Date().toISOString() };
+    site.comments = [...site.comments, comment];
+    await dbLayer.put('substations', site);
+    // Même logique que les photos : opération d'ajout ciblée, pas un upsert
+    // du site entier — deux techniciens qui commentent le même site hors
+    // ligne se retrouvent bien tous les deux dans la liste.
+    await dbLayer.queueSync('substation_comment', 'add', { substation_id: site.id, comment });
+    textarea.value = '';
     ui.renderSiteDetail();
   }
 });
@@ -495,7 +532,7 @@ async function resolveOrCreateSubstation(name) {
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [] };
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [], comments: [] };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
@@ -509,7 +546,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
     substation.lat = lat;
     substation.lon = lon;
   } else {
-    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [] };
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [], comments: [] };
     state.substations.push(substation);
   }
   await dbLayer.put('substations', substation);
