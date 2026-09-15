@@ -1145,6 +1145,20 @@ export function renderActionsRetardSite(thresholdDays = 7) {
 
 // ===== SITES (fiche technique par sous-station) =====
 let selectedSiteId = null;
+let editingSiteInfo = false;
+let editingCommentId = null;
+
+export function toggleSiteInfoEdit(on) {
+  editingSiteInfo = on;
+  if (on) editingCommentId = null;
+  renderSiteDetail();
+}
+
+export function setEditingComment(id) {
+  editingCommentId = id;
+  if (id) editingSiteInfo = false;
+  renderSiteDetail();
+}
 
 const SITE_STATUT_BADGE = {
   operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">Opérationnel</span>',
@@ -1261,12 +1275,28 @@ export function renderSiteDetail() {
     <button class="site-back" data-action="back-to-sites">${icon('arrowLeft', 14)} Retour à la liste</button>
     <div class="card">
       <div class="card-body">
-        <div class="site-detail-header">
-          <h3>${escapeHtml(site.name)}</h3>
-          ${lastRonde ? SITE_STATUT_BADGE[lastRonde.statut || 'operationnel'] : ''}
-        </div>
-        ${site.notes_acces ? `<div class="alert warning" style="margin-top:10px;">${escapeHtml(site.notes_acces)}</div>` : ''}
-        ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}
+        ${
+          editingSiteInfo
+            ? `<div class="form-group">
+                 <label>Nom de la sous-station</label>
+                 <input type="text" id="editSiteName" value="${escapeHtml(site.name)}">
+               </div>
+               <div class="form-group">
+                 <label>Notes d'accès</label>
+                 <textarea id="editSiteNotes" placeholder="Code portail, accès, etc.">${escapeHtml(site.notes_acces || '')}</textarea>
+               </div>
+               <div class="btn-row" style="margin-top:4px;">
+                 <button class="btn" data-action="save-site-info">Enregistrer</button>
+                 <button class="btn btn-secondary" data-action="cancel-site-info">Annuler</button>
+               </div>`
+            : `<div class="site-detail-header">
+                 <h3>${escapeHtml(site.name)}</h3>
+                 ${lastRonde ? SITE_STATUT_BADGE[lastRonde.statut || 'operationnel'] : ''}
+                 <button class="icon-btn" data-action="edit-site-info" title="Modifier le nom / les notes d'accès" aria-label="Modifier">${icon('pencil', 15)}</button>
+               </div>
+               ${site.notes_acces ? `<div class="alert warning" style="margin-top:10px;">${escapeHtml(site.notes_acces)}</div>` : ''}
+               ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}`
+        }
       </div>
     </div>
     ${alertsHtml}
@@ -1293,13 +1323,31 @@ export function renderSiteDetail() {
             ? (site.comments || [])
                 .slice()
                 .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .map(
-                  (c) => `<div class="item" style="margin-bottom:8px;">
-                    <div class="item-meta">${escapeHtml(c.tech || 'Technicien')} · ${new Date(c.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                .map((c) => {
+                  const meta = `${escapeHtml(c.tech || 'Technicien')} · ${new Date(c.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${c.edited_at ? ' · modifié' : ''}`;
+                  if (editingCommentId === c.id) {
+                    return `<div class="item" style="margin-bottom:8px;">
+                      <div class="item-meta">${meta}</div>
+                      <div class="form-group" style="margin:6px 0 0;">
+                        <textarea id="editCommentInput" data-comment-id="${c.id}">${escapeHtml(c.text)}</textarea>
+                      </div>
+                      <div class="btn-row" style="margin-top:6px;">
+                        <button class="btn" data-action="save-site-comment" data-comment-id="${c.id}">Enregistrer</button>
+                        <button class="btn btn-secondary" data-action="cancel-site-comment">Annuler</button>
+                      </div>
+                    </div>`;
+                  }
+                  return `<div class="item" style="margin-bottom:8px;">
+                    <div class="item-meta">${meta}</div>
                     <div class="item-body" style="margin-top:2px;">${escapeHtml(c.text)}</div>
-                    ${isOwned(c) ? `<button class="btn-ghost" data-action="remove-site-comment" data-comment-id="${c.id}" style="margin-top:2px;">Supprimer</button>` : ''}
-                  </div>`
-                )
+                    ${
+                      isOwned(c)
+                        ? `<button class="btn-ghost" data-action="edit-site-comment" data-comment-id="${c.id}" style="margin-top:2px;">Modifier</button>
+                           <button class="btn-ghost" data-action="remove-site-comment" data-comment-id="${c.id}" style="margin-top:2px;">Supprimer</button>`
+                        : ''
+                    }
+                  </div>`;
+                })
                 .join('')
             : `<p class="hint" style="margin:0 0 10px;">Aucun commentaire pour ce site.</p>`
         }
@@ -1326,11 +1374,15 @@ export function renderSiteDetail() {
 
 export function selectSite(id) {
   selectedSiteId = id;
+  editingSiteInfo = false;
+  editingCommentId = null;
   renderSiteDetail();
 }
 
 export function backToSiteList() {
   selectedSiteId = null;
+  editingSiteInfo = false;
+  editingCommentId = null;
   renderSiteDetail();
 }
 

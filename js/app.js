@@ -559,6 +559,72 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     await dbLayer.queueSync('substation_comment', 'add', { substation_id: site.id, comment });
     textarea.value = '';
     ui.renderSiteDetail();
+    return;
+  }
+  const editCommentBtn = e.target.closest('[data-action="edit-site-comment"]');
+  if (editCommentBtn) {
+    ui.setEditingComment(editCommentBtn.dataset.commentId);
+    return;
+  }
+  const cancelCommentBtn = e.target.closest('[data-action="cancel-site-comment"]');
+  if (cancelCommentBtn) {
+    ui.setEditingComment(null);
+    return;
+  }
+  const saveCommentBtn = e.target.closest('[data-action="save-site-comment"]');
+  if (saveCommentBtn) {
+    const site = ui.getSelectedSite();
+    if (!site || !site.comments) return;
+    const commentId = saveCommentBtn.dataset.commentId;
+    const textarea = document.getElementById('editCommentInput');
+    const text = textarea.value.trim();
+    if (!text) {
+      ui.showToast('Le commentaire ne peut pas être vide');
+      return;
+    }
+    site.comments = site.comments.map((c) => (c.id === commentId ? { ...c, text, edited_at: new Date().toISOString() } : c));
+    await dbLayer.put('substations', site);
+    await dbLayer.queueSync('substation_comment', 'edit', { substation_id: site.id, comment_id: commentId, text });
+    ui.setEditingComment(null);
+    return;
+  }
+  const editInfoBtn = e.target.closest('[data-action="edit-site-info"]');
+  if (editInfoBtn) {
+    ui.toggleSiteInfoEdit(true);
+    return;
+  }
+  const cancelInfoBtn = e.target.closest('[data-action="cancel-site-info"]');
+  if (cancelInfoBtn) {
+    ui.toggleSiteInfoEdit(false);
+    return;
+  }
+  const saveInfoBtn = e.target.closest('[data-action="save-site-info"]');
+  if (saveInfoBtn) {
+    const site = ui.getSelectedSite();
+    if (!site) return;
+    const name = document.getElementById('editSiteName').value.trim();
+    if (!name) {
+      ui.showToast('Le nom de la sous-station ne peut pas être vide');
+      return;
+    }
+    const existing = ui.findSubstationByName(name);
+    if (existing && existing.id !== site.id) {
+      ui.showToast('Une autre sous-station porte déjà ce nom');
+      return;
+    }
+    site.name = name;
+    site.notes_acces = document.getElementById('editSiteNotes').value.trim();
+    await dbLayer.put('substations', site);
+    // Le nom et les notes d'accès sont des infos communes au site (pas
+    // propres à un technicien), donc synchronisées comme le reste des
+    // champs de base via l'upsert 'substation' habituel — jamais les
+    // photos/commentaires, gérés à part (voir substation_photo/comment).
+    await dbLayer.queueSync('substation', 'upsert', site);
+    ui.renderSubstationDatalist();
+    ui.renderSiteList(document.getElementById('siteSearch').value);
+    ui.toggleSiteInfoEdit(false);
+    ui.showToast('Sous-station mise à jour');
+    return;
   }
 });
 

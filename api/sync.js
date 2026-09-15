@@ -100,10 +100,11 @@ async function syncItem(item, userId, user) {
       });
     }
 
-    // Même principe que les photos : opération ciblée (ajouter/retirer CE
-    // commentaire), pas un remplacement du tableau complet. L'auteur et la
-    // date sont fixés côté serveur (jamais fournis par le client) pour que
-    // l'attribution soit fiable.
+    // Même principe que les photos : opération ciblée (ajouter/retirer/
+    // modifier CE commentaire), pas un remplacement du tableau complet.
+    // L'auteur et la date sont fixés côté serveur (jamais fournis par le
+    // client) pour que l'attribution soit fiable. Modifier ou retirer est
+    // limité à ses propres commentaires (comme la suppression).
     case 'substation_comment': {
       const result = await db.execute({ sql: `SELECT comments_json FROM substations WHERE id = ?`, args: [payload.substation_id] });
       if (!result.rows[0]) throw new Error('Sous-station introuvable');
@@ -116,8 +117,9 @@ async function syncItem(item, userId, user) {
           const tech = [user?.prenom, user?.nom].filter(Boolean).join(' ').trim() || null;
           next = [...comments, { id: payload.comment.id, text: payload.comment.text, user_id: userId, tech, date: new Date().toISOString() }];
         }
+      } else if (action === 'edit') {
+        next = comments.map((c) => (c.id === payload.comment_id && c.user_id === userId ? { ...c, text: payload.text, edited_at: new Date().toISOString() } : c));
       } else {
-        // Retrait limité à ses propres commentaires.
         next = comments.filter((c) => !(c.id === payload.comment_id && c.user_id === userId));
       }
       return db.execute({
