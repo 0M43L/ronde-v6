@@ -1211,10 +1211,15 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   const input = document.getElementById('actionInput');
   const text = input.value.trim();
   if (!text) return;
-  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
+  // Le formulaire "Nouvelle action" n'a pas de champ de sélection de site :
+  // cette action n'est donc rattachée à aucun site. Avant, elle récupérait
+  // silencieusement le nom tapé dans le champ "Sous-station" de l'onglet
+  // Ronde — resté rempli d'une visite précédente, ou en cours de saisie
+  // pour tout autre chose — attribuant l'action à un site qui n'avait
+  // souvent aucun rapport avec elle.
   const action = {
     id: `ACTION_${Date.now()}`,
-    substation_id: substation ? substation.id : null,
+    substation_id: null,
     text,
     severity: document.getElementById('actionSeverity').value,
     source: 'manuelle',
