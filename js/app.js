@@ -6,10 +6,31 @@ import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvaila
 import { prefetchTilesAround } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener } from './sync.js';
 
+// Détection de mise à jour : sans ça, un technicien qui garde l'appli
+// ouverte (ou la rouvre sans la fermer complètement d'abord) continue de
+// tourner sur le JS mis en cache avant un déploiement — les nouvelles
+// fonctionnalités "n'existent pas" pour lui tant qu'il n'a pas rechargé.
+// On ne recharge JAMAIS automatiquement (il peut être en train de remplir
+// une ronde), on affiche juste un bandeau qu'il touche quand il est prêt.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      if (reg.waiting) showUpdateBanner();
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
+        });
+      });
+    }).catch(() => {});
   });
+}
+
+function showUpdateBanner() {
+  const banner = document.getElementById('updateBanner');
+  banner.hidden = false;
+  banner.addEventListener('click', () => window.location.reload(), { once: true });
 }
 
 const loginScreen = document.getElementById('loginScreen');
