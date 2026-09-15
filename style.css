@@ -336,6 +336,19 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .check-btn.warning.sel { background: var(--warning-soft); color: var(--warning); border-color: var(--warning); }
 .check-btn.danger.sel { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
 .check-btn.na.sel { background: var(--neutral-soft); color: var(--text-muted); border-color: var(--text-muted); }
+
+/* Résolution de conflit de fiche (édition simultanée) */
+.conflict-field { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.conflict-field:last-of-type { border-bottom: none; }
+.conflict-field-label { font-weight: 700; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 6px; }
+.conflict-choice { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; cursor: pointer; }
+.conflict-choice:has(input:checked) { border-color: var(--accent); background: var(--bg-elevated); }
+.conflict-choice input { margin-top: 3px; flex: none; }
+.conflict-value { font-size: 13px; line-height: 1.4; white-space: pre-wrap; }
+.conflict-tag { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px; margin-right: 6px; text-transform: uppercase; }
+.conflict-tag.mine { background: var(--accent-soft); color: var(--accent); }
+.conflict-tag.theirs { background: var(--neutral-soft); color: var(--text-muted); }
+.tab-badge:not([hidden]) { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); margin-left: 4px; vertical-align: middle; }
 .check-comment {
   width: 100%; margin-top: 8px; padding: 9px 10px;
   border: 1.5px solid var(--border); border-radius: var(--radius-sm);

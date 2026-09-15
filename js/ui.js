@@ -265,16 +265,19 @@ export function renderDiagnostic(result) {
 // sert à parcourir la base comme un catalogue (grille de catégories, puis
 // liste au tap), sur le modèle de l'app de référence d'Axel : symptômes/
 // composants précis plutôt qu'un seul gros bloc "Hydraulique".
+// Mots-clés élargis à partir des vrais textes rencontrés dans les fiches et
+// les contrôles de ronde (ENE-64-AFD-530, procédure automate, points MES),
+// pour réduire les fiches mal classées dans "Général" faute de correspondance.
 const FICHE_CATEGORIES = [
-  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord'] },
-  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage'] },
-  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre'] },
-  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques'] },
-  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'circuit', 'tuyauterie', 'air', 'debit', 'delta'] },
-  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur'] },
-  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression'] },
-  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature'] },
-  { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli'] },
+  { key: 'fuites', label: 'Fuites', icon: 'droplet', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['fuite', 'fuyard', 'fuyarde', 'joint', 'etancheite', 'raccord', 'purgeur', 'presse-etoupe', 'goutte', 'suintement'] },
+  { key: 'pompes', label: 'Pompes', icon: 'gauge', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['pompe', 'cavitation', 'roulement', 'amorcage', 'desamorcage', 'bruit', 'vibration'] },
+  { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre', 'graissage', 'actionneur', 'servomoteur'] },
+  { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques', 'encrassement'] },
+  { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'isolant', 'circuit', 'tuyauterie', 'air', 'debit', 'delta', 'purge'] },
+  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur', 'micrologix', 'chargement', 'parametrage', 'cas_poste', 'ccw'] },
+  { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression', 'index', 'kamstrup', 'itron'] },
+  { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature', 'loi d\'eau'] },
+  { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli', 'epi', 'consignation'] },
   { key: 'general', label: 'Général', icon: 'building', colorVar: '--text-muted', softVar: '--neutral-soft', keywords: ['proprete', 'local', 'acces'] },
 ];
 const FICHE_CATEGORY_BY_KEY = Object.fromEntries(FICHE_CATEGORIES.map((c) => [c.key, c]));
@@ -392,8 +395,8 @@ function renderFicheTile(f, autoExpand) {
                   : ''
               }
               <div class="item-actions">
-                <button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>
-                ${!f.is_reference ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
+                ${isOwned(f) ? `<button class="btn-ghost" data-action="edit-fiche" data-id="${f.id}">Modifier</button>` : `<span class="hint">Créée par ${escapeHtml(f.tech || 'un autre technicien')} — seul l'auteur peut la modifier</span>`}
+                ${!f.is_reference && isOwned(f) ? `<button class="btn-ghost" data-action="delete-fiche" data-id="${f.id}">Supprimer</button>` : ''}
               </div>
             </div>`
           : ''
@@ -454,6 +457,121 @@ export function renderFiches(searchTerm = '') {
   // les montrer dépliés directement plutôt que d'imposer un tap de plus.
   const autoExpand = filtered.length <= 3;
   list.innerHTML = backBar + filtered.map((f) => renderFicheTile(f, autoExpand)).join('');
+}
+
+// ===== CONFLITS DE FICHES (édition simultanée par deux techniciens) =====
+// Champs texte comparés un par un lors d'une fusion. Les photos sont
+// gérées à part (fusionnées automatiquement, pas de choix à faire — voir
+// resolveFicheConflictMerge dans app.js).
+export const FICHE_CONFLICT_FIELDS = [
+  { field: 'title', label: 'Titre' },
+  { field: 'urgence', label: 'Urgence' },
+  { field: 'symptomes', label: 'Symptômes' },
+  { field: 'cause_probable', label: 'Cause probable' },
+  { field: 'procedure_intervention', label: "Procédure d'intervention" },
+  { field: 'securite', label: 'Sécurité' },
+  { field: 'outillage', label: 'Outillage' },
+  { field: 'pieces_rechange', label: 'Pièces de rechange' },
+  { field: 'solution', label: 'Solution' },
+  { field: 'notes', label: 'Notes' },
+];
+
+let openConflictId = null;
+
+export function openFicheConflict(id) {
+  openConflictId = id;
+  renderFicheConflicts();
+}
+
+export function closeFicheConflict() {
+  openConflictId = null;
+  renderFicheConflicts();
+}
+
+export function getOpenFicheConflict() {
+  return state.ficheConflicts.find((c) => c.id === openConflictId) || null;
+}
+
+export function renderFicheConflicts() {
+  const el = document.getElementById('ficheConflicts');
+  if (!el) return;
+  const conflicts = state.ficheConflicts;
+  const badge = document.getElementById('fichesTabBadge');
+  if (badge) badge.hidden = conflicts.length === 0;
+  if (conflicts.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const open = conflicts.find((c) => c.id === openConflictId);
+  if (open) {
+    el.innerHTML = renderFicheConflictForm(open);
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card" style="border-left:4px solid var(--danger);">
+      <div class="card-header">${icon('alertTriangle', 14)} ${conflicts.length} conflit${conflicts.length > 1 ? 's' : ''} de fiche à résoudre</div>
+      <div class="card-body">
+        ${conflicts
+          .map(
+            (c) => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(c.serverFiche.title)}</div>
+            <div class="item-meta">Modifiée par ${escapeHtml(c.serverFiche.tech || 'un collègue')} pendant que tu la modifiais</div>
+            <div class="item-actions"><button class="btn-secondary" data-action="open-fiche-conflict" data-id="${c.id}">Comparer et fusionner</button></div>
+          </div>`
+          )
+          .join('')}
+      </div>
+    </div>`;
+}
+
+function conflictFieldChoice(conflictId, field, label, localVal, serverVal, theirName) {
+  const local = (localVal || '').trim();
+  const server = (serverVal || '').trim();
+  if (local === server) return ''; // rien à choisir, les deux versions sont identiques sur ce champ
+  return `
+    <div class="conflict-field">
+      <div class="conflict-field-label">${escapeHtml(label)}</div>
+      <label class="conflict-choice">
+        <input type="radio" name="conflict-${conflictId}-${field}" value="local" checked>
+        <div class="conflict-value"><span class="conflict-tag mine">Ta version</span>${local ? escapeHtml(local) : '<em>(vide)</em>'}</div>
+      </label>
+      <label class="conflict-choice">
+        <input type="radio" name="conflict-${conflictId}-${field}" value="server">
+        <div class="conflict-value"><span class="conflict-tag theirs">${escapeHtml(theirName)}</span>${server ? escapeHtml(server) : '<em>(vide)</em>'}</div>
+      </label>
+    </div>`;
+}
+
+function renderFicheConflictForm(conflict) {
+  const { id, localFiche, serverFiche } = conflict;
+  const theirName = serverFiche.tech || 'Version du collègue';
+  const fieldsHtml = FICHE_CONFLICT_FIELDS.map((f) => conflictFieldChoice(id, f.field, f.label, localFiche[f.field], serverFiche[f.field], theirName)).join('');
+  const hasFieldDiffs = fieldsHtml.trim().length > 0;
+
+  const localPhotos = localFiche.photos || [];
+  const serverPhotos = serverFiche.photos || [];
+  const newLocalPhotos = localPhotos.filter((p) => !serverPhotos.some((sp) => sp.id === p.id));
+
+  return `
+    <div class="card" style="border-left:4px solid var(--danger);">
+      <div class="card-header">${icon('alertTriangle', 14)} Conflit — ${escapeHtml(serverFiche.title)}</div>
+      <div class="card-body">
+        <p class="hint">${escapeHtml(serverFiche.tech || 'Un collègue')} a modifié cette fiche pendant que tu la modifiais. Choisis quoi garder pour chaque champ différent, puis valide.</p>
+        ${hasFieldDiffs ? fieldsHtml : `<p class="hint"><em>Aucun champ texte en conflit — seules les photos diffèrent peut-être.</em></p>`}
+        ${
+          newLocalPhotos.length > 0
+            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo(s) que tu as ajoutée(s) seront conservées en plus de celles de ${escapeHtml(serverFiche.tech || 'ton collègue')} — rien n'est perdu.</p></div>`
+            : ''
+        }
+        <div class="btn-row">
+          <button class="btn" data-action="confirm-fiche-conflict" data-id="${id}">Valider la fusion</button>
+          <button class="btn-secondary" data-action="close-fiche-conflict">Retour à la liste</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 // ===== ACTIONS =====
@@ -739,9 +857,27 @@ export function buildHistoriqueItems() {
   return items;
 }
 
+// Rendu paginé : au-delà de quelques mois d'usage quotidien sur 140 sites,
+// afficher tout l'historique d'un coup finit par ralentir l'appli (surtout
+// sur téléphone ancien). On affiche par lots, avec un bouton "Afficher
+// plus". Le lot courant se réinitialise seulement quand la recherche/le
+// filtre changent réellement, pas à chaque re-render (ex: après suppression).
+const HISTORIQUE_PAGE_SIZE = 60;
+let historiqueVisibleCount = HISTORIQUE_PAGE_SIZE;
+let historiqueLastQuery = null;
+
+export function loadMoreHistorique() {
+  historiqueVisibleCount += HISTORIQUE_PAGE_SIZE;
+}
+
 export function renderHistorique(filter = 'tous', searchTerm = '') {
   const content = document.getElementById('historiqueContent');
   const needle = searchTerm.trim().toLowerCase();
+  const queryKey = `${filter}::${needle}`;
+  if (queryKey !== historiqueLastQuery) {
+    historiqueVisibleCount = HISTORIQUE_PAGE_SIZE;
+    historiqueLastQuery = queryKey;
+  }
 
   let items = buildHistoriqueItems();
   if (filter === 'anomalies') items = items.filter((it) => it.anomalies > 0);
@@ -755,9 +891,13 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
 
   const statutBadge = { operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">OK</span>', reserve: '<span class="badge a_planifier">Réserve</span>', arret: '<span class="badge immediat">Arrêt</span>' };
 
-  content.innerHTML = items
-    .map(
-      (it) => `
+  const visible = items.slice(0, historiqueVisibleCount);
+  const remaining = items.length - visible.length;
+
+  content.innerHTML =
+    visible
+      .map(
+        (it) => `
     <div class="item">
       <div class="hist-type">${it.type} ${it.statut ? statutBadge[it.statut] || '' : ''}</div>
       <div class="item-title">${escapeHtml(it.title)}</div>
@@ -765,8 +905,11 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
       ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
-    )
-    .join('');
+      )
+      .join('') +
+    (remaining > 0
+      ? `<button class="btn-secondary" style="width:100%; margin-top:10px;" data-action="load-more-historique">Afficher plus (${remaining} restant${remaining > 1 ? 's' : ''})</button>`
+      : '');
 }
 
 export async function renderStorageUsage() {
@@ -879,6 +1022,104 @@ export function renderPointsRecurrents() {
   el.innerHTML = recurrent.map(([label, n]) => `<div class="alert warning"><strong>${escapeHtml(label)}</strong> — ${n} rondes</div>`).join('');
 }
 
+// ===== ALERTES PRÉDICTIVES (anomalies récurrentes par site) =====
+// Un même point de contrôle relevé dégradé/défaillant à plusieurs reprises
+// récemment sur un site est un signal qu'il vaut mieux traiter avant que ça
+// ne devienne une panne franche, plutôt que d'attendre. Fenêtre glissante
+// sur les dernières visites du site (pas une durée fixe) : un point qui
+// redevient OK sort naturellement de la fenêtre et l'alerte disparaît.
+const RECURRING_LOOKBACK = 5;
+const RECURRING_THRESHOLD = 2;
+
+export function computeSiteAlerts() {
+  const bySite = {};
+  state.rondes.forEach((r) => {
+    if (!r.substation_id) return;
+    (bySite[r.substation_id] ||= []).push(r);
+  });
+
+  const alerts = [];
+  Object.entries(bySite).forEach(([substationId, rondes]) => {
+    const recent = rondes
+      .slice()
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, RECURRING_LOOKBACK);
+    const byControl = {};
+    recent.forEach((r) => {
+      (r.controls || []).forEach((c) => {
+        if (c.status !== 'warning' && c.status !== 'danger') return;
+        const key = c.id || c.label;
+        const entry = (byControl[key] ||= { label: c.label, occurrences: [], maxSeverity: 'warning' });
+        entry.occurrences.push({ date: r.date, comment: c.comment });
+        if (c.status === 'danger') entry.maxSeverity = 'danger';
+      });
+    });
+    Object.values(byControl).forEach((entry) => {
+      if (entry.occurrences.length >= RECURRING_THRESHOLD) {
+        alerts.push({
+          substation_id: substationId,
+          label: entry.label,
+          count: entry.occurrences.length,
+          outOf: recent.length,
+          severity: entry.maxSeverity,
+          lastDate: entry.occurrences[0].date,
+          lastComment: entry.occurrences[0].comment,
+        });
+      }
+    });
+  });
+
+  alerts.sort((a, b) => (b.severity === 'danger' ? 1 : 0) - (a.severity === 'danger' ? 1 : 0) || b.count - a.count);
+  return alerts;
+}
+
+export function getSiteAlertsFor(substationId) {
+  return computeSiteAlerts().filter((a) => a.substation_id === substationId);
+}
+
+export function renderSitesASurveiller() {
+  const el = document.getElementById('sitesASurveiller');
+  if (!el) return;
+  const alerts = computeSiteAlerts();
+  if (alerts.length === 0) {
+    el.innerHTML = '<div class="alert success">✅ Aucune anomalie récurrente détectée</div>';
+    return;
+  }
+  el.innerHTML = alerts
+    .map((a) => {
+      const s = state.substations.find((x) => x.id === a.substation_id);
+      return `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" data-action="goto-site-alert" data-id="${a.substation_id}" style="cursor:pointer;">
+        <strong>${escapeHtml(s ? s.name : a.substation_id)}</strong> — ${escapeHtml(a.label)}
+        <br><span style="font-size:12px;opacity:.85;">${a.count}/${a.outOf} dernières visites${a.lastComment ? ` · "${escapeHtml(a.lastComment)}"` : ''}</span>
+      </div>`;
+    })
+    .join('');
+}
+
+// Affiché dans l'onglet Ronde dès qu'une sous-station à risque est
+// sélectionnée : avertir AVANT la visite plutôt que de laisser le
+// technicien découvrir le problème en cours de ronde.
+export function renderRondeSiteAlert(substation) {
+  const el = document.getElementById('rondeSiteAlert');
+  if (!el) return;
+  if (!substation) {
+    el.innerHTML = '';
+    return;
+  }
+  const alerts = getSiteAlertsFor(substation.id);
+  if (alerts.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = alerts
+    .map(
+      (a) => `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" style="margin-bottom:6px;">
+      ${icon('alertTriangle', 13)} <strong>${escapeHtml(a.label)}</strong> dégradé sur ${a.count}/${a.outOf} dernières visites de ce site — à vérifier en priorité.
+    </div>`
+    )
+    .join('');
+}
+
 export function renderActionsRetardSite(thresholdDays = 7) {
   const el = document.getElementById('actionsRetardSite');
   const now = Date.now();
@@ -930,6 +1171,7 @@ export function renderSiteList(searchTerm = '') {
     const t = new Date(r.date).getTime();
     if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
   });
+  const alertedSiteIds = new Set(computeSiteAlerts().map((a) => a.substation_id));
 
   listEl.innerHTML = sites
     .map((s) => {
@@ -937,7 +1179,7 @@ export function renderSiteList(searchTerm = '') {
       const days = last ? Math.floor((Date.now() - last) / 86400000) : null;
       const sub = days === null ? 'Jamais visitée' : `Vue il y a ${days} j`;
       return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
-        <div><div class="name">${escapeHtml(s.name)}</div><div class="sub">${sub}</div></div>
+        <div><div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}</div><div class="sub">${sub}</div></div>
         ${icon('chevronRight', 16)}
       </div>`;
     })
@@ -985,6 +1227,22 @@ export function renderSiteDetail() {
     </div></div>`;
   }
 
+  const siteAlerts = getSiteAlertsFor(site.id);
+  const alertsHtml = siteAlerts.length
+    ? `<div class="card">
+        <div class="card-header">${icon('alertTriangle', 13)} Anomalies récurrentes</div>
+        <div class="card-body">
+          ${siteAlerts
+            .map(
+              (a) => `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" style="margin-bottom:6px;">
+                <strong>${escapeHtml(a.label)}</strong> — ${a.count}/${a.outOf} dernières visites${a.lastComment ? `<br><span style="font-size:12px;opacity:.85;">"${escapeHtml(a.lastComment)}"</span>` : ''}
+              </div>`
+            )
+            .join('')}
+        </div>
+      </div>`
+    : '';
+
   const historiqueItems = buildHistoriqueItems().filter((it) => it.substation_id === site.id);
   const historiqueHtml = historiqueItems.length
     ? historiqueItems
@@ -1011,9 +1269,11 @@ export function renderSiteDetail() {
         ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}
       </div>
     </div>
+    ${alertsHtml}
     <div class="card">
       <div class="card-header">${icon('image', 12)} Photos du site</div>
       <div class="card-body">
+        ${site.photos === undefined ? `<p class="hint" style="margin:0 0 8px;">Chargement des photos...</p>` : ''}
         <div class="photo-row">
           ${(site.photos || [])
             .map(

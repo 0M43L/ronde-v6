@@ -4,7 +4,7 @@ import * as dbLayer from './db.js';
 import * as ui from './ui.js';
 import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
 import { prefetchTilesAround } from './tiles.js';
-import { refreshSyncStatus, syncNow, setSyncStatusListener } from './sync.js';
+import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener } from './sync.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -36,6 +36,137 @@ setSyncStatusListener((status, count) => {
   const label = document.getElementById('syncLabel');
   pill.className = `sync-pill ${status === 'synced' ? '' : status}`;
   label.textContent = status === 'synced' ? 'à jour' : status === 'offline' ? `hors-ligne (${count})` : `en attente (${count})`;
+});
+
+// Le serveur a rejeté certaines entrées : soit une donnée invalide (reste en
+// file, sera retentée), soit un conflit d'édition sur une fiche (deux
+// techniciens l'ont modifiée hors ligne en même temps) — dans ce cas on ne
+// retente jamais l'envoi tel quel (il échouerait indéfiniment). Les deux
+// versions sont mises de côté pour que le technicien les compare et
+// choisisse lui-même quoi garder, champ par champ — jamais un écrasement
+// automatique et jamais une perte silencieuse.
+setSyncErrorListener(async (failedItems, errors) => {
+  const errorById = new Map(errors.map((e) => [e.id, e.error]));
+  const other = [];
+  for (const item of failedItems) {
+    const code = errorById.get(item.id);
+    if (item.entity_type === 'fiche' && code === 'CONFLICT') {
+      await captureFicheConflict(item);
+    } else if (item.entity_type === 'fiche' && code === 'FORBIDDEN_NOT_OWNER') {
+      await rejectNonOwnedFicheEdit(item);
+    } else {
+      other.push(item);
+    }
+  }
+  if (other.length > 0) {
+    ui.showToast(
+      other.length === 1
+        ? "1 élément n'a pas pu être synchronisé, nouvelle tentative automatique"
+        : `${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
+    );
+  }
+});
+
+async function captureFicheConflict(item) {
+  const localFiche = item.payload;
+  // Cette version précise n'existe plus côté serveur : retenter l'envoi tel
+  // quel échouerait indéfiniment (le toast reviendrait à chaque synchro).
+  await dbLayer.clearSyncQueueItems([item.id]);
+
+  let serverFiche = null;
+  try {
+    const fresh = await api.fetchFiches();
+    serverFiche = fresh.find((f) => f.id === localFiche.id) || null;
+  } catch {
+    // Hors-ligne : on retentera de récupérer la version serveur au prochain
+    // cycle de synchro (le conflit reste affiché en attendant).
+  }
+  if (!serverFiche) return;
+
+  // La liste affichée doit refléter la vraie version en base tant que le
+  // conflit n'est pas résolu (jamais la tentative locale rejetée).
+  state.fiches = state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f));
+  await dbLayer.put('fiches', serverFiche);
+
+  const conflict = { id: `CONFLICT_${localFiche.id}_${Date.now()}`, ficheId: localFiche.id, localFiche, serverFiche, detectedAt: Date.now() };
+  await dbLayer.addFicheConflict(conflict);
+  state.ficheConflicts.push(conflict);
+
+  // Le conteneur du bandeau de conflit existe toujours dans le DOM (même
+  // onglet caché) : le remettre à jour tout de suite, pas seulement si
+  // l'onglet Fiches est déjà ouvert, sinon le technicien ne le verrait
+  // qu'après un rechargement complet de l'appli.
+  ui.renderFicheConflicts();
+  if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.showToast(`${serverFiche.tech || 'Un collègue'} a modifié "${serverFiche.title}" en même temps que toi — va dans l'onglet Fiches pour comparer et fusionner.`);
+}
+
+// Seul l'auteur d'une fiche terrain peut la modifier (voir api/sync.js). Le
+// bouton "Modifier" est déjà caché côté UI pour une fiche qui n'appartient
+// pas au technicien connecté ; ce cas ne devrait donc arriver qu'en cas
+// d'état local périmé (ex : la fiche a changé de propriétaire entre-temps,
+// improbable, ou une modification restée en file depuis avant ce
+// changement de règle). On n'insiste jamais : pas de nouvelle tentative,
+// on resynchronise la vraie version et on prévient.
+async function rejectNonOwnedFicheEdit(item) {
+  await dbLayer.clearSyncQueueItems([item.id]);
+  try {
+    const fresh = await api.fetchFiches();
+    const serverFiche = fresh.find((f) => f.id === item.payload.id);
+    if (serverFiche) {
+      state.fiches = state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f));
+      await dbLayer.put('fiches', serverFiche);
+    }
+  } catch {
+    // Hors-ligne : la version correcte reviendra au prochain chargement de l'appli.
+  }
+  if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.showToast(`Tu ne peux modifier que les fiches que tu as créées ("${item.payload.title}" appartient à un autre technicien).`);
+}
+
+document.getElementById('ficheConflicts').addEventListener('click', async (e) => {
+  const openBtn = e.target.closest('[data-action="open-fiche-conflict"]');
+  if (openBtn) {
+    ui.openFicheConflict(openBtn.dataset.id);
+    return;
+  }
+  const closeBtn = e.target.closest('[data-action="close-fiche-conflict"]');
+  if (closeBtn) {
+    ui.closeFicheConflict();
+    return;
+  }
+  const confirmBtn = e.target.closest('[data-action="confirm-fiche-conflict"]');
+  if (confirmBtn) {
+    const conflict = state.ficheConflicts.find((c) => c.id === confirmBtn.dataset.id);
+    if (!conflict) return;
+
+    // Reconstitue le champ choisi (local/serveur) pour chaque champ affiché,
+    // en partant de la version serveur à jour (donc son .version courant,
+    // indispensable pour que la synchro qui suit soit acceptée).
+    const merged = { ...conflict.serverFiche };
+    for (const { field } of ui.FICHE_CONFLICT_FIELDS) {
+      const picked = document.querySelector(`input[name="conflict-${conflict.id}-${field}"]:checked`);
+      if (picked && picked.value === 'local') merged[field] = conflict.localFiche[field];
+    }
+    // Photos : fusionnées (les deux techniciens ont pu en ajouter chacun de leur côté).
+    const serverPhotos = conflict.serverFiche.photos || [];
+    const localPhotos = conflict.localFiche.photos || [];
+    const byId = new Map(serverPhotos.map((p) => [p.id, p]));
+    for (const p of localPhotos) if (!byId.has(p.id)) byId.set(p.id, p);
+    merged.photos = Array.from(byId.values());
+
+    await dbLayer.put('fiches', merged);
+    await dbLayer.queueSync('fiche', 'upsert', merged);
+    state.fiches = state.fiches.map((f) => (f.id === merged.id ? merged : f));
+
+    await dbLayer.removeFicheConflict(conflict.id);
+    state.ficheConflicts = state.ficheConflicts.filter((c) => c.id !== conflict.id);
+    ui.closeFicheConflict();
+    ui.renderFiches(document.getElementById('ficheSearch').value);
+    ui.showToast('Fusion enregistrée, en cours de synchronisation');
+    syncNow().catch(() => {});
+  }
 });
 
 // ===== LOGIN =====
@@ -91,10 +222,19 @@ async function enterApp() {
 
 // ===== FUSION LOCAL / SERVEUR (offline-first) =====
 // Le serveur écrase les entrées connues, mais on garde les entrées créées
-// localement (hors-ligne) qui n'ont pas encore été synchronisées.
-function mergeById(local, server) {
+// localement (hors-ligne) qui n'ont pas encore été synchronisées. On garde
+// aussi telles quelles les entrées qui ont une modification encore en file
+// d'attente (pendingIds) : sinon un rechargement de l'appli avant que cette
+// modification n'ait fini de synchroniser affiche la version serveur
+// (encore ancienne) à la place de la modification du technicien — pas une
+// perte de données (la file la renverra), mais une régression d'affichage
+// trompeuse le temps que ça synchronise.
+function mergeById(local, server, pendingIds) {
   const map = new Map(local.map((item) => [item.id, item]));
-  server.forEach((item) => map.set(item.id, item));
+  server.forEach((item) => {
+    if (pendingIds && pendingIds.has(item.id)) return;
+    map.set(item.id, item);
+  });
   return Array.from(map.values());
 }
 
@@ -132,10 +272,21 @@ function checkOverdueReminders() {
 
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
+  const queue = await dbLayer.getSyncQueue();
+  const pendingIdsFor = (entityType) =>
+    new Set(queue.filter((q) => q.entity_type === entityType && q.action === 'upsert').map((q) => q.payload.id));
+
   const cachedSubstations = await dbLayer.getAll('substations');
   try {
     const fresh = await api.fetchSubstations();
-    state.substations = mergeById(cachedSubstations, fresh);
+    state.substations = mergeById(cachedSubstations, fresh, pendingIdsFor('substation'));
+    // La liste globale n'inclut plus les photos (voir api/substations.js —
+    // chargées à la demande sur la fiche Site). Sans ça, chaque rechargement
+    // de l'appli écraserait les photos déjà récupérées localement.
+    const cachedById = new Map(cachedSubstations.map((s) => [s.id, s]));
+    state.substations = state.substations.map((s) =>
+      s.photos === undefined ? { ...s, photos: cachedById.get(s.id)?.photos } : s
+    );
     await dbLayer.putAll('substations', state.substations);
   } catch {
     state.substations = cachedSubstations;
@@ -144,7 +295,7 @@ async function loadAppData() {
   const cachedFiches = await dbLayer.getAll('fiches');
   try {
     const fresh = await api.fetchFiches();
-    state.fiches = mergeById(cachedFiches, fresh);
+    state.fiches = mergeById(cachedFiches, fresh, pendingIdsFor('fiche'));
     await dbLayer.putAll('fiches', state.fiches);
   } catch {
     state.fiches = cachedFiches;
@@ -153,7 +304,7 @@ async function loadAppData() {
   const cachedRondes = await dbLayer.getAll('rondes');
   try {
     const fresh = await api.fetchRondes();
-    state.rondes = mergeById(cachedRondes, fresh);
+    state.rondes = mergeById(cachedRondes, fresh, pendingIdsFor('ronde'));
     await dbLayer.putAll('rondes', state.rondes);
   } catch {
     state.rondes = cachedRondes;
@@ -162,7 +313,7 @@ async function loadAppData() {
   const cachedActions = await dbLayer.getAll('actions');
   try {
     const fresh = await api.fetchActions();
-    state.actions = mergeById(cachedActions, fresh);
+    state.actions = mergeById(cachedActions, fresh, pendingIdsFor('action'));
     await dbLayer.putAll('actions', state.actions);
   } catch {
     state.actions = cachedActions;
@@ -171,11 +322,13 @@ async function loadAppData() {
   const cachedMes = await dbLayer.getAll('mes');
   try {
     const fresh = await api.fetchMesSessions();
-    state.mesSessions = mergeById(cachedMes, fresh);
+    state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
     await dbLayer.putAll('mes', state.mesSessions);
   } catch {
     state.mesSessions = cachedMes;
   }
+
+  state.ficheConflicts = await dbLayer.getFicheConflicts();
 
   ui.renderSubstationDatalist();
   ui.renderSiteList();
@@ -186,8 +339,10 @@ async function loadAppData() {
   ui.renderBilanTrend();
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
+  ui.renderSitesASurveiller();
   ui.renderActionsRetardSite();
   ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheConflicts();
   ui.renderActions();
   ui.renderMesCasPosteSelect();
   ui.renderMesEchangeurs();
@@ -234,6 +389,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderBilanTrend();
     ui.renderSitesNonVisites(getSiteThreshold());
     ui.renderPointsRecurrents();
+    ui.renderSitesASurveiller();
     ui.renderActionsRetardSite();
   }
   if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
@@ -247,7 +403,33 @@ document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
   if (!item) return;
   ui.selectSite(item.dataset.id);
+  loadSitePhotosIfNeeded(item.dataset.id);
 });
+
+document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="goto-site-alert"]');
+  if (!item) return;
+  ui.switchTab('sites');
+  ui.renderSiteList();
+  ui.selectSite(item.dataset.id);
+  loadSitePhotosIfNeeded(item.dataset.id);
+});
+
+// Les photos ne sont pas incluses dans la liste globale des sous-stations
+// (voir api/substations.js) : on les récupère au moment où le technicien
+// ouvre réellement la fiche du site, pas à chaque chargement de l'appli.
+async function loadSitePhotosIfNeeded(id) {
+  const site = state.substations.find((s) => s.id === id);
+  if (!site || site.photos !== undefined) return; // déjà chargées (ou site créé localement)
+  try {
+    const detail = await api.fetchSubstationDetail(id);
+    site.photos = detail.photos || [];
+    await dbLayer.put('substations', site);
+    if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
+  } catch {
+    // Hors-ligne ou site pas encore synchronisé : on retentera à la prochaine ouverture.
+  }
+}
 
 document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const backBtn = e.target.closest('[data-action="back-to-sites"]');
@@ -259,9 +441,17 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   if (removeBtn) {
     const site = ui.getSelectedSite();
     if (!site) return;
-    site.photos = (site.photos || []).filter((p) => p.id !== removeBtn.dataset.photoId);
+    if (site.photos === undefined) {
+      ui.showToast('Chargement des photos en cours, réessaie dans un instant');
+      return;
+    }
+    const photoId = removeBtn.dataset.photoId;
+    site.photos = site.photos.filter((p) => p.id !== photoId);
     await dbLayer.put('substations', site);
-    await dbLayer.queueSync('substation', 'upsert', site);
+    // Envoyée comme une opération ciblée (retirer CETTE photo), pas comme un
+    // remplacement du tableau entier : si un collègue ajoute une photo sur ce
+    // même site avant que ça ne synchronise, sa photo n'est pas perdue.
+    await dbLayer.queueSync('substation_photo', 'remove', { substation_id: site.id, photo_id: photoId });
     ui.renderSiteDetail();
   }
 });
@@ -271,10 +461,19 @@ document.getElementById('siteDetail').addEventListener('change', async (e) => {
   if (!fileInput || !fileInput.files[0]) return;
   const site = ui.getSelectedSite();
   if (!site) return;
+  if (site.photos === undefined) {
+    ui.showToast('Chargement des photos en cours, réessaie dans un instant');
+    fileInput.value = '';
+    return;
+  }
   const dataUrl = await fileToDataUrl(fileInput.files[0]);
-  site.photos = [...(site.photos || []), { id: `PHOTO_${Date.now()}`, url: dataUrl }];
+  const photo = { id: `PHOTO_${Date.now()}`, url: dataUrl };
+  site.photos = [...site.photos, photo];
   await dbLayer.put('substations', site);
-  await dbLayer.queueSync('substation', 'upsert', site);
+  // Même logique : opération d'ajout ciblée plutôt qu'un upsert du site
+  // entier, pour que deux techniciens puissent ajouter des photos au même
+  // site hors ligne sans que l'un écrase l'ajout de l'autre à la synchro.
+  await dbLayer.queueSync('substation_photo', 'add', { substation_id: site.id, photo });
   ui.renderSiteDetail();
 });
 
@@ -283,6 +482,7 @@ function onSubstationInput() {
   const name = document.getElementById('rondeSubstation').value;
   const substation = ui.findSubstationByName(name);
   ui.renderAccessNotes(substation);
+  ui.renderRondeSiteAlert(substation);
   if (substation) {
     focusSubstation(substation);
     prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
@@ -295,7 +495,7 @@ async function resolveOrCreateSubstation(name) {
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false };
+  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [] };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
@@ -309,7 +509,7 @@ async function upsertSubstationWithCoords(name, lat, lon) {
     substation.lat = lat;
     substation.lon = lon;
   } else {
-    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false };
+    substation = { id: `SUB_${Date.now()}`, name, lat, lon, notes_acces: '', needs_review: false, photos: [] };
     state.substations.push(substation);
   }
   await dbLayer.put('substations', substation);
@@ -505,6 +705,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   ui.renderBilanStats();
   ui.renderBilanTrend();
   ui.renderPointsRecurrents();
+  ui.renderSitesASurveiller();
   ui.renderDiagnostic(null);
   ui.renderActions();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
@@ -861,7 +1062,11 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
   const id = btn.dataset.id;
   const action = btn.dataset.action;
 
-  if (action === 'delete-ronde') {
+  if (action === 'load-more-historique') {
+    ui.loadMoreHistorique();
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    return;
+  } else if (action === 'delete-ronde') {
     await dbLayer.remove('rondes', id);
     await dbLayer.queueSync('ronde', 'delete', { id });
     state.rondes = state.rondes.filter((r) => r.id !== id);

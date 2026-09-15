@@ -57,6 +57,15 @@ export async function fetchSubstations() {
   return data.substations;
 }
 
+// Détail d'un site (avec ses photos) — chargé à la demande, séparément de la
+// liste globale qui ne contient pas les photos (voir api/substations.js).
+export async function fetchSubstationDetail(id) {
+  const res = await authedFetch(`/api/substations?id=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('Impossible de récupérer le détail du site');
+  const data = await res.json();
+  return data.substation;
+}
+
 export async function fetchFiches() {
   const res = await authedFetch('/api/fiches');
   if (!res.ok) throw new Error('Impossible de récupérer les fiches');

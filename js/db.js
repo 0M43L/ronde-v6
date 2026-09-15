@@ -1,7 +1,7 @@
 // IndexedDB — stockage local offline-first.
 const DB_NAME = 'ronde_v6';
-const DB_VERSION = 1;
-const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue'];
+const DB_VERSION = 2;
+const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue', 'fiche_conflicts'];
 
 let dbPromise = null;
 
@@ -72,7 +72,10 @@ export async function clearStore(store) {
 
 // ===== File d'attente de synchronisation =====
 export async function queueSync(entity_type, action, payload) {
-  await put('sync_queue', { id: `${entity_type}_${payload.id}_${Date.now()}`, entity_type, action, payload });
+  // La plupart des payloads ont un .id, mais les opérations ciblées (ex :
+  // ajout/retrait d'une photo de site) portent plutôt un .substation_id.
+  const key = payload.id ?? payload.substation_id ?? 'x';
+  await put('sync_queue', { id: `${entity_type}_${key}_${Date.now()}`, entity_type, action, payload });
 }
 
 export async function getSyncQueue() {
@@ -81,4 +84,17 @@ export async function getSyncQueue() {
 
 export async function clearSyncQueueItems(ids) {
   for (const id of ids) await remove('sync_queue', id);
+}
+
+// ===== Conflits de fiches en attente de fusion manuelle =====
+export async function getFicheConflicts() {
+  return getAll('fiche_conflicts');
+}
+
+export async function addFicheConflict(conflict) {
+  await put('fiche_conflicts', conflict);
+}
+
+export async function removeFicheConflict(id) {
+  await remove('fiche_conflicts', id);
 }
