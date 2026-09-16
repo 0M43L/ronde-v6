@@ -4,7 +4,7 @@ import * as dbLayer from './db.js';
 import * as ui from './ui.js';
 import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
 import { prefetchTilesAround } from './tiles.js';
-import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener } from './sync.js';
+import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener, setSyncProgressListener } from './sync.js';
 
 // ===== CHARGEMENT PARESSEUX DES LIBRAIRIES EXTERNES =====
 // Leaflet/xlsx/html2pdf ne servent qu'à des fonctionnalités ponctuelles
@@ -167,6 +167,19 @@ setSyncErrorListener(async (failedItems, errors) => {
         : `${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
     );
   }
+});
+
+// Affiche une progression pendant l'envoi (utile surtout avec des photos,
+// où la synchro peut prendre plusieurs dizaines de secondes) : sans ça, le
+// badge reste figé sur "en attente" tout du long, sans aucun signe que ça
+// avance réellement. Le statut final (à jour / en attente / échec) reprend
+// la main dès que syncNow() se termine, via refreshSyncStatus() plus haut.
+setSyncProgressListener((processed, total) => {
+  if (total === 0 || processed >= total) return;
+  const pill = document.getElementById('syncPill');
+  const label = document.getElementById('syncLabel');
+  pill.className = 'sync-pill pending';
+  label.textContent = `synchro… ${Math.round((processed / total) * 100)}%`;
 });
 
 async function captureFicheConflict(item) {
