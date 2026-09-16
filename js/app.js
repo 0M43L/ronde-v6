@@ -1932,6 +1932,30 @@ document.getElementById('siteThresholdDays').addEventListener('change', (e) => {
   ui.renderSitesNonVisites(days);
 });
 
+// Tuiles de stats du Bilan : tapoter une tuile déplie le détail (sites/
+// rondes/actions comptés dedans) ; tapoter une ligne du détail saute vers
+// le site ou l'action correspondante, comme partout ailleurs dans l'appli.
+document.getElementById('bilanStats').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-action="toggle-stat-tile"]');
+  if (tile) {
+    ui.toggleStatTile(tile.dataset.key);
+    return;
+  }
+  const site = e.target.closest('[data-action="goto-site-alert"]');
+  if (site) {
+    ui.switchTab('sites');
+    ui.renderSiteList();
+    ui.selectSite(site.dataset.id);
+    loadSiteDetailIfNeeded(site.dataset.id);
+    return;
+  }
+  const action = e.target.closest('[data-action="goto-stat-action"]');
+  if (action) {
+    ui.switchTab('actions');
+    ui.expandAction(action.dataset.id);
+  }
+});
+
 document.getElementById('enableRemindersBtn').addEventListener('click', async () => {
   if (!('Notification' in window)) {
     ui.showToast('Notifications non supportées sur cet appareil');
