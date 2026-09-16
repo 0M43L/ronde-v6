@@ -843,6 +843,16 @@ document.getElementById('rondeSubstation').addEventListener('input', () => {
   saveRondeDraft();
 });
 
+// Le libellé d'un contrôle ("Absence de fuite", "Propreté du local"...) nomme
+// ce qui est vérifié, pas ce qui a été constaté : repris tel quel comme titre
+// d'action, "CB5 — Absence de fuite" se lit comme un état ("pas de fuite")
+// alors que l'action existe justement PARCE QUE ce contrôle est en anomalie
+// (donc, ici, qu'il y a bien une fuite). "Anomalie :" lève l'ambiguïté quel
+// que soit le libellé du contrôle.
+function buildAnomalyActionText(substationName, control) {
+  return `${substationName} — Anomalie : ${control.label}${control.comment ? ' — ' + control.comment : ''}`;
+}
+
 async function resolveOrCreateSubstation(name) {
   const trimmed = (name || '').trim();
   if (!trimmed) return null;
@@ -1123,7 +1133,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     const action = {
       id: `ACTION_${Date.now()}_${c.id}`,
       substation_id: substation.id,
-      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      text: buildAnomalyActionText(substation.name, c),
       severity: c.status === 'danger' ? 'danger' : 'warning',
       source: 'ronde',
       photo: c.photo || null,
@@ -1212,7 +1222,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       id: `ACTION_${Date.now()}_${c.id}`,
       substation_id: substation.id,
       ronde_id: ronde.id,
-      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      text: buildAnomalyActionText(substation.name, c),
       severity: c.status === 'danger' ? 'danger' : 'warning',
       source: 'ronde',
       photo: c.photo || null,
