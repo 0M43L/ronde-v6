@@ -13,11 +13,21 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    // ?since= (optionnel) : voir api/rondes.js pour le raisonnement complet.
+    const { since } = req.query;
     const result = await db.execute(
-      `SELECT m.id, m.substation_id, m.user_id, m.checks_json, m.poste_json, m.notes, m.created_at,
-              u.prenom AS user_prenom, u.nom AS user_nom
-       FROM mes_sessions m LEFT JOIN users u ON u.id = m.user_id
-       ORDER BY m.created_at DESC`
+      since
+        ? {
+            sql: `SELECT m.id, m.substation_id, m.user_id, m.checks_json, m.poste_json, m.notes, m.created_at,
+                         u.prenom AS user_prenom, u.nom AS user_nom
+                  FROM mes_sessions m LEFT JOIN users u ON u.id = m.user_id
+                  WHERE m.created_at >= datetime(?) ORDER BY m.created_at DESC`,
+            args: [since],
+          }
+        : `SELECT m.id, m.substation_id, m.user_id, m.checks_json, m.poste_json, m.notes, m.created_at,
+                  u.prenom AS user_prenom, u.nom AS user_nom
+           FROM mes_sessions m LEFT JOIN users u ON u.id = m.user_id
+           ORDER BY m.created_at DESC`
     );
 
     return res.json({

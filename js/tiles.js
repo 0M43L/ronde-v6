@@ -8,6 +8,16 @@
 const TILES_CACHE = 'ronde-v6-tiles';
 const ZOOMS = [14, 15, 16, 17];
 const SUBDOMAINS = 'abc';
+// Même plafond que sw.js (qui alimente aussi cette cache en pannant la
+// carte) : évite qu'elle ne grossisse indéfiniment au fil des visites.
+const TILES_CACHE_MAX = 800;
+
+async function trimTilesCache(cache) {
+  const keys = await cache.keys();
+  const excess = keys.length - TILES_CACHE_MAX;
+  if (excess <= 0) return;
+  await Promise.all(keys.slice(0, excess).map((k) => cache.delete(k)));
+}
 
 function tileXY(lat, lon, z) {
   const x = Math.floor(((lon + 180) / 360) * 2 ** z);
@@ -47,6 +57,7 @@ export async function prefetchTilesAround(lat, lon) {
         // Tuile indisponible (hors-ligne, serveur injoignable) : tant pis, pas bloquant.
       }
     }
+    trimTilesCache(cache).catch(() => {});
   } catch {
     // API Cache indisponible (navigateur trop ancien, mode privé strict...) : ignorer.
   }

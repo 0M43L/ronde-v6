@@ -12,11 +12,27 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    // ?since= (optionnel), même principe que rondes/mes-sessions — mais avec
+    // une nuance : une action non traitée doit TOUJOURS remonter, même créée
+    // il y a longtemps (sinon une action ancienne encore "en attente" sur
+    // laquelle un collègue vient d'agir n'apparaîtrait plus jamais comme
+    // traitée sur un appareil qui ne la revoit plus dans sa fenêtre récente).
+    // Seules les actions déjà traitées ET anciennes sortent du rafraîchissement.
+    const { since } = req.query;
     const result = await db.execute(
-      `SELECT a.id, a.user_id, a.substation_id, a.ronde_id, a.text, a.severity, a.source, a.photo, a.done, a.created_at,
-              u.prenom AS user_prenom, u.nom AS user_nom
-       FROM actions a LEFT JOIN users u ON u.id = a.user_id
-       ORDER BY a.created_at DESC`
+      since
+        ? {
+            sql: `SELECT a.id, a.user_id, a.substation_id, a.ronde_id, a.text, a.severity, a.source, a.photo, a.done, a.created_at,
+                         u.prenom AS user_prenom, u.nom AS user_nom
+                  FROM actions a LEFT JOIN users u ON u.id = a.user_id
+                  WHERE a.created_at >= datetime(?) OR a.done = 0
+                  ORDER BY a.created_at DESC`,
+            args: [since],
+          }
+        : `SELECT a.id, a.user_id, a.substation_id, a.ronde_id, a.text, a.severity, a.source, a.photo, a.done, a.created_at,
+                  u.prenom AS user_prenom, u.nom AS user_nom
+           FROM actions a LEFT JOIN users u ON u.id = a.user_id
+           ORDER BY a.created_at DESC`
     );
 
     return res.json({
