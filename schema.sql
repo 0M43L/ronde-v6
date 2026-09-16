@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS rondes (
 
 CREATE INDEX IF NOT EXISTS idx_rondes_substation ON rondes(substation_id);
 CREATE INDEX IF NOT EXISTS idx_rondes_user ON rondes(user_id);
+-- Utilisé par le filtre ?since= (voir api/rondes.js) : sans cet index, cette
+-- requête doit relire toute la table à chaque appel.
+CREATE INDEX IF NOT EXISTS idx_rondes_created ON rondes(created_at);
 
 -- Fiches = base de connaissances métier (pannes récurrentes, causes probables,
 -- solutions). is_reference=1 pour les fiches pré-remplies, 0 pour celles
@@ -99,6 +102,12 @@ CREATE TABLE IF NOT EXISTS actions (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE INDEX IF NOT EXISTS idx_actions_user ON actions(user_id);
+CREATE INDEX IF NOT EXISTS idx_actions_substation ON actions(substation_id);
+-- Utilisés par le filtre ?since= OR done=0 (voir api/actions.js).
+CREATE INDEX IF NOT EXISTS idx_actions_created ON actions(created_at);
+CREATE INDEX IF NOT EXISTS idx_actions_done ON actions(done);
+
 -- Sessions de mise en service. checks_json contient la liste des points de
 -- vérification cochés (structure libre : le nombre/contenu des points peut
 -- évoluer côté frontend sans migration de schéma).
@@ -111,3 +120,8 @@ CREATE TABLE IF NOT EXISTS mes_sessions (
   notes         TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_mes_substation ON mes_sessions(substation_id);
+CREATE INDEX IF NOT EXISTS idx_mes_user ON mes_sessions(user_id);
+-- Utilisé par le filtre ?since= (voir api/mes-sessions.js).
+CREATE INDEX IF NOT EXISTS idx_mes_created ON mes_sessions(created_at);
