@@ -445,6 +445,7 @@ async function loadAppData() {
 
   restoreRondeDraft();
   restoreMesDraft();
+  restoreFicheDraft();
 
   checkOverdueReminders();
 
@@ -1136,6 +1137,57 @@ const FICHE_FORM_FIELDS = {
 let ficheFormPhotos = [];
 let editingFicheId = null;
 
+// ===== BROUILLON DE FICHE (anti-perte) =====
+// Même risque que la ronde/MES corrigé la veille : le formulaire fiche
+// (titre + 8 champs + photos) peut prendre du temps à remplir sur le
+// terrain, mais rien n'est écrit en base avant le clic sur "Enregistrer".
+const FICHE_DRAFT_KEY = 'fiche_draft_v6';
+
+function saveFicheDraft() {
+  try {
+    const fields = {};
+    Object.keys(FICHE_FORM_FIELDS).forEach((elId) => (fields[elId] = document.getElementById(elId).value));
+    localStorage.setItem(
+      FICHE_DRAFT_KEY,
+      JSON.stringify({
+        title: document.getElementById('ficheTitle').value,
+        fields,
+        photos: ficheFormPhotos,
+        editingFicheId,
+      })
+    );
+  } catch {
+    // Quota localStorage dépassé : tant pis pour le brouillon.
+  }
+}
+
+function clearFicheDraft() {
+  localStorage.removeItem(FICHE_DRAFT_KEY);
+}
+
+function restoreFicheDraft() {
+  let draft;
+  try {
+    draft = JSON.parse(localStorage.getItem(FICHE_DRAFT_KEY) || 'null');
+  } catch {
+    draft = null;
+  }
+  if (!draft || (!draft.title && !Object.values(draft.fields || {}).some(Boolean) && !(draft.photos || []).length)) return;
+
+  editingFicheId = draft.editingFicheId || null;
+  document.getElementById('ficheTitle').value = draft.title || '';
+  Object.keys(FICHE_FORM_FIELDS).forEach((elId) => {
+    document.getElementById(elId).value = (draft.fields && draft.fields[elId]) || '';
+  });
+  ficheFormPhotos = draft.photos || [];
+  ui.renderFicheFormPhotos(ficheFormPhotos);
+  document.getElementById('addFicheCardTitle').textContent = editingFicheId ? 'Modifier la fiche' : 'Nouvelle fiche';
+  document.getElementById('addFicheBtn').textContent = editingFicheId ? 'Enregistrer les modifications' : 'Enregistrer la fiche';
+  document.getElementById('cancelFicheEditBtn').hidden = !editingFicheId;
+  document.getElementById('addFicheCard').hidden = false;
+  ui.showToast('Fiche en cours restaurée (travail non enregistré récupéré)');
+}
+
 function resetFicheForm() {
   document.getElementById('ficheTitle').value = '';
   Object.keys(FICHE_FORM_FIELDS).forEach((id) => (document.getElementById(id).value = ''));
@@ -1145,6 +1197,10 @@ function resetFicheForm() {
   document.getElementById('addFicheCardTitle').textContent = 'Nouvelle fiche';
   document.getElementById('addFicheBtn').textContent = 'Enregistrer la fiche';
   document.getElementById('cancelFicheEditBtn').hidden = true;
+  // Toujours vider le brouillon en même temps que le formulaire : les trois
+  // appelants (nouvelle fiche depuis zéro, annulation, sauvegarde réussie)
+  // signifient tous "abandonner l'état actuel du formulaire".
+  clearFicheDraft();
 }
 
 function openFicheFormForEdit(fiche) {
@@ -1160,6 +1216,10 @@ function openFicheFormForEdit(fiche) {
   document.getElementById('cancelFicheEditBtn').hidden = false;
   document.getElementById('addFicheCard').hidden = false;
   document.getElementById('addFicheCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Snapshot immédiat : un rechargement juste après avoir ouvert l'édition
+  // (avant la moindre frappe) doit retrouver CETTE fiche en cours de
+  // modification, pas un éventuel brouillon différent resté d'avant.
+  saveFicheDraft();
 }
 
 document.getElementById('toggleAddFicheBtn').addEventListener('click', () => {
@@ -1178,12 +1238,18 @@ document.getElementById('cancelFicheEditBtn').addEventListener('click', () => {
   document.getElementById('addFicheCard').hidden = true;
 });
 
+// Titre + les 8 champs texte du formulaire déclenchent tous un brouillon via
+// cette écoute déléguée sur le conteneur (couvre aussi le <select> urgence).
+document.getElementById('addFicheCard').addEventListener('input', saveFicheDraft);
+document.getElementById('addFicheCard').addEventListener('change', saveFicheDraft);
+
 document.getElementById('fichePhotoInput').addEventListener('change', async (e) => {
   if (!e.target.files[0]) return;
   const dataUrl = await fileToDataUrl(e.target.files[0]);
   ficheFormPhotos.push({ id: `PHOTO_${Date.now()}`, url: dataUrl });
   ui.renderFicheFormPhotos(ficheFormPhotos);
   e.target.value = '';
+  saveFicheDraft();
 });
 
 document.getElementById('ficheFormPhotoRow').addEventListener('click', (e) => {
@@ -1191,6 +1257,7 @@ document.getElementById('ficheFormPhotoRow').addEventListener('click', (e) => {
   if (!btn) return;
   ficheFormPhotos = ficheFormPhotos.filter((p) => p.id !== btn.dataset.photoId);
   ui.renderFicheFormPhotos(ficheFormPhotos);
+  saveFicheDraft();
 });
 
 document.getElementById('addFicheBtn').addEventListener('click', async () => {
