@@ -161,11 +161,18 @@ setSyncErrorListener(async (failedItems, errors) => {
     }
   }
   if (other.length > 0) {
-    ui.showToast(
-      other.length === 1
-        ? "1 élément n'a pas pu être synchronisé, nouvelle tentative automatique"
-        : `${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`
-    );
+    // Le message précis du serveur est affiché quand il y a peu d'éléments
+    // concernés (typiquement un ou deux) : un rejet répété (pas un simple
+    // aléa réseau) reste sinon invisible derrière un message générique,
+    // impossible à diagnostiquer sans ça.
+    if (other.length <= 3) {
+      other.forEach((item) => {
+        const code = errorById.get(item.id) || 'raison inconnue';
+        ui.showToast(`Échec de synchro (${item.entity_type}) : ${code}`);
+      });
+    } else {
+      ui.showToast(`${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`);
+    }
   }
 });
 
