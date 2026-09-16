@@ -147,6 +147,7 @@ document.getElementById('syncPill').addEventListener('click', async () => {
 // versions sont mises de côté pour que le technicien les compare et
 // choisisse lui-même quoi garder, champ par champ — jamais un écrasement
 // automatique et jamais une perte silencieuse.
+const shownSyncErrorKeys = new Set();
 setSyncErrorListener(async (failedItems, errors) => {
   const errorById = new Map(errors.map((e) => [e.id, e.error]));
   const other = [];
@@ -164,11 +165,18 @@ setSyncErrorListener(async (failedItems, errors) => {
     // Le message précis du serveur est affiché quand il y a peu d'éléments
     // concernés (typiquement un ou deux) : un rejet répété (pas un simple
     // aléa réseau) reste sinon invisible derrière un message générique,
-    // impossible à diagnostiquer sans ça.
+    // impossible à diagnostiquer sans ça. Affiché en "sticky" (ne disparaît
+    // qu'au clic) pour laisser le temps de le lire ou d'en faire une capture
+    // d'écran, plutôt qu'un toast classique qui s'efface après 2,6s. Montré
+    // une seule fois par élément+raison — sinon la même tentative automatique
+    // toutes les 5 minutes en réafficherait un nouveau indéfiniment.
     if (other.length <= 3) {
       other.forEach((item) => {
         const code = errorById.get(item.id) || 'raison inconnue';
-        ui.showToast(`Échec de synchro (${item.entity_type}) : ${code}`);
+        const key = `${item.id}:${code}`;
+        if (shownSyncErrorKeys.has(key)) return;
+        shownSyncErrorKeys.add(key);
+        ui.showToast(`Échec de synchro (${item.entity_type}) : ${code}`, { sticky: true });
       });
     } else {
       ui.showToast(`${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`);
@@ -835,6 +843,16 @@ document.getElementById('rondeSubstation').addEventListener('input', () => {
   saveRondeDraft();
 });
 
+// Le libellé d'un contrôle ("Absence de fuite", "Propreté du local"...) nomme
+// ce qui est vérifié, pas ce qui a été constaté : repris tel quel comme titre
+// d'action, "CB5 — Absence de fuite" se lit comme un état ("pas de fuite")
+// alors que l'action existe justement PARCE QUE ce contrôle est en anomalie
+// (donc, ici, qu'il y a bien une fuite). "Anomalie :" lève l'ambiguïté quel
+// que soit le libellé du contrôle.
+function buildAnomalyActionText(substationName, control) {
+  return `${substationName} — Anomalie : ${control.label}${control.comment ? ' — ' + control.comment : ''}`;
+}
+
 async function resolveOrCreateSubstation(name) {
   const trimmed = (name || '').trim();
   if (!trimmed) return null;
@@ -1115,7 +1133,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     const action = {
       id: `ACTION_${Date.now()}_${c.id}`,
       substation_id: substation.id,
-      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      text: buildAnomalyActionText(substation.name, c),
       severity: c.status === 'danger' ? 'danger' : 'warning',
       source: 'ronde',
       photo: c.photo || null,
@@ -1204,7 +1222,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       id: `ACTION_${Date.now()}_${c.id}`,
       substation_id: substation.id,
       ronde_id: ronde.id,
-      text: `${substation.name} — ${c.label}${c.comment ? ' : ' + c.comment : ''}`,
+      text: buildAnomalyActionText(substation.name, c),
       severity: c.status === 'danger' ? 'danger' : 'warning',
       source: 'ronde',
       photo: c.photo || null,
