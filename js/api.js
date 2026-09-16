@@ -84,22 +84,27 @@ export async function fetchFiches() {
   return data.fiches;
 }
 
-export async function fetchRondes() {
-  const res = await authedFetch('/api/rondes');
+// `since` (optionnel, date ISO) : ne récupère que les enregistrements créés
+// après cette date — voir loadAppData() côté client pour quand/pourquoi.
+export async function fetchRondes(since) {
+  const url = since ? `/api/rondes?since=${encodeURIComponent(since)}` : '/api/rondes';
+  const res = await authedFetch(url);
   if (!res.ok) throw new Error('Impossible de récupérer les rondes');
   const data = await res.json();
   return data.rondes;
 }
 
-export async function fetchActions() {
-  const res = await authedFetch('/api/actions');
+export async function fetchActions(since) {
+  const url = since ? `/api/actions?since=${encodeURIComponent(since)}` : '/api/actions';
+  const res = await authedFetch(url);
   if (!res.ok) throw new Error('Impossible de récupérer les actions');
   const data = await res.json();
   return data.actions;
 }
 
-export async function fetchMesSessions() {
-  const res = await authedFetch('/api/mes-sessions');
+export async function fetchMesSessions(since) {
+  const url = since ? `/api/mes-sessions?since=${encodeURIComponent(since)}` : '/api/mes-sessions';
+  const res = await authedFetch(url);
   if (!res.ok) throw new Error('Impossible de récupérer les sessions MES');
   const data = await res.json();
   return data.sessions;

@@ -21,15 +21,34 @@ export default async function handler(req, res) {
     let synced = 0;
     const errors = [];
 
+    // Regroupées par ligne visée (même sous-station pour un ajout de photo/
+    // commentaire, même id pour le reste) : les groupes tournent en
+    // parallèle — ce qui accélère beaucoup une resynchro après une longue
+    // coupure réseau, où la file contient souvent des dizaines d'éléments
+    // indépendants — mais chaque groupe reste traité dans l'ordre pour ne
+    // jamais risquer que deux écritures sur LE MÊME enregistrement (ex. deux
+    // photos ajoutées au même site dans le même lot) se marchent dessus en
+    // lisant chacune l'ancienne valeur avant que l'autre n'ait écrit la sienne.
+    const groups = new Map();
     for (const item of queue) {
-      try {
-        await syncItem(item, user.id, user);
-        synced++;
-      } catch (err) {
-        console.error('Sync item error:', item.id, err);
-        errors.push({ id: item.id, error: err.message });
-      }
+      const key = conflictKeyFor(item);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
     }
+
+    await Promise.all(
+      Array.from(groups.values()).map(async (group) => {
+        for (const item of group) {
+          try {
+            await syncItem(item, user.id, user);
+            synced++;
+          } catch (err) {
+            console.error('Sync item error:', item.id, err);
+            errors.push({ id: item.id, error: err.message });
+          }
+        }
+      })
+    );
 
     return res.json({ ok: true, synced, errors });
   } catch (error) {
@@ -49,6 +68,18 @@ async function assertOwnerOrNew(table, id, userId) {
     err.code = 'FORBIDDEN_NOT_OWNER';
     throw err;
   }
+}
+
+// La clé identifie la ligne réellement modifiée en base. Pour les photos/
+// commentaires de sous-station, plusieurs opérations peuvent viser la même
+// sous-station (même si elles portent des ids de photo/commentaire
+// différents) puisqu'elles lisent-modifient-écrivent le même champ JSON —
+// elles doivent donc rester dans le même groupe séquentiel.
+function conflictKeyFor(item) {
+  if (item.entity_type === 'substation_photo' || item.entity_type === 'substation_comment') {
+    return `substation:${item.payload.substation_id}`;
+  }
+  return `${item.entity_type}:${item.payload.id}`;
 }
 
 async function syncItem(item, userId, user) {

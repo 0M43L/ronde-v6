@@ -6,6 +6,48 @@ import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvaila
 import { prefetchTilesAround } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener } from './sync.js';
 
+// ===== CHARGEMENT PARESSEUX DES LIBRAIRIES EXTERNES =====
+// Leaflet/xlsx/html2pdf ne servent qu'à des fonctionnalités ponctuelles
+// (carte, export Excel, export PDF). Les charger via des <script> classiques
+// dans le HTML (comme avant) les rendait bloquants : le navigateur devait
+// finir de les télécharger et exécuter avant même de commencer à afficher
+// l'appli, à chaque ouverture, que le technicien s'en serve ou non dans la
+// session. Chargées à la demande à la place — jamais pour rien.
+const scriptPromises = new Map();
+function loadScript(src) {
+  if (!scriptPromises.has(src)) {
+    scriptPromises.set(
+      src,
+      new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = src;
+        el.onload = () => resolve();
+        el.onerror = () => reject(new Error(`Échec du chargement de ${src}`));
+        document.head.appendChild(el);
+      })
+    );
+  }
+  return scriptPromises.get(src);
+}
+
+const LEAFLET_URL = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const HTML2PDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+
+// Démarrée en tâche de fond dès l'entrée dans l'appli (la carte est sur
+// l'onglet Ronde, affiché dès l'ouverture) mais sans jamais bloquer le
+// reste : initMap()/renderMarkers() (voir map.js) ne font rien tant que
+// Leaflet n'est pas prêt, il suffit de les rappeler une fois chargé.
+function ensureLeaflet() {
+  return loadScript(LEAFLET_URL);
+}
+async function ensureXlsx() {
+  if (typeof XLSX === 'undefined') await loadScript(XLSX_URL);
+}
+async function ensureHtml2pdf() {
+  if (typeof html2pdf === 'undefined') await loadScript(HTML2PDF_URL);
+}
+
 // Détection de mise à jour : sans ça, un technicien qui garde l'appli
 // ouverte (ou la rouvre sans la fermer complètement d'abord) continue de
 // tourner sur le JS mis en cache avant un déploiement — les nouvelles
@@ -278,6 +320,21 @@ async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
   document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
+  // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
+  // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
+  ensureLeaflet()
+    .then(() => {
+      initMap();
+      renderSiteMarkers();
+      invalidateMapSize();
+    })
+    .catch(() => {
+      const mapEl = document.getElementById('map');
+      if (mapEl && !isMapAvailable()) {
+        mapEl.innerHTML =
+          '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
+      }
+    });
   await loadAppData();
 }
 
@@ -427,11 +484,13 @@ async function loadAppData() {
 
   checkOverdueReminders();
 
+  // Leaflet est chargé à la demande (voir ensureLeaflet() dans enterApp()) :
+  // à ce stade il n'est pas forcément encore prêt, initMap()/renderSiteMarkers()
+  // ne font alors rien pour l'instant (voir map.js) — le message "carte
+  // indisponible" n'est affiché que si le chargement échoue vraiment (voir
+  // le .catch() d'ensureLeaflet() dans enterApp()), jamais juste parce qu'il
+  // est encore en cours.
   initMap();
-  if (!isMapAvailable()) {
-    document.getElementById('map').innerHTML =
-      '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
-  }
   renderSiteMarkers();
   invalidateMapSize();
 
@@ -446,6 +505,17 @@ async function loadAppData() {
   // voit déjà l'écran rempli avec le cache. Chaque entité garde son propre
   // repli sur le cache local en cas d'échec individuel (une fiche
   // indisponible ne doit pas bloquer les rondes, par exemple).
+  //
+  // Rondes/actions/sessions MES : sur un appareil qui a déjà tout
+  // l'historique en cache (mergeById() n'efface jamais une entrée locale
+  // absente de la réponse serveur, il ne fait qu'ajouter/mettre à jour), on
+  // ne redemande que ce qui a changé récemment plutôt que l'intégralité de
+  // l'historique de toute l'équipe depuis le début — sans ça, ce poids ne
+  // ferait que grossir à chaque ouverture au fil des mois. Un appareil qui
+  // n'a encore rien en cache (première ouverture, appli réinstallée)
+  // continue de tout récupérer d'un coup, comme avant.
+  const RECENT_WINDOW_DAYS = 180;
+  const sinceIso = new Date(Date.now() - RECENT_WINDOW_DAYS * 86400000).toISOString();
   Promise.all([
     (async () => {
       try {
@@ -481,7 +551,7 @@ async function loadAppData() {
     })(),
     (async () => {
       try {
-        const fresh = await api.fetchRondes();
+        const fresh = await api.fetchRondes(cachedRondes.length > 0 ? sinceIso : undefined);
         state.rondes = mergeById(cachedRondes, fresh, pendingIdsFor('ronde'));
         await dbLayer.putAll('rondes', state.rondes);
       } catch {
@@ -490,7 +560,7 @@ async function loadAppData() {
     })(),
     (async () => {
       try {
-        const fresh = await api.fetchActions();
+        const fresh = await api.fetchActions(cachedActions.length > 0 ? sinceIso : undefined);
         state.actions = mergeById(cachedActions, fresh, pendingIdsFor('action'));
         await dbLayer.putAll('actions', state.actions);
       } catch {
@@ -499,7 +569,7 @@ async function loadAppData() {
     })(),
     (async () => {
       try {
-        const fresh = await api.fetchMesSessions();
+        const fresh = await api.fetchMesSessions(cachedMes.length > 0 ? sinceIso : undefined);
         state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
         await dbLayer.putAll('mes', state.mesSessions);
       } catch {
@@ -1161,7 +1231,8 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   syncNow().catch(() => {});
 });
 
-document.getElementById('exportPdfBtn').addEventListener('click', () => {
+document.getElementById('exportPdfBtn').addEventListener('click', async () => {
+  await ensureHtml2pdf().catch(() => {});
   if (typeof html2pdf === 'undefined') {
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;
@@ -1701,7 +1772,8 @@ document.getElementById('histFilterChips').addEventListener('click', (e) => {
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
-document.getElementById('exportExcelBtn').addEventListener('click', () => {
+document.getElementById('exportExcelBtn').addEventListener('click', async () => {
+  await ensureXlsx().catch(() => {});
   if (typeof XLSX === 'undefined') {
     ui.showToast('Export Excel indisponible hors-ligne pour l\'instant');
     return;
@@ -1905,7 +1977,8 @@ document.getElementById('clearHistoryBtn').addEventListener('click', async () =>
 });
 
 // ===== BILAN AVANCÉ =====
-document.getElementById('weeklyReportBtn').addEventListener('click', () => {
+document.getElementById('weeklyReportBtn').addEventListener('click', async () => {
+  await ensureHtml2pdf().catch(() => {});
   if (typeof html2pdf === 'undefined') {
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;

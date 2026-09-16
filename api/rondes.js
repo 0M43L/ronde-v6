@@ -12,9 +12,23 @@ export default async function handler(req, res) {
   if (!user) return;
 
   try {
+    // ?since= (optionnel) : ne renvoie que les rondes créées après cette date.
+    // Le client s'en sert pour les rechargements courants une fois qu'il a
+    // déjà toute l'historique en cache local (voir loadAppData côté client) —
+    // sans ça, chaque ouverture de l'appli retélécharge l'intégralité de
+    // l'historique de toute l'équipe depuis le début, un poids qui ne fait
+    // que grossir au fil des mois. datetime(?) normalise le format reçu
+    // (ISO 8601 avec 'T'/'Z') vers celui stocké en base avant comparaison.
+    const { since } = req.query;
     const result = await db.execute(
-      `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, created_at
-       FROM rondes ORDER BY created_at DESC`
+      since
+        ? {
+            sql: `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, created_at
+                  FROM rondes WHERE created_at >= datetime(?) ORDER BY created_at DESC`,
+            args: [since],
+          }
+        : `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, created_at
+           FROM rondes ORDER BY created_at DESC`
     );
 
     return res.json({
