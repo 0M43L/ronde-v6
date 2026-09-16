@@ -210,33 +210,110 @@ function isWithinDays(dateStr, days) {
   return diff >= 0 && diff <= days;
 }
 
+// Sous-stations/rondes/actions dont sont composés les compteurs du bilan :
+// tapoter une tuile déplie le détail des éléments comptés, pour ne pas avoir
+// à deviner ce qui se cache derrière un simple nombre.
+let expandedStatTileKey = null;
+
+export function toggleStatTile(key) {
+  expandedStatTileKey = expandedStatTileKey === key ? null : key;
+  renderBilanStats();
+}
+
+function siteRowsDetail(ids, rondes) {
+  const rows = Array.from(ids)
+    .map((id) => {
+      const rondesForSite = rondes
+        .filter((r) => r.substation_id === id)
+        .sort((a, b) => `${b.date || ''}${b.heure || ''}`.localeCompare(`${a.date || ''}${a.heure || ''}`));
+      const last = rondesForSite[0];
+      const substation = state.substations.find((s) => s.id === id);
+      return { id, name: substation ? substation.name : null, count: rondesForSite.length, lastDate: last?.date, lastHeure: last?.heure };
+    })
+    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
+  return rows
+    .map(
+      (r) => `<div class="item" ${r.name ? `data-action="goto-site-alert" data-id="${r.id}" style="cursor:pointer;"` : ''}>
+        <div class="item-title">${escapeHtml(r.name || 'Site introuvable (supprimé ?)')}</div>
+        <div class="item-meta">${r.count} ronde${r.count > 1 ? 's' : ''} · dernière le ${escapeHtml(r.lastDate || '?')}${r.lastHeure ? ` à ${escapeHtml(r.lastHeure)}` : ''}</div>
+      </div>`
+    )
+    .join('');
+}
+
+function rondeRowsDetail(rondes) {
+  return rondes
+    .slice()
+    .sort((a, b) => `${b.date || ''}${b.heure || ''}`.localeCompare(`${a.date || ''}${a.heure || ''}`))
+    .map((r) => {
+      const substation = state.substations.find((s) => s.id === r.substation_id);
+      const statut = r.statut || 'operationnel';
+      return `<div class="item" ${substation ? `data-action="goto-site-alert" data-id="${substation.id}" style="cursor:pointer;"` : ''}>
+        <div class="item-row" style="justify-content:space-between;align-items:center;">
+          <div>
+            <div class="item-title">${escapeHtml(substation ? substation.name : 'Site introuvable (supprimé ?)')}</div>
+            <div class="item-meta">${escapeHtml(r.date || '')}${r.heure ? ` à ${escapeHtml(r.heure)}` : ''}${r.tech ? ` · ${escapeHtml(r.tech)}` : ''}</div>
+          </div>
+          ${SITE_STATUT_BADGE[statut] || ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+function actionRowsDetail(actions) {
+  return actions
+    .slice()
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .map((a) => {
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      return `<div class="item" data-action="goto-stat-action" data-id="${a.id}" style="cursor:pointer;">
+        <div class="item-title">
+          ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span> ` : ''}
+          ${escapeHtml(a.text)}
+        </div>
+        <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}${substation ? ` · ${escapeHtml(substation.name)}` : ''}</div>
+      </div>`;
+    })
+    .join('');
+}
+
 export function renderBilanStats() {
   const el = document.getElementById('bilanStats');
   const rondesWeek = state.rondes.filter((r) => isWithinDays(r.date, 7));
   const rondesMonth = state.rondes.filter((r) => isWithinDays(r.date, 30));
-  const sstWeek = new Set(rondesWeek.map((r) => r.substation_id)).size;
-  const sstMonth = new Set(rondesMonth.map((r) => r.substation_id)).size;
-  const openActions = state.actions.filter((a) => !a.done).length;
-  const urgentActions = state.actions.filter((a) => !a.done && a.severity === 'danger').length;
+  const sstWeekIds = new Set(rondesWeek.map((r) => r.substation_id));
+  const sstMonthIds = new Set(rondesMonth.map((r) => r.substation_id));
+  const openActionsList = state.actions.filter((a) => !a.done);
+  const urgentActionsList = openActionsList.filter((a) => a.severity === 'danger');
 
   const tiles = [
-    { value: sstWeek, label: 'Sous-stations vues cette semaine', icon: 'building' },
-    { value: rondesWeek.length, label: 'Rondes cette semaine', icon: 'clipboard' },
-    { value: sstMonth, label: 'Sous-stations vues ce mois', icon: 'building' },
-    { value: rondesMonth.length, label: 'Rondes ce mois', icon: 'clipboard' },
-    { value: openActions, label: 'Actions en attente', icon: 'wrench' },
-    { value: urgentActions, label: 'Actions urgentes', icon: 'alertTriangle', danger: urgentActions > 0 },
+    { key: 'sstWeek', value: sstWeekIds.size, label: 'Sous-stations vues cette semaine', icon: 'building', detail: () => siteRowsDetail(sstWeekIds, rondesWeek) },
+    { key: 'rondesWeek', value: rondesWeek.length, label: 'Rondes cette semaine', icon: 'clipboard', detail: () => rondeRowsDetail(rondesWeek) },
+    { key: 'sstMonth', value: sstMonthIds.size, label: 'Sous-stations vues ce mois', icon: 'building', detail: () => siteRowsDetail(sstMonthIds, rondesMonth) },
+    { key: 'rondesMonth', value: rondesMonth.length, label: 'Rondes ce mois', icon: 'clipboard', detail: () => rondeRowsDetail(rondesMonth) },
+    { key: 'openActions', value: openActionsList.length, label: 'Actions en attente', icon: 'wrench', detail: () => actionRowsDetail(openActionsList) },
+    { key: 'urgentActions', value: urgentActionsList.length, label: 'Actions urgentes', icon: 'alertTriangle', danger: urgentActionsList.length > 0, detail: () => actionRowsDetail(urgentActionsList) },
   ];
 
-  el.innerHTML = tiles
-    .map(
-      (t) => `<div class="stat-tile${t.danger ? ' stat-tile-danger' : ''}">
+  const activeTile = tiles.find((t) => t.key === expandedStatTileKey);
+
+  el.innerHTML =
+    tiles
+      .map(
+        (t) => `<div class="stat-tile${t.danger ? ' stat-tile-danger' : ''}${activeTile === t ? ' active' : ''}" data-action="toggle-stat-tile" data-key="${t.key}">
         <div class="stat-tile-icon">${icon(t.icon, 16)}</div>
         <div class="value">${t.value}</div>
         <div class="label">${t.label}</div>
       </div>`
-    )
-    .join('');
+      )
+      .join('') +
+    (activeTile
+      ? `<div class="stat-tile-detail">
+          <div class="stat-tile-detail-header">${escapeHtml(activeTile.label)}</div>
+          ${activeTile.value === 0 ? '<div class="hint">Rien à afficher.</div>' : activeTile.detail()}
+        </div>`
+      : '');
 }
 
 // ===== DIAGNOSTIC IA =====
@@ -588,6 +665,14 @@ let expandedActionId = null;
 
 export function toggleActionDetail(id) {
   expandedActionId = expandedActionId === id ? null : id;
+  renderActions();
+}
+
+// Ouvre directement le détail d'une action donnée (au lieu de le basculer) —
+// utilisé quand on saute vers une action depuis ailleurs (ex. détail d'une
+// tuile de stat du Bilan), où l'on veut toujours l'afficher, pas l'inverser.
+export function expandAction(id) {
+  expandedActionId = id;
   renderActions();
 }
 
