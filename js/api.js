@@ -31,16 +31,33 @@ export async function logout() {
   }
 }
 
-async function authedFetch(url, options = {}) {
+// Sans limite de temps, une requête sur un réseau faible (sous-sol, zone
+// blanche...) peut rester en attente indéfiniment — ni succès ni échec —
+// au lieu de rendre la main : côté synchro par exemple, ça bloquait
+// l'indicateur de progression figé sur un pourcentage pendant plusieurs
+// minutes sans que rien ne se passe, ni du côté du technicien ni du côté
+// de l'appli (pas d'erreur à laquelle réagir). 30s laisse largement le
+// temps à une photo compressée de passer même sur un réseau lent, tout en
+// finissant par échouer proprement plutôt que de pendre pour de bon.
+const DEFAULT_TIMEOUT_MS = 30000;
+
+async function authedFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const token = getToken();
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  return res;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function login(email, password) {
