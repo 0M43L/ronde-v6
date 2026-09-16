@@ -330,6 +330,17 @@ function checkOverdueReminders() {
   }
 }
 
+// Date et heure "maintenant" sur la ronde : appelé au chargement de l'appli,
+// à chaque retour sur l'onglet Ronde, et après l'archivage d'une ronde —
+// sans ça, un technicien qui enchaîne plusieurs rondes dans la même session
+// (sans recharger l'appli entre chacune) se retrouvait avec l'horodatage de
+// la toute première ronde encore affiché pour la suivante, obligé de le
+// corriger à la main à chaque fois.
+function refreshRondeDateTime() {
+  document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
+}
+
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
   const queue = await dbLayer.getSyncQueue();
@@ -437,8 +448,7 @@ async function loadAppData() {
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.renderStorageUsage();
 
-  document.getElementById('rondeDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
+  refreshRondeDateTime();
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
   document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
   document.getElementById('siteThresholdDays').value = getSiteThreshold();
@@ -472,7 +482,15 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   const tab = e.target.closest('.tab');
   if (!tab) return;
   ui.switchTab(tab.dataset.tab);
-  if (tab.dataset.tab === 'ronde') invalidateMapSize();
+  if (tab.dataset.tab === 'ronde') {
+    invalidateMapSize();
+    // Seulement si aucune ronde n'est en cours de saisie (sinon on écraserait
+    // l'horodatage réel du début de l'intervention en cours). Le champ
+    // sous-station n'est PAS un bon indicateur : il reste rempli après un
+    // archivage (pour enchaîner plusieurs contrôles sur le même site sans
+    // retaper son nom), donc c'est le brouillon réel qui fait foi.
+    if (!localStorage.getItem(RONDE_DRAFT_KEY)) refreshRondeDateTime();
+  }
   if (tab.dataset.tab === 'bilan') {
     ui.renderBilanStats();
     ui.renderBilanTrend();
@@ -1078,6 +1096,11 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   document.getElementById('rondeObservations').value = '';
   resetControls();
   clearRondeDraft();
+  // Prépare la prochaine ronde : horodatage remis à "maintenant" et
+  // intervenant remis au compte connecté (au cas où il aurait été modifié
+  // pour un remplacement ponctuel sur la ronde qui vient d'être archivée).
+  refreshRondeDateTime();
+  document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
