@@ -38,6 +38,19 @@ export default async function handler(req, res) {
   }
 }
 
+// Lève une erreur si l'enregistrement existe déjà ET appartient à quelqu'un
+// d'autre. Ne bloque jamais la création d'un nouvel enregistrement (pas de
+// ligne existante) ni la resynchro de son propre enregistrement.
+async function assertOwnerOrNew(table, id, userId) {
+  const existing = await db.execute({ sql: `SELECT user_id FROM ${table} WHERE id = ?`, args: [id] });
+  const row = existing.rows[0];
+  if (row && row.user_id && row.user_id !== userId) {
+    const err = new Error('FORBIDDEN_NOT_OWNER');
+    err.code = 'FORBIDDEN_NOT_OWNER';
+    throw err;
+  }
+}
+
 async function syncItem(item, userId, user) {
   const { entity_type, action, payload } = item;
 
@@ -46,7 +59,13 @@ async function syncItem(item, userId, user) {
   }
 
   switch (entity_type) {
-    case 'ronde':
+    // Une ronde n'a de sens que rattachée à qui l'a faite : contrairement aux
+    // actions (voir plus bas), il n'y a pas de cas légitime où quelqu'un
+    // d'autre a besoin de modifier une ronde existante. Même vérification
+    // que pour la suppression (OWNED_TABLES), appliquée ici à la mise à jour
+    // pour qu'elle ne soit pas le seul chemin resté ouvert à tous.
+    case 'ronde': {
+      await assertOwnerOrNew('rondes', payload.id, userId);
       return db.execute({
         sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -66,6 +85,7 @@ async function syncItem(item, userId, user) {
           payload.statut || 'operationnel',
         ],
       });
+    }
 
     // Les photos ne passent plus par ce chemin (voir 'substation_photo' plus
     // bas) : un upsert ici n'écrase donc jamais photos_json, même si le
@@ -192,7 +212,25 @@ async function syncItem(item, userId, user) {
       return result;
     }
 
-    case 'action':
+    // Les actions sont un cas particulier : n'importe quel technicien doit
+    // pouvoir cocher/traiter une action créée par un collègue (workflow
+    // d'équipe voulu, voir renderActions côté client — la case à cocher
+    // n'est pas limitée à l'auteur). Mais rien ne justifie qu'un tiers
+    // réécrive le texte ou la gravité d'une action qu'il n'a pas créée :
+    // seul "done"/"photo" (le résultat du traitement) reste ouvert à tous,
+    // le contenu original reste protégé comme pour une fiche.
+    case 'action': {
+      const existing = await db.execute({ sql: `SELECT user_id FROM actions WHERE id = ?`, args: [payload.id] });
+      const row = existing.rows[0];
+      const isOwner = !row || !row.user_id || row.user_id === userId;
+
+      if (!isOwner) {
+        return db.execute({
+          sql: `UPDATE actions SET done = ?, photo = ? WHERE id = ?`,
+          args: [payload.done ? 1 : 0, payload.photo || null, payload.id],
+        });
+      }
+
       return db.execute({
         sql: `INSERT INTO actions (id, user_id, substation_id, ronde_id, text, severity, source, photo, done)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -211,14 +249,19 @@ async function syncItem(item, userId, user) {
           payload.done ? 1 : 0,
         ],
       });
+    }
 
-    case 'mes_session':
+    // Comme les rondes : une session MES appartient à qui l'a faite, pas de
+    // cas légitime où un collègue la modifierait après coup.
+    case 'mes_session': {
+      await assertOwnerOrNew('mes_sessions', payload.id, userId);
       return db.execute({
         sql: `INSERT INTO mes_sessions (id, substation_id, user_id, checks_json, poste_json, notes)
               VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET checks_json = excluded.checks_json, poste_json = excluded.poste_json, notes = excluded.notes`,
         args: [payload.id, payload.substation_id || null, userId, JSON.stringify(payload.checks || []), JSON.stringify(payload.poste || {}), payload.notes || ''],
       });
+    }
 
     default:
       throw new Error(`Type inconnu: ${entity_type}`);
