@@ -21,44 +21,71 @@ export default async function handler(req, res) {
     let synced = 0;
     const errors = [];
 
-    // Regroupées par ligne visée (même sous-station pour un ajout de photo/
-    // commentaire, même id pour le reste) : les groupes tournent en
-    // parallèle — ce qui accélère beaucoup une resynchro après une longue
-    // coupure réseau, où la file contient souvent des dizaines d'éléments
-    // indépendants — mais chaque groupe reste traité dans l'ordre pour ne
-    // jamais risquer que deux écritures sur LE MÊME enregistrement (ex. deux
-    // photos ajoutées au même site dans le même lot) se marchent dessus en
-    // lisant chacune l'ancienne valeur avant que l'autre n'ait écrit la sienne.
-    // conflictKeyFor() ne doit JAMAIS faire échouer tout le lot : un seul
-    // élément mal formé (ancien format, bug côté client...) ne doit pas
-    // empêcher les 5 autres de synchroniser — on lui donne sa propre clé
-    // isolée plutôt que de laisser l'exception remonter jusqu'au handler.
-    const groups = new Map();
+    // Traité par VAGUES de dépendance (sous-stations d'abord, puis rondes/
+    // sessions MES, puis actions/fiches) avant le regroupement par lot en
+    // parallèle : une ronde faite sur un site tout juste créé (même envoi)
+    // référence ce site par son id — si les deux étaient tentés en même
+    // temps (groupes différents, donc en parallèle), la ronde pouvait être
+    // insérée AVANT que le site n'existe vraiment en base, et échouer alors
+    // systématiquement à chaque tentative (la contrainte n'est jamais
+    // satisfaite, retenter le même envoi ne change rien). Une action/fiche
+    // peut à son tour référencer une ronde du même envoi, d'où la 3e vague.
+    const TIER = {
+      substation: 0,
+      ronde: 1,
+      mes_session: 1,
+      substation_photo: 1,
+      substation_comment: 1,
+      action: 2,
+      fiche: 2,
+    };
+    const waves = [[], [], []];
     for (const item of queue) {
-      let key;
-      try {
-        key = conflictKeyFor(item);
-      } catch (err) {
-        console.error('Sync grouping error:', item?.id, err);
-        key = `_isolated_${item?.id ?? Math.random()}`;
-      }
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
+      waves[TIER[item.entity_type] ?? 0].push(item);
     }
 
-    await Promise.all(
-      Array.from(groups.values()).map(async (group) => {
-        for (const item of group) {
-          try {
-            await syncItem(item, user.id, user);
-            synced++;
-          } catch (err) {
-            console.error('Sync item error:', item.id, err);
-            errors.push({ id: item.id, error: err.message });
-          }
+    for (const wave of waves) {
+      if (wave.length === 0) continue;
+
+      // Regroupées par ligne visée (même sous-station pour un ajout de photo/
+      // commentaire, même id pour le reste) : les groupes tournent en
+      // parallèle — ce qui accélère beaucoup une resynchro après une longue
+      // coupure réseau, où la file contient souvent des dizaines d'éléments
+      // indépendants — mais chaque groupe reste traité dans l'ordre pour ne
+      // jamais risquer que deux écritures sur LE MÊME enregistrement (ex.
+      // deux photos ajoutées au même site dans le même lot) se marchent
+      // dessus en lisant chacune l'ancienne valeur avant que l'autre n'ait
+      // écrit la sienne. conflictKeyFor() ne doit JAMAIS faire échouer toute
+      // la vague : un seul élément mal formé (ancien format, bug côté
+      // client...) ne doit pas empêcher les autres de synchroniser — on lui
+      // donne sa propre clé isolée plutôt que de laisser l'exception remonter.
+      const groups = new Map();
+      for (const item of wave) {
+        let key;
+        try {
+          key = conflictKeyFor(item);
+        } catch (err) {
+          console.error('Sync grouping error:', item?.id, err);
+          key = `_isolated_${item?.id ?? Math.random()}`;
         }
-      })
-    );
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+
+      await Promise.all(
+        Array.from(groups.values()).map(async (group) => {
+          for (const item of group) {
+            try {
+              await syncItem(item, user.id, user);
+              synced++;
+            } catch (err) {
+              console.error('Sync item error:', item.id, err);
+              errors.push({ id: item.id, error: err.message });
+            }
+          }
+        })
+      );
+    }
 
     return res.json({ ok: true, synced, errors });
   } catch (error) {
