@@ -29,9 +29,19 @@ export default async function handler(req, res) {
     // jamais risquer que deux écritures sur LE MÊME enregistrement (ex. deux
     // photos ajoutées au même site dans le même lot) se marchent dessus en
     // lisant chacune l'ancienne valeur avant que l'autre n'ait écrit la sienne.
+    // conflictKeyFor() ne doit JAMAIS faire échouer tout le lot : un seul
+    // élément mal formé (ancien format, bug côté client...) ne doit pas
+    // empêcher les 5 autres de synchroniser — on lui donne sa propre clé
+    // isolée plutôt que de laisser l'exception remonter jusqu'au handler.
     const groups = new Map();
     for (const item of queue) {
-      const key = conflictKeyFor(item);
+      let key;
+      try {
+        key = conflictKeyFor(item);
+      } catch (err) {
+        console.error('Sync grouping error:', item?.id, err);
+        key = `_isolated_${item?.id ?? Math.random()}`;
+      }
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     }
