@@ -3,6 +3,7 @@ import { pushSyncQueue } from './api.js';
 
 let onStatusChange = () => {};
 let onSyncErrors = () => {};
+let onSyncProgress = () => {};
 
 export function setSyncStatusListener(fn) {
   onStatusChange = fn;
@@ -13,6 +14,14 @@ export function setSyncStatusListener(fn) {
 // silencieusement perdues — voir syncNow().
 export function setSyncErrorListener(fn) {
   onSyncErrors = fn;
+}
+
+// Appelé (processed, total) au fil de la synchro, pour afficher une
+// progression pendant l'envoi plutôt que de laisser le badge figé sur "en
+// attente" sans rien montrer tant que tout n'est pas fini — utile surtout
+// quand la file contient des photos et que l'envoi prend du temps.
+export function setSyncProgressListener(fn) {
+  onSyncProgress = fn;
 }
 
 // Compte les échecs consécutifs de la requête de synchro ENTIÈRE (pas les
@@ -44,15 +53,50 @@ export async function refreshSyncStatus() {
 // fois toutes envoyées d'un coup, au risque de dépasser la taille de
 // requête acceptée par le serveur — dans ce cas, TOUTE la file échouait,
 // indéfiniment, sans aucun moyen de comprendre pourquoi ni de progresser.
-// Par lots : seul le lot trop lourd est concerné, ce qui a déjà réussi
-// avant lui reste acquis (retiré de la file), et l'échec pointe vers un
-// sous-ensemble bien plus petit à examiner.
+//
+// Un lot qui échoue au niveau HTTP (pas une erreur par élément renvoyée par
+// le serveur, mais la requête entière qui ne passe pas) est ensuite séparé
+// en deux et chaque moitié retentée séparément, jusqu'à isoler précisément
+// le ou les éléments réellement en cause — au lieu de laisser tout un lot
+// de 5 bloqué ensemble à cause d'un seul élément trop lourd dedans.
 const SYNC_BATCH_SIZE = 5;
 
 function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+async function syncBatch(batch, ctx) {
+  try {
+    const result = await pushSyncQueue(batch);
+    // Le serveur traite chaque entrée individuellement et peut en rejeter
+    // certaines (ex : donnée invalide) sans faire échouer toute la requête.
+    // Ne retirer de la file que ce qui a réellement été accepté : sinon une
+    // entrée rejetée disparaît de la file locale sans jamais avoir atteint
+    // la base partagée, perdue silencieusement.
+    const failedIds = new Set((result.errors || []).map((e) => e.id));
+    const succeededIds = batch.map((q) => q.id).filter((id) => !failedIds.has(id));
+    await clearSyncQueueItems(succeededIds);
+    ctx.totalSynced += result.synced;
+    ctx.allErrors.push(...(result.errors || []));
+    ctx.processed += batch.length;
+    onSyncProgress(ctx.processed, ctx.total);
+  } catch (err) {
+    if (batch.length === 1) {
+      // Impossible de réduire davantage : CET élément précis est en cause
+      // (trop lourd, ou tout autre souci propre à lui). Il reste en file
+      // pour la prochaine tentative automatique, mais n'empêche plus rien
+      // d'autre d'avancer.
+      if (!ctx.fatalError) ctx.fatalError = err;
+      ctx.processed += 1;
+      onSyncProgress(ctx.processed, ctx.total);
+      return;
+    }
+    const mid = Math.ceil(batch.length / 2);
+    await syncBatch(batch.slice(0, mid), ctx);
+    await syncBatch(batch.slice(mid), ctx);
+  }
 }
 
 export async function syncNow() {
@@ -69,48 +113,29 @@ export async function syncNow() {
     return { synced: 0, skipped: false };
   }
 
-  let totalSynced = 0;
-  const allErrors = [];
-  let fatalError = null;
+  const ctx = { totalSynced: 0, allErrors: [], fatalError: null, processed: 0, total: queue.length };
+  onSyncProgress(0, queue.length);
 
   for (const batch of chunk(queue, SYNC_BATCH_SIZE)) {
-    try {
-      const result = await pushSyncQueue(batch);
-      // Le serveur traite chaque entrée individuellement et peut en rejeter
-      // certaines (ex : donnée invalide) sans faire échouer toute la requête.
-      // Ne retirer de la file que ce qui a réellement été accepté : sinon une
-      // entrée rejetée disparaît de la file locale sans jamais avoir atteint
-      // la base partagée, perdue silencieusement.
-      const failedIds = new Set((result.errors || []).map((e) => e.id));
-      const succeededIds = batch.map((q) => q.id).filter((id) => !failedIds.has(id));
-      await clearSyncQueueItems(succeededIds);
-      totalSynced += result.synced;
-      allErrors.push(...(result.errors || []));
-    } catch (err) {
-      // Ce lot précis échoue (ex : trop lourd, une photo dedans) et reste en
-      // file pour la prochaine tentative — mais on continue avec les lots
-      // suivants au lieu de s'arrêter là : un seul lot à problème ne doit
-      // jamais bloquer la synchro de tout le reste de la file.
-      if (!fatalError) fatalError = err;
-    }
+    await syncBatch(batch, ctx);
   }
 
-  if (fatalError) {
+  if (ctx.fatalError) {
     consecutiveFailures++;
-    lastError = fatalError;
+    lastError = ctx.fatalError;
     await refreshSyncStatus();
-    throw fatalError;
+    throw ctx.fatalError;
   }
 
   consecutiveFailures = 0;
   lastError = null;
   await refreshSyncStatus();
-  if (allErrors.length > 0) {
-    const failedIds = new Set(allErrors.map((e) => e.id));
+  if (ctx.allErrors.length > 0) {
+    const failedIds = new Set(ctx.allErrors.map((e) => e.id));
     const failedItems = queue.filter((q) => failedIds.has(q.id));
-    onSyncErrors(failedItems, allErrors);
+    onSyncErrors(failedItems, ctx.allErrors);
   }
-  return { synced: totalSynced, skipped: false, errors: allErrors };
+  return { synced: ctx.totalSynced, skipped: false, errors: ctx.allErrors };
 }
 
 window.addEventListener('online', () => { syncNow().catch(() => {}); });
