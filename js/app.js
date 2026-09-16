@@ -887,6 +887,7 @@ function saveRondeDraft() {
       RONDE_DRAFT_KEY,
       JSON.stringify({
         substation: document.getElementById('rondeSubstation').value,
+        tech: document.getElementById('rondeTech').value,
         observations: document.getElementById('rondeObservations').value,
         controls: state.controls,
         rondeStatut: state.rondeStatut,
@@ -911,6 +912,7 @@ function restoreRondeDraft() {
   }
   if (!draft) return;
   document.getElementById('rondeSubstation').value = draft.substation || '';
+  if (draft.tech) document.getElementById('rondeTech').value = draft.tech;
   document.getElementById('rondeObservations').value = draft.observations || '';
   if (Array.isArray(draft.controls) && draft.controls.length === state.controls.length) {
     state.controls = draft.controls;
@@ -923,6 +925,7 @@ function restoreRondeDraft() {
 }
 
 document.getElementById('rondeObservations').addEventListener('input', saveRondeDraft);
+document.getElementById('rondeTech').addEventListener('input', saveRondeDraft);
 
 document.getElementById('controlsList').addEventListener('click', async (e) => {
   const statusBtn = e.target.closest('[data-action="set-status"]');
@@ -1430,6 +1433,7 @@ function saveMesDraft() {
       MES_DRAFT_KEY,
       JSON.stringify({
         substation: document.getElementById('mesSubstation').value,
+        intervenant: document.getElementById('mesIntervenant').value,
         notes: document.getElementById('mesNotes').value,
         checks: state.mesChecks,
         poste: state.mesPoste,
@@ -1453,6 +1457,7 @@ function restoreMesDraft() {
   }
   if (!draft) return;
   document.getElementById('mesSubstation').value = draft.substation || '';
+  if (draft.intervenant) document.getElementById('mesIntervenant').value = draft.intervenant;
   document.getElementById('mesNotes').value = draft.notes || '';
   if (Array.isArray(draft.checks) && draft.checks.length === state.mesChecks.length) {
     state.mesChecks = draft.checks;
@@ -1470,6 +1475,7 @@ function restoreMesDraft() {
 }
 
 document.getElementById('mesSubstation').addEventListener('input', saveMesDraft);
+document.getElementById('mesIntervenant').addEventListener('input', saveMesDraft);
 document.getElementById('mesNotes').addEventListener('input', saveMesDraft);
 
 document.getElementById('mesChecksList').addEventListener('click', (e) => {
