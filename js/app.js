@@ -433,6 +433,7 @@ async function loadAppData() {
   ui.renderBilan();
   ui.renderBilanStats();
   ui.renderBilanTrend();
+  ui.renderBilanStatusChart();
   ui.renderSitesNonVisites(getSiteThreshold());
   ui.renderPointsRecurrents();
   ui.renderSitesASurveiller();
@@ -494,6 +495,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   if (tab.dataset.tab === 'bilan') {
     ui.renderBilanStats();
     ui.renderBilanTrend();
+    ui.renderBilanStatusChart();
     ui.renderSitesNonVisites(getSiteThreshold());
     ui.renderPointsRecurrents();
     ui.renderSitesASurveiller();
@@ -1113,6 +1115,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   ui.renderBilan();
   ui.renderBilanStats();
   ui.renderBilanTrend();
+  ui.renderBilanStatusChart();
   ui.renderPointsRecurrents();
   ui.renderSitesASurveiller();
   ui.renderDiagnostic(null);

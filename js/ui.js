@@ -220,15 +220,23 @@ export function renderBilanStats() {
   const urgentActions = state.actions.filter((a) => !a.done && a.severity === 'danger').length;
 
   const tiles = [
-    { value: sstWeek, label: 'Sous-stations vues cette semaine' },
-    { value: rondesWeek.length, label: 'Rondes cette semaine' },
-    { value: sstMonth, label: 'Sous-stations vues ce mois' },
-    { value: rondesMonth.length, label: 'Rondes ce mois' },
-    { value: openActions, label: 'Actions en attente' },
-    { value: urgentActions, label: 'Actions urgentes' },
+    { value: sstWeek, label: 'Sous-stations vues cette semaine', icon: 'building' },
+    { value: rondesWeek.length, label: 'Rondes cette semaine', icon: 'clipboard' },
+    { value: sstMonth, label: 'Sous-stations vues ce mois', icon: 'building' },
+    { value: rondesMonth.length, label: 'Rondes ce mois', icon: 'clipboard' },
+    { value: openActions, label: 'Actions en attente', icon: 'wrench' },
+    { value: urgentActions, label: 'Actions urgentes', icon: 'alertTriangle', danger: urgentActions > 0 },
   ];
 
-  el.innerHTML = tiles.map((t) => `<div class="stat-tile"><div class="value">${t.value}</div><div class="label">${t.label}</div></div>`).join('');
+  el.innerHTML = tiles
+    .map(
+      (t) => `<div class="stat-tile${t.danger ? ' stat-tile-danger' : ''}">
+        <div class="stat-tile-icon">${icon(t.icon, 16)}</div>
+        <div class="value">${t.value}</div>
+        <div class="label">${t.label}</div>
+      </div>`
+    )
+    .join('');
 }
 
 // ===== DIAGNOSTIC IA =====
@@ -992,6 +1000,59 @@ export function renderBilanTrend() {
     .join('');
 
   el.innerHTML = `<svg class="trend-chart" viewBox="0 0 ${w} ${h}">${bars}</svg>`;
+}
+
+// Vue d'ensemble visuelle de l'état du parc (donut) plutôt qu'une simple
+// liste de chiffres : en un coup d'œil, la proportion de contrôles OK vs
+// dégradés vs défaillants sur les 30 derniers jours.
+export function renderBilanStatusChart() {
+  const el = document.getElementById('bilanStatusChart');
+  const recentRondes = state.rondes.filter((r) => isWithinDays(r.date, 30));
+  const counts = { ok: 0, warning: 0, danger: 0, na: 0 };
+  recentRondes.forEach((r) => {
+    (r.controls || []).forEach((c) => {
+      if (c.status && counts[c.status] !== undefined) counts[c.status]++;
+    });
+  });
+  const total = counts.ok + counts.warning + counts.danger + counts.na;
+
+  if (total === 0) {
+    el.innerHTML = '<div class="trend-empty">Aucun contrôle enregistré sur les 30 derniers jours</div>';
+    return;
+  }
+
+  const segments = [
+    { label: 'OK', count: counts.ok, color: 'var(--success)' },
+    { label: 'Dégradé', count: counts.warning, color: 'var(--warning)' },
+    { label: 'Défaillant', count: counts.danger, color: 'var(--danger)' },
+    { label: 'N/A', count: counts.na, color: 'var(--text-muted)' },
+  ].filter((s) => s.count > 0);
+
+  const size = 140, radius = 52, center = size / 2, circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = segments
+    .map((s) => {
+      const dash = (s.count / total) * circumference;
+      const circle = `<circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${center} ${center})"></circle>`;
+      offset += dash;
+      return circle;
+    })
+    .join('');
+  const okPct = Math.round((counts.ok / total) * 100);
+
+  const legend = segments
+    .map((s) => `<div class="donut-legend-row"><span class="donut-legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)} <strong>${s.count}</strong> <span class="hint">(${Math.round((s.count / total) * 100)}%)</span></div>`)
+    .join('');
+
+  el.innerHTML = `
+    <div class="donut-wrap">
+      <svg class="donut-chart" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        ${arcs}
+        <text x="${center}" y="${center - 2}" text-anchor="middle" class="donut-center-value">${okPct}%</text>
+        <text x="${center}" y="${center + 15}" text-anchor="middle" class="donut-center-label">OK</text>
+      </svg>
+      <div class="donut-legend">${legend}</div>
+    </div>`;
 }
 
 export function renderSitesNonVisites(thresholdDays) {
