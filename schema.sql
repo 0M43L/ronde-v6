@@ -3,14 +3,16 @@
 -- (ou via scripts/migrate.mjs qui applique ce fichier avec les variables d'environnement)
 
 CREATE TABLE IF NOT EXISTS users (
-  id            TEXT PRIMARY KEY,
-  email         TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  password_salt TEXT NOT NULL,
-  nom           TEXT NOT NULL,
-  prenom        TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  last_login    TEXT
+  id                  TEXT PRIMARY KEY,
+  email               TEXT UNIQUE NOT NULL,
+  password_hash       TEXT NOT NULL,
+  password_salt       TEXT NOT NULL,
+  nom                 TEXT NOT NULL,
+  prenom              TEXT NOT NULL,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login          TEXT,
+  failed_login_count  INTEGER NOT NULL DEFAULT 0,
+  locked_until        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_sessions (

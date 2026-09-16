@@ -20,6 +20,17 @@ export function clearSession() {
   localStorage.removeItem('ronde_user');
 }
 
+// Best-effort : invalide la session côté serveur. Si hors-ligne ou en échec,
+// on n'empêche pas la déconnexion locale pour autant (voir l'appelant) — le
+// token expirera de lui-même après 7 jours dans ce cas.
+export async function logout() {
+  try {
+    await authedFetch('/api/logout', { method: 'POST' });
+  } catch {
+    /* hors-ligne : tant pis, la session locale est effacée quand même */
+  }
+}
+
 async function authedFetch(url, options = {}) {
   const token = getToken();
   const res = await fetch(url, {

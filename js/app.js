@@ -265,7 +265,8 @@ loginForm.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('logoutBtn').addEventListener('click', () => {
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await api.logout();
   api.clearSession();
   state.user = null;
   appEl.classList.remove('visible');
