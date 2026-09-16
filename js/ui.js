@@ -685,7 +685,64 @@ export function expandAction(id) {
   renderActions();
 }
 
+// Même code visuel que renderBilanStatusChart() (donut + légende) : l'onglet
+// Actions n'avait jusqu'ici qu'une liste brute, sans vue d'ensemble — étend
+// le traitement visuel du Bilan à un autre onglet qui en manquait, comme
+// demandé.
+export function renderActionsSummary() {
+  const el = document.getElementById('actionsSummary');
+  if (!el) return;
+
+  const total = state.actions.length;
+  if (total === 0) {
+    el.innerHTML = '<div class="trend-empty">Aucune action pour l\'instant</div>';
+    return;
+  }
+
+  const open = state.actions.filter((a) => !a.done);
+  const counts = {
+    danger: open.filter((a) => a.severity === 'danger').length,
+    warning: open.filter((a) => a.severity === 'warning').length,
+    none: open.filter((a) => a.severity === 'none').length,
+    done: state.actions.filter((a) => a.done).length,
+  };
+
+  const segments = [
+    { label: 'Urgentes', count: counts.danger, color: 'var(--danger)' },
+    { label: 'À surveiller', count: counts.warning, color: 'var(--warning)' },
+    { label: 'Info', count: counts.none, color: 'var(--text-muted)' },
+    { label: 'Traitées', count: counts.done, color: 'var(--success)' },
+  ].filter((s) => s.count > 0);
+
+  const size = 140, radius = 52, center = size / 2, circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = segments
+    .map((s) => {
+      const dash = (s.count / total) * circumference;
+      const circle = `<circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${center} ${center})"></circle>`;
+      offset += dash;
+      return circle;
+    })
+    .join('');
+  const donePct = Math.round((counts.done / total) * 100);
+
+  const legend = segments
+    .map((s) => `<div class="donut-legend-row"><span class="donut-legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)} <strong>${s.count}</strong> <span class="hint">(${Math.round((s.count / total) * 100)}%)</span></div>`)
+    .join('');
+
+  el.innerHTML = `
+    <div class="donut-wrap">
+      <svg class="donut-chart" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        ${arcs}
+        <text x="${center}" y="${center - 2}" text-anchor="middle" class="donut-center-value">${donePct}%</text>
+        <text x="${center}" y="${center + 15}" text-anchor="middle" class="donut-center-label">Traitées</text>
+      </svg>
+      <div class="donut-legend">${legend}</div>
+    </div>`;
+}
+
 export function renderActions() {
+  renderActionsSummary();
   const list = document.getElementById('actionsList');
   if (state.actions.length === 0) {
     list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
