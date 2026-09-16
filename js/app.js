@@ -341,6 +341,47 @@ function refreshRondeDateTime() {
   document.getElementById('rondeHeure').value = new Date().toTimeString().slice(0, 5);
 }
 
+// Regroupe tous les rendus dépendant des données (substations/fiches/
+// rondes/actions/mes) : appelée deux fois par loadAppData() — une première
+// fois immédiatement avec le cache local, une seconde fois une fois le
+// réseau revenu avec les données fraîches. Chaque appel doit être sûr sans
+// effet de bord cumulatif : ce sont les mêmes fonctions déjà utilisées
+// partout ailleurs dans l'appli après chaque sauvegarde.
+function renderAllData() {
+  ui.renderSubstationDatalist();
+  ui.renderSiteList();
+  ui.renderControls();
+  ui.renderRondeStatut();
+  ui.renderBilan();
+  ui.renderBilanStats();
+  ui.renderBilanTrend();
+  ui.renderBilanStatusChart();
+  ui.renderSitesNonVisites(getSiteThreshold());
+  ui.renderPointsRecurrents();
+  ui.renderSitesASurveiller();
+  ui.renderActionsRetardSite();
+  ui.renderFiches(document.getElementById('ficheSearch').value);
+  ui.renderFicheConflicts();
+  ui.renderActions();
+  ui.renderMesCasPosteSelect();
+  ui.renderMesEchangeurs();
+  ui.renderMesNominalRecap();
+  ui.renderMesChecks();
+  ui.renderMesHistory();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.renderStorageUsage();
+}
+
+function renderSiteMarkers() {
+  renderMarkers(state.substations, (id) => {
+    const s = state.substations.find((x) => x.id === id);
+    if (s) {
+      document.getElementById('rondeSubstation').value = s.name;
+      onSubstationInput();
+    }
+  });
+}
+
 // ===== CHARGEMENT DES DONNÉES =====
 async function loadAppData() {
   const queue = await dbLayer.getSyncQueue();
@@ -355,14 +396,56 @@ async function loadAppData() {
     dbLayer.getAll('mes'),
   ]);
 
+  // ===== AFFICHAGE IMMÉDIAT DEPUIS LE CACHE LOCAL =====
+  // Avant, l'appli attendait que les 5 requêtes réseau (même en parallèle)
+  // aient toutes répondu avant d'afficher quoi que ce soit à l'écran — sur
+  // un réseau de sous-sol lent ou une fonction serverless qui démarre à
+  // froid, ça pouvait faire plusieurs secondes d'écran vide à chaque
+  // ouverture. Le cache local (IndexedDB) contient déjà la quasi-totalité
+  // des données d'une visite à l'autre : on l'affiche tout de suite —
+  // l'attente perçue devient quasi nulle — puis on rafraîchit avec les
+  // données fraîches dès que le réseau répond, sans jamais bloquer
+  // l'affichage initial dessus.
+  state.substations = cachedSubstations;
+  state.fiches = cachedFiches;
+  state.rondes = cachedRondes;
+  state.actions = cachedActions;
+  state.mesSessions = cachedMes;
+  state.ficheConflicts = await dbLayer.getFicheConflicts();
+
+  renderAllData();
+
+  refreshRondeDateTime();
+  document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
+  document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
+  document.getElementById('siteThresholdDays').value = getSiteThreshold();
+
+  restoreRondeDraft();
+  restoreMesDraft();
+  restoreFicheDraft();
+
+  checkOverdueReminders();
+
+  initMap();
+  if (!isMapAvailable()) {
+    document.getElementById('map').innerHTML =
+      '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
+  }
+  renderSiteMarkers();
+  invalidateMapSize();
+
+  await refreshSyncStatus();
+  syncNow().catch(() => {});
+
+  // ===== RAFRAÎCHISSEMENT EN ARRIÈRE-PLAN DEPUIS LE SERVEUR =====
   // Les 5 entités sont récupérées EN PARALLÈLE plutôt que l'une après
-  // l'autre : sur un réseau de sous-sol lent, 5 allers-retours séquentiels
-  // pouvaient prendre plusieurs secondes avant que l'appli n'affiche quoi
-  // que ce soit de frais au démarrage. En parallèle, l'attente totale est
-  // celle de la requête la plus lente des 5, pas leur somme. Chaque entité
-  // garde son propre repli sur le cache local en cas d'échec individuel
-  // (une fiche indisponible ne doit pas bloquer les rondes, par exemple).
-  await Promise.all([
+  // l'autre (l'attente totale est celle de la requête la plus lente des 5,
+  // pas leur somme), et ce bloc n'est plus attendu (await) par
+  // loadAppData() : il continue en arrière-plan pendant que l'utilisateur
+  // voit déjà l'écran rempli avec le cache. Chaque entité garde son propre
+  // repli sur le cache local en cas d'échec individuel (une fiche
+  // indisponible ne doit pas bloquer les rondes, par exemple).
+  Promise.all([
     (async () => {
       try {
         const fresh = await api.fetchSubstations();
@@ -422,60 +505,10 @@ async function loadAppData() {
         state.mesSessions = cachedMes;
       }
     })(),
-  ]);
-
-  state.ficheConflicts = await dbLayer.getFicheConflicts();
-
-  ui.renderSubstationDatalist();
-  ui.renderSiteList();
-  ui.renderControls();
-  ui.renderRondeStatut();
-  ui.renderBilan();
-  ui.renderBilanStats();
-  ui.renderBilanTrend();
-  ui.renderBilanStatusChart();
-  ui.renderSitesNonVisites(getSiteThreshold());
-  ui.renderPointsRecurrents();
-  ui.renderSitesASurveiller();
-  ui.renderActionsRetardSite();
-  ui.renderFiches(document.getElementById('ficheSearch').value);
-  ui.renderFicheConflicts();
-  ui.renderActions();
-  ui.renderMesCasPosteSelect();
-  ui.renderMesEchangeurs();
-  ui.renderMesNominalRecap();
-  ui.renderMesChecks();
-  ui.renderMesHistory();
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-  ui.renderStorageUsage();
-
-  refreshRondeDateTime();
-  document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
-  document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
-  document.getElementById('siteThresholdDays').value = getSiteThreshold();
-
-  restoreRondeDraft();
-  restoreMesDraft();
-  restoreFicheDraft();
-
-  checkOverdueReminders();
-
-  initMap();
-  if (!isMapAvailable()) {
-    document.getElementById('map').innerHTML =
-      '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
-  }
-  renderMarkers(state.substations, (id) => {
-    const s = state.substations.find((x) => x.id === id);
-    if (s) {
-      document.getElementById('rondeSubstation').value = s.name;
-      onSubstationInput();
-    }
+  ]).then(() => {
+    renderAllData();
+    renderSiteMarkers();
   });
-  invalidateMapSize();
-
-  await refreshSyncStatus();
-  syncNow().catch(() => {});
 }
 
 // ===== TABS =====
