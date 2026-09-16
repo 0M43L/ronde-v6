@@ -9,13 +9,22 @@ function isOwned(item) {
   return !item.user_id || item.user_id === state.user?.id;
 }
 
-export function showToast(message) {
+// sticky: reste affiché jusqu'à ce qu'on tape dessus, au lieu de disparaître
+// tout seul après 2.6s — pour un message qu'on a besoin de lire en entier ou
+// de capturer en photo (ex : détail d'une erreur de synchro), pas juste une
+// confirmation éphémère.
+export function showToast(message, { sticky = false } = {}) {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = message;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 2600);
+  if (sticky) {
+    toast.style.cursor = 'pointer';
+    toast.addEventListener('click', () => toast.remove());
+  } else {
+    setTimeout(() => toast.remove(), 2600);
+  }
 }
 
 export function escapeHtml(str) {
