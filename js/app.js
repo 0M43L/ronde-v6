@@ -1096,11 +1096,18 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   document.getElementById('rondeObservations').value = '';
   resetControls();
   clearRondeDraft();
-  // Prépare la prochaine ronde : horodatage remis à "maintenant" et
-  // intervenant remis au compte connecté (au cas où il aurait été modifié
-  // pour un remplacement ponctuel sur la ronde qui vient d'être archivée).
+  // Prépare la prochaine ronde entièrement à zéro : horodatage remis à
+  // "maintenant", intervenant remis au compte connecté (au cas où il aurait
+  // été modifié pour un remplacement ponctuel), et sous-station vidée — la
+  // prochaine ronde est presque toujours sur un autre site, pas la peine de
+  // laisser l'ancien nom à effacer à la main. onSubstationInput() est
+  // rappelé pour masquer les notes d'accès / alertes de site affichées pour
+  // l'ancien site, qui resteraient sinon visibles alors qu'aucun site n'est
+  // plus sélectionné.
   refreshRondeDateTime();
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
+  document.getElementById('rondeSubstation').value = '';
+  onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
