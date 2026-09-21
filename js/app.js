@@ -31,15 +31,24 @@ function loadScript(src) {
 }
 
 const LEAFLET_URL = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+const LEAFLET_MARKERCLUSTER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js';
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const HTML2PDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
 
 // Démarrée en tâche de fond dès l'entrée dans l'appli (la carte est sur
 // l'onglet Ronde, affiché dès l'ouverture) mais sans jamais bloquer le
 // reste : initMap()/renderMarkers() (voir map.js) ne font rien tant que
-// Leaflet n'est pas prêt, il suffit de les rappeler une fois chargé.
-function ensureLeaflet() {
-  return loadScript(LEAFLET_URL);
+// Leaflet n'est pas prêt, il suffit de les rappeler une fois chargé. Le
+// plugin de regroupement de marqueurs (~140 sites concentrés sur La
+// Défense, illisibles en punaises individuelles) étend le namespace L : il
+// doit être chargé APRÈS Leaflet, jamais avant ni en parallèle.
+async function ensureLeaflet() {
+  await loadScript(LEAFLET_URL);
+  // Non-bloquant : si le plugin de regroupement échoue à charger, la carte
+  // doit quand même s'afficher (avec des marqueurs individuels, voir
+  // hasClustering() dans map.js) plutôt que de passer pour "indisponible"
+  // à cause d'un plugin secondaire.
+  await loadScript(LEAFLET_MARKERCLUSTER_URL).catch(() => {});
 }
 async function ensureXlsx() {
   if (typeof XLSX === 'undefined') await loadScript(XLSX_URL);
