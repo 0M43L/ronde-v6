@@ -84,12 +84,19 @@ export function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Onglets secondaires regroupés sous "Plus" dans la barre du bas (voir
+// index.html #moreMenuOverlay) : ils n'ont pas leur propre entrée dans la
+// barre, donc quand l'un d'eux est actif c'est le bouton "Plus" lui-même
+// qui doit apparaître sélectionné, sinon la barre du bas semble ne rien
+// indiquer du tout une fois sur Fiches/Bilan/Diagnostic/MES.
+const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes'];
+
 export function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t) => {
-    const active = t.dataset.tab === tab;
-    t.classList.toggle('active', active);
-    if (active) t.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  document.querySelectorAll('.tab[data-tab]').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === tab);
   });
+  const moreBtn = document.getElementById('moreTabBtn');
+  if (moreBtn) moreBtn.classList.toggle('active', MORE_MENU_TABS.includes(tab));
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${tab}`));
   state.currentTab = tab;
 }

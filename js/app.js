@@ -734,11 +734,14 @@ async function loadAppData() {
 }
 
 // ===== TABS =====
-document.getElementById('tabs').addEventListener('click', (e) => {
-  const tab = e.target.closest('.tab');
-  if (!tab) return;
-  ui.switchTab(tab.dataset.tab);
-  if (tab.dataset.tab === 'ronde') {
+// Factorisé (au lieu d'être en ligne dans le seul gestionnaire de clic de la
+// barre d'onglets) car il y a maintenant deux points d'entrée vers un onglet
+// donné : un tap direct sur la barre du bas, ou un choix dans la feuille
+// "Plus" (voir plus bas) pour les 4 onglets secondaires qui n'ont plus leur
+// propre place dans la barre.
+function goToTab(tabName) {
+  ui.switchTab(tabName);
+  if (tabName === 'ronde') {
     invalidateMapSize();
     // Seulement si aucune ronde n'est en cours de saisie (sinon on écraserait
     // l'horodatage réel du début de l'intervention en cours). Le champ
@@ -747,7 +750,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     // retaper son nom), donc c'est le brouillon réel qui fait foi.
     if (!localStorage.getItem(RONDE_DRAFT_KEY)) refreshRondeDateTime();
   }
-  if (tab.dataset.tab === 'bilan') {
+  if (tabName === 'bilan') {
     ui.renderBilanStats();
     ui.renderBilanTrend();
     ui.renderBilanStatusChart();
@@ -756,11 +759,39 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderSitesASurveiller();
     ui.renderActionsRetardSite();
   }
-  if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
-  if (tab.dataset.tab === 'sites') {
+  if (tabName === 'historique') ui.renderStorageUsage();
+  if (tabName === 'sites') {
     if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
     else ui.renderSiteList(document.getElementById('siteSearch').value);
   }
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  if (e.target.closest('#moreTabBtn')) {
+    document.getElementById('moreMenuOverlay').hidden = false;
+    return;
+  }
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  goToTab(tab.dataset.tab);
+});
+
+// ===== MENU "PLUS" (onglets secondaires : Fiches, Bilan, Diagnostic, MES) =====
+// La barre du bas ne garde que 4 onglets + "Plus" plutôt que les 8 d'origine
+// — au-delà de 5 entrées, une barre de navigation basse devient illisible
+// (touch targets trop petits). Les 4 restants vivent dans cette feuille.
+function closeMoreMenu() {
+  document.getElementById('moreMenuOverlay').hidden = true;
+}
+document.getElementById('closeMoreMenuBtn').addEventListener('click', closeMoreMenu);
+document.getElementById('moreMenuOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'moreMenuOverlay') closeMoreMenu();
+});
+document.getElementById('moreMenuList').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-tab]');
+  if (!item) return;
+  closeMoreMenu();
+  goToTab(item.dataset.tab);
 });
 
 // ===== SITES (fiche technique) =====
