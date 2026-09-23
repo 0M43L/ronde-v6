@@ -26,6 +26,8 @@
         <p>IDEX · Sous-stations chauffage urbain</p>
       </div>
     </div>
+    <button type="button" class="btn btn-secondary" id="webauthnLoginBtn" hidden style="width:100%;margin-bottom:14px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 0-4 4v1"/><path d="M8 8v3a4 4 0 0 0 8 0V8a4 4 0 0 0-2-3.5"/><path d="M4 12v-1a8 8 0 0 1 8-8"/><path d="M20 12v-1"/><path d="M4 16.5A8 8 0 0 0 11 21"/><path d="M17 20a8 8 0 0 0 3-6"/><path d="M12 17v3"/><path d="M9 16.5V15a3 3 0 0 1 6 0v1"/></svg> Se connecter avec Face ID / Touch ID</button>
+    <div class="login-divider" id="webauthnLoginDivider" hidden><span>ou</span></div>
     <form id="loginForm">
       <div class="form-group">
         <label>Email</label>
@@ -409,6 +411,14 @@
 
     <!-- HISTORIQUE -->
     <div class="page" id="page-historique">
+      <div class="card" id="webauthnAccountCard" hidden>
+        <div class="card-header">Compte</div>
+        <div class="card-body">
+          <p class="hint" style="margin:0 0 10px;">Face ID / Touch ID te permet de te reconnecter sans retaper ton mot de passe à chaque fois, sur cet appareil.</p>
+          <button class="btn btn-secondary" id="webauthnRegisterBtn" style="width:100%;">Activer Face ID / Touch ID sur cet appareil</button>
+          <div id="webauthnCredentialsList"></div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-body">
           <div class="form-group" style="margin-bottom:10px;">

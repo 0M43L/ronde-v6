@@ -71,6 +71,59 @@ export async function login(email, password) {
   return data;
 }
 
+// ===== FACE ID / TOUCH ID (WebAuthn) =====
+export async function webauthnRegisterOptions() {
+  const res = await authedFetch('/api/webauthn/register-options', { method: 'POST' });
+  if (!res.ok) throw new Error('Impossible de préparer l\'inscription Face ID/Touch ID');
+  return res.json();
+}
+
+export async function webauthnRegisterVerify(attestationResponse, deviceName) {
+  const res = await authedFetch('/api/webauthn/register-verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...attestationResponse, deviceName }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Inscription Face ID/Touch ID refusée');
+  return data;
+}
+
+export async function webauthnListCredentials() {
+  const res = await authedFetch('/api/webauthn/credentials');
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.credentials || [];
+}
+
+export async function webauthnRemoveCredential(id) {
+  const res = await authedFetch('/api/webauthn/credentials', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error('Suppression impossible');
+}
+
+// Pas de session existante à ce stade (écran de connexion) : fetch() simple,
+// pas authedFetch().
+export async function webauthnLoginOptions() {
+  const res = await fetch('/api/webauthn/login-options', { method: 'POST' });
+  if (!res.ok) throw new Error('Face ID/Touch ID indisponible pour l\'instant');
+  return res.json();
+}
+
+export async function webauthnLoginVerify(challengeId, assertionResponse) {
+  const res = await fetch('/api/webauthn/login-verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeId, response: assertionResponse }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Connexion refusée');
+  return data;
+}
+
 export async function verifyToken() {
   const res = await authedFetch('/api/verify');
   if (!res.ok) return null;

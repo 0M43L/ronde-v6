@@ -98,6 +98,141 @@ const appEl = document.getElementById('app');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 
+// ===== FACE ID / TOUCH ID (WebAuthn) =====
+// navigator.credentials attend des ArrayBuffer, alors que le serveur envoie/
+// reçoit du JSON (base64url) — ces deux conversions font le lien, évitant
+// de dépendre d'une librairie cliente supplémentaire (@simplewebauthn/browser)
+// juste pour ça.
+function b64urlToBuffer(b64url) {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+  const binary = atob(b64 + pad);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToB64url(buf) {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function webauthnPlatformAvailable() {
+  return !!(
+    window.PublicKeyCredential &&
+    typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
+    (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())
+  );
+}
+
+async function webauthnLogin() {
+  const optionsJSON = await api.webauthnLoginOptions();
+  const publicKey = {
+    ...optionsJSON,
+    challenge: b64urlToBuffer(optionsJSON.challenge),
+    allowCredentials: undefined,
+  };
+  const assertion = await navigator.credentials.get({ publicKey });
+  const responseJSON = {
+    id: assertion.id,
+    rawId: assertion.id,
+    type: assertion.type,
+    response: {
+      clientDataJSON: bufferToB64url(assertion.response.clientDataJSON),
+      authenticatorData: bufferToB64url(assertion.response.authenticatorData),
+      signature: bufferToB64url(assertion.response.signature),
+      userHandle: assertion.response.userHandle ? bufferToB64url(assertion.response.userHandle) : undefined,
+    },
+    clientExtensionResults: assertion.getClientExtensionResults(),
+  };
+  const data = await api.webauthnLoginVerify(optionsJSON.challengeId, responseJSON);
+  api.setSession(data.token, data.user);
+  state.user = data.user;
+  await enterApp();
+}
+
+async function webauthnRegister() {
+  const optionsJSON = await api.webauthnRegisterOptions();
+  const publicKey = {
+    ...optionsJSON,
+    challenge: b64urlToBuffer(optionsJSON.challenge),
+    user: { ...optionsJSON.user, id: b64urlToBuffer(optionsJSON.user.id) },
+    excludeCredentials: (optionsJSON.excludeCredentials || []).map((c) => ({ ...c, id: b64urlToBuffer(c.id) })),
+  };
+  const cred = await navigator.credentials.create({ publicKey });
+  const attestationResponse = {
+    id: cred.id,
+    rawId: cred.id,
+    type: cred.type,
+    response: {
+      clientDataJSON: bufferToB64url(cred.response.clientDataJSON),
+      attestationObject: bufferToB64url(cred.response.attestationObject),
+      transports: cred.response.getTransports ? cred.response.getTransports() : [],
+    },
+    clientExtensionResults: cred.getClientExtensionResults(),
+  };
+  const deviceName = navigator.userAgentData?.platform || navigator.platform || 'Cet appareil';
+  await api.webauthnRegisterVerify(attestationResponse, deviceName);
+}
+
+async function renderWebauthnCredentialsList() {
+  const list = document.getElementById('webauthnCredentialsList');
+  if (!list) return;
+  const credentials = await api.webauthnListCredentials();
+  if (credentials.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = credentials
+    .map(
+      (c) => `<div class="item" style="margin-top:10px;">
+      <div class="item-row">
+        <div style="flex:1;">
+          <div class="item-title">${ui.escapeHtml(c.device_name || 'Appareil')}</div>
+          <div class="item-meta">Activé le ${ui.escapeHtml((c.created_at || '').slice(0, 10))}</div>
+        </div>
+        <button class="btn-ghost" data-action="remove-webauthn-credential" data-id="${c.id}">✕</button>
+      </div>
+    </div>`
+    )
+    .join('');
+}
+
+document.getElementById('webauthnCredentialsList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="remove-webauthn-credential"]');
+  if (!btn) return;
+  await api.webauthnRemoveCredential(btn.dataset.id);
+  await renderWebauthnCredentialsList();
+});
+
+document.getElementById('webauthnRegisterBtn').addEventListener('click', async () => {
+  try {
+    await webauthnRegister();
+    ui.showToast('Face ID / Touch ID activé sur cet appareil');
+    await renderWebauthnCredentialsList();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') return; // annulé par le technicien, rien à dire
+    ui.showToast('Impossible d\'activer Face ID / Touch ID sur cet appareil');
+  }
+});
+
+document.getElementById('webauthnLoginBtn').addEventListener('click', async () => {
+  try {
+    await webauthnLogin();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') return; // annulé ou aucun identifiant disponible
+    loginError.textContent = 'Connexion Face ID/Touch ID impossible, utilise ton mot de passe.';
+    loginError.style.display = 'block';
+  }
+});
+
+webauthnPlatformAvailable().then((available) => {
+  document.getElementById('webauthnLoginBtn').hidden = !available;
+  document.getElementById('webauthnLoginDivider').hidden = !available;
+});
+
 // ===== THEME =====
 function initTheme() {
   const saved = localStorage.getItem('theme_v6');
@@ -435,6 +570,10 @@ async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
   document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
+  webauthnPlatformAvailable().then((available) => {
+    document.getElementById('webauthnAccountCard').hidden = !available;
+    if (available) renderWebauthnCredentialsList();
+  });
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()

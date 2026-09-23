@@ -146,6 +146,9 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 #loginForm { display: flex; flex-direction: column; gap: 12px; }
 
+.login-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; color: var(--text-muted); font-size: 12px; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
 .login-error {
   display: none;
   background: var(--danger-soft);

@@ -23,6 +23,34 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Face ID / Touch ID (WebAuthn) : un compte peut enregistrer plusieurs
+-- appareils. public_key est la clé publique COSE brute encodée en base64
+-- (jamais la clé privée, qui ne quitte jamais l'appareil du technicien).
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT UNIQUE NOT NULL,
+  public_key    TEXT NOT NULL,
+  counter       INTEGER NOT NULL DEFAULT 0,
+  transports    TEXT,
+  device_name   TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
+
+-- Challenges temporaires, dans les deux sens (inscription et connexion) —
+-- nettoyés après vérification ou expiration (voir api/webauthn/_rp.js).
+-- user_id n'est renseigné que pour une inscription (technicien déjà
+-- connecté) ; une connexion est anonyme à ce stade (voir login-options.js),
+-- retrouvée ensuite via le userHandle de la réponse de l'authentificateur.
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT REFERENCES users(id) ON DELETE CASCADE,
+  challenge  TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token);
 
 -- Sous-stations. Deux origines : 'kml' (import initial) et 'terrain' (créées
