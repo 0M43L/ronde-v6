@@ -1527,7 +1527,14 @@ export function renderSiteDetail() {
             : `<div class="site-detail-header">
                  <h3>${escapeHtml(site.name)}</h3>
                  ${lastRonde ? SITE_STATUT_BADGE[lastRonde.statut || 'operationnel'] : ''}
-                 <button class="icon-btn" data-action="edit-site-info" title="Modifier le nom / les notes d'accès" aria-label="Modifier">${icon('pencil', 15)}</button>
+                 <div class="site-detail-header-actions">
+                   ${
+                     site.lat != null && site.lon != null
+                       ? `<a class="icon-btn" href="https://www.google.com/maps/dir/?api=1&destination=${site.lat},${site.lon}" target="_blank" rel="noopener" title="Itinéraire vers ce site" aria-label="Itinéraire">${icon('mapPin', 15)}</a>`
+                       : ''
+                   }
+                   <button class="icon-btn" data-action="edit-site-info" title="Modifier le nom / les notes d'accès" aria-label="Modifier">${icon('pencil', 15)}</button>
+                 </div>
                </div>
                ${site.notes_acces ? `<div class="alert warning" style="margin-top:10px;">${escapeHtml(site.notes_acces)}</div>` : ''}
                ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}`
