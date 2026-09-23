@@ -1714,7 +1714,7 @@ export function renderSiteDetail() {
               (p) => `<div class="photo-thumb"><img src="${p.url}" data-action="view-site-photo" data-url="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
             )
             .join('')}
-          <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" capture="environment" data-action="add-site-photo"></label>
+          <label class="photo-btn">${icon('image', 14)} Ajouter<input type="file" accept="image/*" data-action="add-site-photo"></label>
         </div>
       </div>
     </div>
