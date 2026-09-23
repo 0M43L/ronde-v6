@@ -98,6 +98,141 @@ const appEl = document.getElementById('app');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 
+// ===== FACE ID / TOUCH ID (WebAuthn) =====
+// navigator.credentials attend des ArrayBuffer, alors que le serveur envoie/
+// reçoit du JSON (base64url) — ces deux conversions font le lien, évitant
+// de dépendre d'une librairie cliente supplémentaire (@simplewebauthn/browser)
+// juste pour ça.
+function b64urlToBuffer(b64url) {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+  const binary = atob(b64 + pad);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToB64url(buf) {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function webauthnPlatformAvailable() {
+  return !!(
+    window.PublicKeyCredential &&
+    typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
+    (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())
+  );
+}
+
+async function webauthnLogin() {
+  const optionsJSON = await api.webauthnLoginOptions();
+  const publicKey = {
+    ...optionsJSON,
+    challenge: b64urlToBuffer(optionsJSON.challenge),
+    allowCredentials: undefined,
+  };
+  const assertion = await navigator.credentials.get({ publicKey });
+  const responseJSON = {
+    id: assertion.id,
+    rawId: assertion.id,
+    type: assertion.type,
+    response: {
+      clientDataJSON: bufferToB64url(assertion.response.clientDataJSON),
+      authenticatorData: bufferToB64url(assertion.response.authenticatorData),
+      signature: bufferToB64url(assertion.response.signature),
+      userHandle: assertion.response.userHandle ? bufferToB64url(assertion.response.userHandle) : undefined,
+    },
+    clientExtensionResults: assertion.getClientExtensionResults(),
+  };
+  const data = await api.webauthnLoginVerify(optionsJSON.challengeId, responseJSON);
+  api.setSession(data.token, data.user);
+  state.user = data.user;
+  await enterApp();
+}
+
+async function webauthnRegister() {
+  const optionsJSON = await api.webauthnRegisterOptions();
+  const publicKey = {
+    ...optionsJSON,
+    challenge: b64urlToBuffer(optionsJSON.challenge),
+    user: { ...optionsJSON.user, id: b64urlToBuffer(optionsJSON.user.id) },
+    excludeCredentials: (optionsJSON.excludeCredentials || []).map((c) => ({ ...c, id: b64urlToBuffer(c.id) })),
+  };
+  const cred = await navigator.credentials.create({ publicKey });
+  const attestationResponse = {
+    id: cred.id,
+    rawId: cred.id,
+    type: cred.type,
+    response: {
+      clientDataJSON: bufferToB64url(cred.response.clientDataJSON),
+      attestationObject: bufferToB64url(cred.response.attestationObject),
+      transports: cred.response.getTransports ? cred.response.getTransports() : [],
+    },
+    clientExtensionResults: cred.getClientExtensionResults(),
+  };
+  const deviceName = navigator.userAgentData?.platform || navigator.platform || 'Cet appareil';
+  await api.webauthnRegisterVerify(attestationResponse, deviceName);
+}
+
+async function renderWebauthnCredentialsList() {
+  const list = document.getElementById('webauthnCredentialsList');
+  if (!list) return;
+  const credentials = await api.webauthnListCredentials();
+  if (credentials.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = credentials
+    .map(
+      (c) => `<div class="item" style="margin-top:10px;">
+      <div class="item-row">
+        <div style="flex:1;">
+          <div class="item-title">${ui.escapeHtml(c.device_name || 'Appareil')}</div>
+          <div class="item-meta">Activé le ${ui.escapeHtml((c.created_at || '').slice(0, 10))}</div>
+        </div>
+        <button class="btn-ghost" data-action="remove-webauthn-credential" data-id="${c.id}">✕</button>
+      </div>
+    </div>`
+    )
+    .join('');
+}
+
+document.getElementById('webauthnCredentialsList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="remove-webauthn-credential"]');
+  if (!btn) return;
+  await api.webauthnRemoveCredential(btn.dataset.id);
+  await renderWebauthnCredentialsList();
+});
+
+document.getElementById('webauthnRegisterBtn').addEventListener('click', async () => {
+  try {
+    await webauthnRegister();
+    ui.showToast('Face ID / Touch ID activé sur cet appareil');
+    await renderWebauthnCredentialsList();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') return; // annulé par le technicien, rien à dire
+    ui.showToast('Impossible d\'activer Face ID / Touch ID sur cet appareil');
+  }
+});
+
+document.getElementById('webauthnLoginBtn').addEventListener('click', async () => {
+  try {
+    await webauthnLogin();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') return; // annulé ou aucun identifiant disponible
+    loginError.textContent = 'Connexion Face ID/Touch ID impossible, utilise ton mot de passe.';
+    loginError.style.display = 'block';
+  }
+});
+
+webauthnPlatformAvailable().then((available) => {
+  document.getElementById('webauthnLoginBtn').hidden = !available;
+  document.getElementById('webauthnLoginDivider').hidden = !available;
+});
+
 // ===== THEME =====
 function initTheme() {
   const saved = localStorage.getItem('theme_v6');
@@ -111,9 +246,81 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   localStorage.setItem('theme_v6', next);
 });
 
+// ===== RECHERCHE UNIFIÉE =====
+document.getElementById('globalSearchBtn').addEventListener('click', () => {
+  document.getElementById('globalSearchOverlay').hidden = false;
+  document.getElementById('globalSearchInput').value = '';
+  document.getElementById('globalSearchResults').innerHTML = '';
+  document.getElementById('globalSearchInput').focus();
+});
+
+function closeGlobalSearch() {
+  document.getElementById('globalSearchOverlay').hidden = true;
+}
+document.getElementById('closeGlobalSearchBtn').addEventListener('click', closeGlobalSearch);
+
+document.getElementById('globalSearchInput').addEventListener('input', (e) => {
+  ui.renderGlobalSearchResults(e.target.value);
+});
+
+document.getElementById('globalSearchResults').addEventListener('click', (e) => {
+  const siteItem = e.target.closest('[data-action="goto-search-site"]');
+  const ficheItem = e.target.closest('[data-action="goto-search-fiche"]');
+  const histItem = e.target.closest('[data-action="goto-search-hist"]');
+  const query = document.getElementById('globalSearchInput').value;
+
+  if (siteItem) {
+    closeGlobalSearch();
+    ui.switchTab('sites');
+    ui.selectSite(siteItem.dataset.id);
+    loadSiteDetailIfNeeded(siteItem.dataset.id);
+  } else if (ficheItem) {
+    closeGlobalSearch();
+    ui.switchTab('fiches');
+    document.getElementById('ficheSearch').value = query;
+    ui.renderFiches(query);
+  } else if (histItem) {
+    closeGlobalSearch();
+    ui.switchTab('historique');
+    document.getElementById('histSearch').value = query;
+    ui.renderHistorique(histFilter, query);
+  }
+});
+
 // ===== SYNC PILL =====
 let errorToastShown = false;
+
+// Met à jour state.syncQueueKeys immédiatement après avoir mis un élément en
+// file d'attente (ronde/action/fiche/session MES), pour que le repère "en
+// attente" (ui.syncPendingMark) soit juste dès l'ajout — sinon il ne
+// deviendrait correct qu'au prochain passage de refreshSyncPendingKeys(),
+// potentiellement 5 minutes plus tard (minuteur périodique).
+async function queueSyncTracked(entityType, action, payload) {
+  await dbLayer.queueSync(entityType, action, payload);
+  const id = payload.id ?? payload.substation_id;
+  if (id) state.syncQueueKeys.add(`${entityType}:${id}`);
+}
+
+// Le badge global "en attente (N)" ne dit pas LEQUEL des N éléments bloque —
+// pile ce qui rendait la file d'Axel incompréhensible. On recalcule ici les
+// ids précis encore dans la file locale, pour un repère par élément dans les
+// listes (voir syncPendingMark() dans ui.js) plutôt qu'un chiffre global.
+async function refreshSyncPendingKeys() {
+  const queue = await dbLayer.getSyncQueue();
+  const keys = new Set();
+  for (const item of queue) {
+    const id = item.payload?.id ?? item.payload?.substation_id;
+    if (id) keys.add(`${item.entity_type}:${id}`);
+  }
+  state.syncQueueKeys = keys;
+  if (state.currentTab === 'actions') ui.renderActions();
+  else if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  else if (state.currentTab === 'mes') ui.renderMesHistory();
+  else if (state.currentTab === 'historique') ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+}
+
 setSyncStatusListener((status, count, error) => {
+  refreshSyncPendingKeys();
   const pill = document.getElementById('syncPill');
   const label = document.getElementById('syncLabel');
   pill.className = `sync-pill ${status === 'synced' ? '' : status}`;
@@ -296,7 +503,7 @@ document.getElementById('ficheConflicts').addEventListener('click', async (e) =>
     merged.photos = Array.from(byId.values());
 
     await dbLayer.put('fiches', merged);
-    await dbLayer.queueSync('fiche', 'upsert', merged);
+    await queueSyncTracked('fiche', 'upsert', merged);
     state.fiches = state.fiches.map((f) => (f.id === merged.id ? merged : f));
 
     await dbLayer.removeFicheConflict(conflict.id);
@@ -363,6 +570,10 @@ async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
   document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
+  webauthnPlatformAvailable().then((available) => {
+    document.getElementById('webauthnAccountCard').hidden = !available;
+    if (available) renderWebauthnCredentialsList();
+  });
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()
@@ -400,6 +611,36 @@ function mergeById(local, server, pendingIds) {
 }
 
 let histFilter = 'tous';
+
+// true tant que la toute première récupération réseau (premier lancement,
+// cache local vide) n'est pas terminée — permet de continuer à afficher le
+// squelette de chargement de la liste des sites même si le technicien
+// change d'onglet avant que les données ne soient arrivées, au lieu que le
+// gestionnaire de clic sur l'onglet n'écrase le squelette par la liste
+// (encore vide à ce moment-là) et son message "Aucune sous-station trouvée".
+let firstLoadInFlight = false;
+
+// Suppression différée avec "Annuler" (fiches/actions/MES/rondes) : l'élément
+// disparaît immédiatement de toutes les listes (state.pendingDeleteIds, lu
+// par les fonctions de rendu concernées) mais n'est réellement supprimé de
+// la base locale ni de la file de synchro qu'après le délai du toast, sans
+// clic sur "Annuler" — jusqu'ici la suppression individuelle était instantanée
+// et définitive, sans confirmation ni retour possible.
+function softDelete(id, message, { onCommit, refresh }) {
+  state.pendingDeleteIds.add(id);
+  refresh();
+  ui.showUndoToast(message, {
+    onUndo: () => {
+      state.pendingDeleteIds.delete(id);
+      refresh();
+    },
+    onCommit: async () => {
+      state.pendingDeleteIds.delete(id);
+      await onCommit();
+      refresh();
+    },
+  });
+}
 
 function getSiteThreshold() {
   return Number(localStorage.getItem('site_threshold_days_v6')) || 30;
@@ -515,6 +756,11 @@ async function loadAppData() {
   state.ficheConflicts = await dbLayer.getFicheConflicts();
 
   renderAllData();
+  // Première ouverture sur cet appareil (rien encore en cache) : la liste
+  // des sites serait sinon affichée comme "vide" un instant, avant d'être
+  // remplacée par les 140 sous-stations une fois le réseau revenu.
+  firstLoadInFlight = cachedSubstations.length === 0;
+  if (firstLoadInFlight) ui.renderSiteListSkeleton();
 
   refreshRondeDateTime();
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
@@ -620,17 +866,21 @@ async function loadAppData() {
       }
     })(),
   ]).then(() => {
+    firstLoadInFlight = false;
     renderAllData();
     renderSiteMarkers();
   });
 }
 
 // ===== TABS =====
-document.getElementById('tabs').addEventListener('click', (e) => {
-  const tab = e.target.closest('.tab');
-  if (!tab) return;
-  ui.switchTab(tab.dataset.tab);
-  if (tab.dataset.tab === 'ronde') {
+// Factorisé (au lieu d'être en ligne dans le seul gestionnaire de clic de la
+// barre d'onglets) car il y a maintenant deux points d'entrée vers un onglet
+// donné : un tap direct sur la barre du bas, ou un choix dans la feuille
+// "Plus" (voir plus bas) pour les 4 onglets secondaires qui n'ont plus leur
+// propre place dans la barre.
+function goToTab(tabName) {
+  ui.switchTab(tabName);
+  if (tabName === 'ronde') {
     invalidateMapSize();
     // Seulement si aucune ronde n'est en cours de saisie (sinon on écraserait
     // l'horodatage réel du début de l'intervention en cours). Le champ
@@ -639,7 +889,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     // retaper son nom), donc c'est le brouillon réel qui fait foi.
     if (!localStorage.getItem(RONDE_DRAFT_KEY)) refreshRondeDateTime();
   }
-  if (tab.dataset.tab === 'bilan') {
+  if (tabName === 'bilan') {
     ui.renderBilanStats();
     ui.renderBilanTrend();
     ui.renderBilanStatusChart();
@@ -648,8 +898,39 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderSitesASurveiller();
     ui.renderActionsRetardSite();
   }
-  if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
-  if (tab.dataset.tab === 'sites') ui.renderSiteList(document.getElementById('siteSearch').value);
+  if (tabName === 'historique') ui.renderStorageUsage();
+  if (tabName === 'sites') {
+    if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
+    else ui.renderSiteList(document.getElementById('siteSearch').value);
+  }
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  if (e.target.closest('#moreTabBtn')) {
+    document.getElementById('moreMenuOverlay').hidden = false;
+    return;
+  }
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  goToTab(tab.dataset.tab);
+});
+
+// ===== MENU "PLUS" (onglets secondaires : Fiches, Bilan, Diagnostic, MES) =====
+// La barre du bas ne garde que 4 onglets + "Plus" plutôt que les 8 d'origine
+// — au-delà de 5 entrées, une barre de navigation basse devient illisible
+// (touch targets trop petits). Les 4 restants vivent dans cette feuille.
+function closeMoreMenu() {
+  document.getElementById('moreMenuOverlay').hidden = true;
+}
+document.getElementById('closeMoreMenuBtn').addEventListener('click', closeMoreMenu);
+document.getElementById('moreMenuOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'moreMenuOverlay') closeMoreMenu();
+});
+document.getElementById('moreMenuList').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-tab]');
+  if (!item) return;
+  closeMoreMenu();
+  goToTab(item.dataset.tab);
 });
 
 // ===== SITES (fiche technique) =====
@@ -1163,7 +1444,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
-    await dbLayer.queueSync('action', 'upsert', action);
+    await queueSyncTracked('action', 'upsert', action);
     state.actions.push(action);
     c.actionCreated = true;
     ui.renderControls();
@@ -1230,7 +1511,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   };
 
   await dbLayer.put('rondes', ronde);
-  await dbLayer.queueSync('ronde', 'upsert', ronde);
+  await queueSyncTracked('ronde', 'upsert', ronde);
   state.rondes.push(ronde);
 
   // Anomalies sans action déjà créée manuellement -> actions en attente
@@ -1252,7 +1533,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
-    await dbLayer.queueSync('action', 'upsert', action);
+    await queueSyncTracked('action', 'upsert', action);
     state.actions.push(action);
     createdCount++;
   }
@@ -1475,7 +1756,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
     if (fiche) {
       Object.assign(fiche, fields, { title, photos: ficheFormPhotos });
       await dbLayer.put('fiches', fiche);
-      await dbLayer.queueSync('fiche', 'upsert', fiche);
+      await queueSyncTracked('fiche', 'upsert', fiche);
       ui.showToast('Fiche mise à jour');
     }
   } else {
@@ -1489,7 +1770,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
       ts: Date.now(),
     };
     await dbLayer.put('fiches', fiche);
-    await dbLayer.queueSync('fiche', 'upsert', fiche);
+    await queueSyncTracked('fiche', 'upsert', fiche);
     state.fiches.push(fiche);
     ui.showToast('Fiche ajoutée');
   }
@@ -1508,11 +1789,17 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
     const id = delBtn.dataset.id;
     const fiche = state.fiches.find((f) => f.id === id);
     if (!fiche || fiche.is_reference) return;
-    await dbLayer.remove('fiches', id);
-    await dbLayer.queueSync('fiche', 'delete', { id });
-    state.fiches = state.fiches.filter((f) => f.id !== id);
-    ui.renderFiches(document.getElementById('ficheSearch').value);
-    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    softDelete(id, 'Fiche supprimée', {
+      refresh: () => {
+        ui.renderFiches(document.getElementById('ficheSearch').value);
+        ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('fiches', id);
+        await dbLayer.queueSync('fiche', 'delete', { id });
+        state.fiches = state.fiches.filter((f) => f.id !== id);
+      },
+    });
     return;
   }
   const editBtn = e.target.closest('[data-action="edit-fiche"]');
@@ -1576,7 +1863,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
     ts: Date.now(),
   };
   await dbLayer.put('actions', action);
-  await dbLayer.queueSync('action', 'upsert', action);
+  await queueSyncTracked('action', 'upsert', action);
   state.actions.push(action);
   input.value = '';
   closeNewActionModal();
@@ -1590,12 +1877,18 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-action="delete-action"]');
   if (del) {
     const id = del.dataset.id;
-    await dbLayer.remove('actions', id);
-    await dbLayer.queueSync('action', 'delete', { id });
-    state.actions = state.actions.filter((a) => a.id !== id);
-    ui.renderActions();
-    ui.renderBilanStats();
-    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    softDelete(id, 'Action supprimée', {
+      refresh: () => {
+        ui.renderActions();
+        ui.renderBilanStats();
+        ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('actions', id);
+        await dbLayer.queueSync('action', 'delete', { id });
+        state.actions = state.actions.filter((a) => a.id !== id);
+      },
+    });
     return;
   }
   // La case à cocher a son propre gestionnaire sur l'événement 'change' :
@@ -1622,7 +1915,7 @@ document.getElementById('actionsList').addEventListener('change', async (e) => {
   if (!action) return;
   action.done = box.checked;
   await dbLayer.put('actions', action);
-  await dbLayer.queueSync('action', 'upsert', action);
+  await queueSyncTracked('action', 'upsert', action);
   ui.renderActions();
   ui.renderBilanStats();
 });
@@ -1767,7 +2060,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
     ts: Date.now(),
   };
   await dbLayer.put('mes', session);
-  await dbLayer.queueSync('mes_session', 'upsert', session);
+  await queueSyncTracked('mes_session', 'upsert', session);
   state.mesSessions.push(session);
   document.getElementById('mesNotes').value = '';
   document.getElementById('mesSubstation').value = '';
@@ -1788,11 +2081,17 @@ document.getElementById('mesHistoryList').addEventListener('click', async (e) =>
   const btn = e.target.closest('[data-action="delete-mes"]');
   if (!btn) return;
   const id = btn.dataset.id;
-  await dbLayer.remove('mes', id);
-  await dbLayer.queueSync('mes_session', 'delete', { id });
-  state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
-  ui.renderMesHistory();
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  softDelete(id, 'Session MES supprimée', {
+    refresh: () => {
+      ui.renderMesHistory();
+      ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    },
+    onCommit: async () => {
+      await dbLayer.remove('mes', id);
+      await dbLayer.queueSync('mes_session', 'delete', { id });
+      state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+    },
+  });
 });
 
 // ===== HISTORIQUE =====
@@ -1806,28 +2105,59 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
     ui.loadMoreHistorique();
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
     return;
-  } else if (action === 'delete-ronde') {
-    await dbLayer.remove('rondes', id);
-    await dbLayer.queueSync('ronde', 'delete', { id });
-    state.rondes = state.rondes.filter((r) => r.id !== id);
+  }
+
+  const refreshHist = () => ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+
+  if (action === 'delete-ronde') {
+    softDelete(id, 'Ronde supprimée', {
+      refresh: refreshHist,
+      onCommit: async () => {
+        await dbLayer.remove('rondes', id);
+        await dbLayer.queueSync('ronde', 'delete', { id });
+        state.rondes = state.rondes.filter((r) => r.id !== id);
+      },
+    });
   } else if (action === 'delete-fiche') {
     const fiche = state.fiches.find((f) => f.id === id);
     if (!fiche || fiche.is_reference) return;
-    await dbLayer.remove('fiches', id);
-    await dbLayer.queueSync('fiche', 'delete', { id });
-    state.fiches = state.fiches.filter((f) => f.id !== id);
+    softDelete(id, 'Fiche supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderFiches(document.getElementById('ficheSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('fiches', id);
+        await dbLayer.queueSync('fiche', 'delete', { id });
+        state.fiches = state.fiches.filter((f) => f.id !== id);
+      },
+    });
   } else if (action === 'delete-action') {
-    await dbLayer.remove('actions', id);
-    await dbLayer.queueSync('action', 'delete', { id });
-    state.actions = state.actions.filter((a) => a.id !== id);
+    softDelete(id, 'Action supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderActions();
+        ui.renderBilanStats();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('actions', id);
+        await dbLayer.queueSync('action', 'delete', { id });
+        state.actions = state.actions.filter((a) => a.id !== id);
+      },
+    });
   } else if (action === 'delete-mes') {
-    await dbLayer.remove('mes', id);
-    await dbLayer.queueSync('mes_session', 'delete', { id });
-    state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
-  } else {
-    return;
+    softDelete(id, 'Session MES supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderMesHistory();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('mes', id);
+        await dbLayer.queueSync('mes_session', 'delete', { id });
+        state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+      },
+    });
   }
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
 document.getElementById('histSearch').addEventListener('input', (e) => {
@@ -1839,6 +2169,19 @@ document.getElementById('histFilterChips').addEventListener('click', (e) => {
   if (!chip) return;
   histFilter = chip.dataset.filter;
   document.querySelectorAll('#histFilterChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+});
+
+['histDateFrom', 'histDateTo', 'histTechFilter'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => {
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  });
+});
+
+document.getElementById('histFiltersReset').addEventListener('click', () => {
+  document.getElementById('histDateFrom').value = '';
+  document.getElementById('histDateTo').value = '';
+  document.getElementById('histTechFilter').value = '';
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 

@@ -10,7 +10,8 @@
     "create-user": "node scripts/create-user.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.3.5"
+    "@libsql/client": "^0.3.5",
+    "@simplewebauthn/server": "^14.0.2"
   },
   "engines": {
     "node": "24.x"

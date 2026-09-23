@@ -26,6 +26,8 @@
         <p>IDEX · Sous-stations chauffage urbain</p>
       </div>
     </div>
+    <button type="button" class="btn btn-secondary" id="webauthnLoginBtn" hidden style="width:100%;margin-bottom:14px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 0-4 4v1"/><path d="M8 8v3a4 4 0 0 0 8 0V8a4 4 0 0 0-2-3.5"/><path d="M4 12v-1a8 8 0 0 1 8-8"/><path d="M20 12v-1"/><path d="M4 16.5A8 8 0 0 0 11 21"/><path d="M17 20a8 8 0 0 0 3-6"/><path d="M12 17v3"/><path d="M9 16.5V15a3 3 0 0 1 6 0v1"/></svg> Se connecter avec Face ID / Touch ID</button>
+    <div class="login-divider" id="webauthnLoginDivider" hidden><span>ou</span></div>
     <form id="loginForm">
       <div class="form-group">
         <label>Email</label>
@@ -52,6 +54,7 @@
       </div>
     </div>
     <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncLabel">à jour</span></div>
+    <button class="icon-btn" id="globalSearchBtn" title="Recherche" aria-label="Recherche"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <button class="icon-btn" id="themeToggle" title="Thème" aria-label="Changer de thème">◐</button>
     <button class="icon-btn" id="logoutBtn" title="Déconnexion" aria-label="Déconnexion">⏻</button>
   </div>
@@ -59,14 +62,26 @@
   <div id="updateBanner" hidden style="background:var(--accent);color:#fff;padding:8px 14px;font-size:13px;text-align:center;cursor:pointer;">Nouvelle version disponible — appuie ici pour l'installer</div>
 
   <div class="tabs" id="tabs">
-    <div class="tab active" data-tab="ronde">Ronde</div>
-    <div class="tab" data-tab="sites">Sites</div>
-    <div class="tab" data-tab="fiches">Fiches<span class="tab-badge" id="fichesTabBadge" hidden></span></div>
-    <div class="tab" data-tab="actions">Actions</div>
-    <div class="tab" data-tab="bilan">Bilan</div>
-    <div class="tab" data-tab="diagnostic">Diagnostic</div>
-    <div class="tab" data-tab="mes">MES</div>
-    <div class="tab" data-tab="historique">Historique</div>
+    <div class="tab active" data-tab="ronde"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg><span>Ronde</span></div>
+    <div class="tab" data-tab="sites"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="9" y1="7" x2="9" y2="7.01"/><line x1="15" y1="7" x2="15" y2="7.01"/><line x1="9" y1="11" x2="9" y2="11.01"/><line x1="15" y1="11" x2="15" y2="11.01"/><line x1="9" y1="15" x2="9" y2="15.01"/><line x1="15" y1="15" x2="15" y2="15.01"/></svg><span>Sites</span></div>
+    <div class="tab" data-tab="actions"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>Actions</span></div>
+    <div class="tab" data-tab="historique"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg><span>Historique</span></div>
+    <div class="tab" id="moreTabBtn"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>Plus</span></div>
+  </div>
+
+  <div class="modal-overlay" id="moreMenuOverlay" hidden>
+    <div class="modal-card">
+      <div class="modal-card-header">
+        <h2>Plus</h2>
+        <button class="icon-btn" id="closeMoreMenuBtn" aria-label="Fermer">&times;</button>
+      </div>
+      <div id="moreMenuList">
+        <div class="more-menu-item" data-tab="fiches"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg><span>Fiches</span><span class="tab-badge" id="fichesTabBadge" hidden></span></div>
+        <div class="more-menu-item" data-tab="bilan"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="11"/><line x1="12" y1="21" x2="12" y2="6"/><line x1="19" y1="21" x2="19" y2="15"/></svg><span>Bilan</span></div>
+        <div class="more-menu-item" data-tab="diagnostic"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0-8-8"/><line x1="12" y1="12" x2="16" y2="8"/><line x1="12" y1="4" x2="12" y2="4.01"/></svg><span>Diagnostic</span></div>
+        <div class="more-menu-item" data-tab="mes"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>MES</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="content">
@@ -226,7 +241,7 @@
           <div class="form-group">
             <label>Photo</label>
             <div class="photo-row" id="ficheFormPhotoRow">
-              <label class="photo-btn"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7 9.2 4.5A1 1 0 0 1 10.1 4h3.8a1 1 0 0 1 .9.5L16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.4"/></svg> Ajouter<input type="file" accept="image/*" id="fichePhotoInput"></label>
+              <label class="photo-btn"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7 9.2 4.5A1 1 0 0 1 10.1 4h3.8a1 1 0 0 1 .9.5L16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.4"/></svg> Ajouter<input type="file" accept="image/*" capture="environment" id="fichePhotoInput"></label>
             </div>
           </div>
           <div class="btn-row">
@@ -396,6 +411,14 @@
 
     <!-- HISTORIQUE -->
     <div class="page" id="page-historique">
+      <div class="card" id="webauthnAccountCard" hidden>
+        <div class="card-header">Compte</div>
+        <div class="card-body">
+          <p class="hint" style="margin:0 0 10px;">Face ID / Touch ID te permet de te reconnecter sans retaper ton mot de passe à chaque fois, sur cet appareil.</p>
+          <button class="btn btn-secondary" id="webauthnRegisterBtn" style="width:100%;">Activer Face ID / Touch ID sur cet appareil</button>
+          <div id="webauthnCredentialsList"></div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-body">
           <div class="form-group" style="margin-bottom:10px;">
@@ -416,6 +439,26 @@
             <button class="chip" data-filter="arret">Arrêt</button>
             <button class="chip" data-filter="anomalies">Anomalies</button>
           </div>
+          <details style="margin-top:10px;">
+            <summary class="hint" style="cursor:pointer;">Filtres avancés (date, intervenant)</summary>
+            <div class="form-row" style="margin-top:10px;">
+              <div class="form-group">
+                <label>Du</label>
+                <input type="date" id="histDateFrom">
+              </div>
+              <div class="form-group">
+                <label>Au</label>
+                <input type="date" id="histDateTo">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Intervenant</label>
+              <select id="histTechFilter">
+                <option value="">Tous les intervenants</option>
+              </select>
+            </div>
+            <button class="btn-secondary" id="histFiltersReset" type="button" style="width:100%;">Réinitialiser les filtres avancés</button>
+          </details>
         </div>
       </div>
       <div id="historiqueContent"></div>
@@ -429,6 +472,14 @@
 <div class="lightbox" id="photoLightbox" hidden>
   <button class="lightbox-close" aria-label="Fermer">&times;</button>
   <img id="lightboxImg" src="" alt="Photo agrandie">
+</div>
+
+<div class="search-overlay" id="globalSearchOverlay" hidden>
+  <div class="search-overlay-bar">
+    <input type="text" id="globalSearchInput" placeholder="Chercher un site, une fiche, une ronde..." autocomplete="off">
+    <button class="icon-btn" id="closeGlobalSearchBtn" aria-label="Fermer">&times;</button>
+  </div>
+  <div id="globalSearchResults"></div>
 </div>
 
 <script type="module" src="js/app.js"></script>

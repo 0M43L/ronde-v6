@@ -136,6 +136,16 @@ export const state = {
   // technicien (voir js/app.js resolveFicheConflict et js/ui.js les
   // fonctions de rendu associées).
   ficheConflicts: [],
+  // Ids en cours de suppression (toast "Annuler" affiché, quelques secondes
+  // avant suppression réelle) : masqués de toutes les listes sans être
+  // encore retirés de la base ni de la file de synchro — voir softDelete()
+  // dans app.js et showUndoToast() dans ui.js.
+  pendingDeleteIds: new Set(),
+  // Clés `${entity_type}:${id}` des éléments encore dans la file de synchro
+  // locale, recalculées à chaque changement de statut de synchro — permet
+  // d'afficher un repère "pas encore synchronisé" sur l'élément précis
+  // concerné plutôt qu'un simple compteur global.
+  syncQueueKeys: new Set(),
 };
 
 export function resetControls() {
