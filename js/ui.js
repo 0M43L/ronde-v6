@@ -27,6 +27,38 @@ export function showToast(message, { sticky = false } = {}) {
   }
 }
 
+// Toast "Annuler" : une suppression déclenchée par erreur reste réversible
+// pendant `duration`, au lieu de disparaître instantanément et
+// silencieusement (aucune confirmation n'existait avant sur les suppressions
+// individuelles). onCommit s'exécute si le délai s'écoule sans clic sur
+// "Annuler", onUndo sinon.
+export function showUndoToast(message, { onUndo, onCommit, duration = 5000 } = {}) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-undo';
+  const label = document.createElement('span');
+  label.textContent = message;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toast-undo-btn';
+  btn.textContent = 'Annuler';
+  toast.appendChild(label);
+  toast.appendChild(btn);
+  container.appendChild(toast);
+
+  let settled = false;
+  const timer = setTimeout(() => finish(true), duration);
+  function finish(committed) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    toast.remove();
+    if (committed) onCommit();
+    else onUndo();
+  }
+  btn.addEventListener('click', () => finish(false));
+}
+
 export function openPhotoLightbox(url) {
   document.getElementById('lightboxImg').src = url;
   document.getElementById('photoLightbox').hidden = false;
@@ -35,6 +67,15 @@ export function openPhotoLightbox(url) {
 export function closePhotoLightbox() {
   document.getElementById('photoLightbox').hidden = true;
   document.getElementById('lightboxImg').src = '';
+}
+
+// Repère "pas encore synchronisé" sur un élément précis, plutôt que le seul
+// compteur global du badge en haut — voir refreshSyncPendingKeys() dans
+// app.js qui alimente state.syncQueueKeys.
+export function syncPendingMark(entityType, id) {
+  return state.syncQueueKeys.has(`${entityType}:${id}`)
+    ? `<span class="sync-pending-mark" title="Pas encore synchronisé">${icon('refresh', 10)}En attente</span>`
+    : '';
 }
 
 export function escapeHtml(str) {
@@ -167,9 +208,9 @@ export function renderControls() {
           ? `<textarea class="check-comment" placeholder="Commentaire..." data-action="set-comment" data-index="${i}">${escapeHtml(ctrl.comment)}</textarea>
              <div data-suggest-index="${i}">${renderFicheSuggestions(matchFichesForControl(ctrl))}</div>
              <div class="photo-row">
-               <label class="photo-btn">${icon('camera', 14)} Avant<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
+               <label class="photo-btn">${icon('camera', 14)} Avant<input type="file" accept="image/*" capture="environment" data-action="set-photo" data-index="${i}"></label>
                ${ctrl.photo ? `<div class="photo-thumb"><img src="${ctrl.photo}"><button class="remove-photo" data-action="remove-photo" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
-               <label class="photo-btn">${icon('camera', 14)} Après<input type="file" accept="image/*" data-action="set-photo-apres" data-index="${i}"></label>
+               <label class="photo-btn">${icon('camera', 14)} Après<input type="file" accept="image/*" capture="environment" data-action="set-photo-apres" data-index="${i}"></label>
                ${ctrl.photoApres ? `<div class="photo-thumb"><img src="${ctrl.photoApres}"><button class="remove-photo" data-action="remove-photo-apres" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
              </div>
              <button class="btn-secondary" style="width:100%; margin-top:8px; ${ctrl.actionCreated ? 'opacity:.5;' : ''}" data-action="create-action-inline" data-index="${i}" ${ctrl.actionCreated ? 'disabled' : ''}>
@@ -541,6 +582,7 @@ export function renderFiches(searchTerm = '') {
   }
 
   const filtered = state.fiches.filter((f) => {
+    if (state.pendingDeleteIds.has(f.id)) return false;
     if (!needle && ficheCatalogView && ficheCatalogView !== 'toutes' && classifyFiche(f) !== ficheCatalogView) return false;
     if (!needle) return true;
     return (
@@ -727,7 +769,7 @@ export function renderActions() {
     list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
     return;
   }
-  const sorted = state.actions.slice().sort((a, b) => {
+  const sorted = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id)).sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
     const sevDiff = (SEVERITY_ORDER[a.severity] ?? 2) - (SEVERITY_ORDER[b.severity] ?? 2);
     if (sevDiff !== 0) return sevDiff;
@@ -751,7 +793,7 @@ function renderActionItem(a) {
             ${escapeHtml(a.text)}
           </div>
           <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}</div>
-          ${substation ? `<div><span class="site-pill">${icon('mapPin', 11)}${escapeHtml(substation.name)}</span></div>` : ''}
+          ${substation || syncPendingMark('action', a.id) ? `<div>${substation ? `<span class="site-pill">${icon('mapPin', 11)}${escapeHtml(substation.name)}</span>` : ''}${syncPendingMark('action', a.id)}</div>` : ''}
           ${
             expanded
               ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
@@ -957,6 +999,7 @@ export function renderMesHistory() {
   list.innerHTML =
     '<div class="card"><div class="card-header">Sessions précédentes</div><div class="card-body">' +
     state.mesSessions
+      .filter((m) => !state.pendingDeleteIds.has(m.id))
       .slice()
       .reverse()
       .map((m) => {
@@ -965,6 +1008,7 @@ export function renderMesHistory() {
         return `<div class="item">
         <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
         <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
+        ${syncPendingMark('mes_session', m.id)}
         ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
       </div>`;
       })
@@ -986,6 +1030,7 @@ export function buildHistoriqueItems() {
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger').length;
     items.push({
       type: 'Ronde',
+      entityType: 'ronde',
       ts: r.ts || 0,
       title: substation ? substation.name : r.substation_id,
       meta: `${formatDateFr(r.date)} ${r.heure || ''}${r.tech ? ` · ${r.tech}` : ''}`,
@@ -996,23 +1041,24 @@ export function buildHistoriqueItems() {
       anomalies,
       substation_id: r.substation_id || null,
       owned: isOwned(r),
+      tech: r.tech || null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
+      items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), searchable: a.text.toLowerCase() });
+    items.push({ type: 'Action', entityType: 'action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), tech: a.tech || null, searchable: a.text.toLowerCase() });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
-    items.push({ type: 'MES', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: `${m.date || ''}${m.tech ? ` · ${m.tech}` : ''}`, body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
+    items.push({ type: 'MES', entityType: 'mes_session', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: `${m.date || ''}${m.tech ? ` · ${m.tech}` : ''}`, body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), tech: m.tech || null, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
   items.sort((a, b) => b.ts - a.ts);
-  return items;
+  return items.filter((it) => !state.pendingDeleteIds.has(it.id));
 }
 
 // Rendu paginé : au-delà de quelques mois d'usage quotidien sur 140 sites,
@@ -1031,16 +1077,49 @@ export function loadMoreHistorique() {
 export function renderHistorique(filter = 'tous', searchTerm = '') {
   const content = document.getElementById('historiqueContent');
   const needle = searchTerm.trim().toLowerCase();
-  const queryKey = `${filter}::${needle}`;
+
+  // Filtres avancés (date/intervenant) : lus directement sur le DOM plutôt
+  // que passés en paramètre, pour ne pas avoir à modifier tous les appels
+  // existants de renderHistorique() éparpillés dans app.js (après chaque
+  // ajout/suppression, changement d'onglet, etc.) — chacun continue de
+  // passer seulement le filtre de statut et la recherche texte comme avant.
+  const dateFromEl = document.getElementById('histDateFrom');
+  const dateToEl = document.getElementById('histDateTo');
+  const techEl = document.getElementById('histTechFilter');
+  const dateFrom = dateFromEl?.value || '';
+  const dateTo = dateToEl?.value || '';
+  const techValue = techEl?.value || '';
+
+  const queryKey = `${filter}::${needle}::${dateFrom}::${dateTo}::${techValue}`;
   if (queryKey !== historiqueLastQuery) {
     historiqueVisibleCount = HISTORIQUE_PAGE_SIZE;
     historiqueLastQuery = queryKey;
   }
 
   let items = buildHistoriqueItems();
+
+  if (techEl) {
+    const techs = Array.from(new Set(items.map((it) => it.tech).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'fr'));
+    const currentOptions = Array.from(techEl.options).map((o) => o.value);
+    if (currentOptions.slice(1).join('|') !== techs.join('|')) {
+      const selected = techEl.value;
+      techEl.innerHTML = '<option value="">Tous les intervenants</option>' + techs.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+      if (techs.includes(selected)) techEl.value = selected;
+    }
+  }
+
   if (filter === 'anomalies') items = items.filter((it) => it.anomalies > 0);
   else if (filter !== 'tous') items = items.filter((it) => it.statut === filter);
   if (needle) items = items.filter((it) => it.searchable.includes(needle));
+  if (techValue) items = items.filter((it) => it.tech === techValue);
+  if (dateFrom) {
+    const fromTs = new Date(`${dateFrom}T00:00:00`).getTime();
+    items = items.filter((it) => it.ts >= fromTs);
+  }
+  if (dateTo) {
+    const toTs = new Date(`${dateTo}T23:59:59.999`).getTime();
+    items = items.filter((it) => it.ts <= toTs);
+  }
 
   if (items.length === 0) {
     content.innerHTML = `<div class="empty-state">${icon('search', 32)}<p>Aucune activité trouvée</p></div>`;
@@ -1060,6 +1139,7 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       <div class="hist-type">${it.type} ${it.statut ? statutBadge[it.statut] || '' : ''}</div>
       <div class="item-title">${escapeHtml(it.title)}</div>
       <div class="item-meta">${escapeHtml(it.meta)}</div>
+      ${syncPendingMark(it.entityType, it.id)}
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
       ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
@@ -1068,6 +1148,49 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
     (remaining > 0
       ? `<button class="btn-secondary" style="width:100%; margin-top:10px;" data-action="load-more-historique">Afficher plus (${remaining} restant${remaining > 1 ? 's' : ''})</button>`
       : '');
+}
+
+// Recherche unifiée (icône loupe dans l'en-tête) : jusqu'ici il fallait
+// savoir dans quel onglet chercher (Sites/Fiches/Historique avaient chacun
+// leur propre champ, cherchant uniquement dans leurs propres données) — une
+// seule saisie ici cherche dans les trois à la fois, groupée par type.
+const SEARCH_RESULTS_PER_GROUP = 8;
+
+export function renderGlobalSearchResults(query) {
+  const el = document.getElementById('globalSearchResults');
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const sites = state.substations.filter((s) => s.name.toLowerCase().includes(needle)).slice(0, SEARCH_RESULTS_PER_GROUP);
+  const fiches = state.fiches
+    .filter((f) => f.title.toLowerCase().includes(needle) || (f.cause_probable || '').toLowerCase().includes(needle) || (f.solution || '').toLowerCase().includes(needle))
+    .slice(0, SEARCH_RESULTS_PER_GROUP);
+  const histItems = buildHistoriqueItems()
+    .filter((it) => it.entityType !== 'fiche' && it.searchable.includes(needle))
+    .slice(0, SEARCH_RESULTS_PER_GROUP);
+
+  if (sites.length === 0 && fiches.length === 0 && histItems.length === 0) {
+    el.innerHTML = `<div class="empty-state">${icon('search', 32)}<p>Aucun résultat pour "${escapeHtml(query)}"</p></div>`;
+    return;
+  }
+
+  const sitesHtml = sites.length
+    ? `<div class="search-group-header">Sites (${sites.length})</div>` +
+      sites.map((s) => `<div class="search-result-item" data-action="goto-search-site" data-id="${s.id}">${icon('building', 16)}<div><div class="name">${escapeHtml(s.name)}</div></div></div>`).join('')
+    : '';
+  const fichesHtml = fiches.length
+    ? `<div class="search-group-header">Fiches (${fiches.length})</div>` +
+      fiches.map((f) => `<div class="search-result-item" data-action="goto-search-fiche">${icon('clipboard', 16)}<div><div class="name">${escapeHtml(f.title)}</div></div></div>`).join('')
+    : '';
+  const histHtml = histItems.length
+    ? `<div class="search-group-header">Historique (${histItems.length})</div>` +
+      histItems.map((it) => `<div class="search-result-item" data-action="goto-search-hist"><span style="flex-shrink:0;">${icon('barChart', 16)}</span><div><div class="name">${escapeHtml(it.title)}</div><div class="sub">${it.type} · ${escapeHtml(it.meta)}</div></div></div>`).join('')
+    : '';
+
+  el.innerHTML = sitesHtml + fichesHtml + histHtml;
 }
 
 export async function renderStorageUsage() {
@@ -1377,6 +1500,22 @@ const SITE_STATUT_BADGE = {
   arret: '<span class="badge immediat">Arrêt</span>',
 };
 
+// Affiché à la toute première ouverture de l'appli sur un appareil (cache
+// local encore vide) le temps que les sous-stations arrivent du serveur —
+// remplace le "Aucune sous-station trouvée" trompeur qui donnait l'impression
+// d'un résultat vide plutôt que d'un chargement en cours (voir loadAppData()
+// dans app.js).
+export function renderSiteListSkeleton() {
+  const listEl = document.getElementById('siteList');
+  const row = `<div class="skeleton-row">
+    <div style="flex:1;">
+      <div class="skeleton-bar" style="width:60%;height:13px;margin-bottom:6px;"></div>
+      <div class="skeleton-bar" style="width:35%;height:10px;"></div>
+    </div>
+  </div>`;
+  listEl.innerHTML = row.repeat(6);
+}
+
 export function renderSiteList(searchTerm = '') {
   const listEl = document.getElementById('siteList');
   const needle = searchTerm.trim().toLowerCase();
@@ -1528,7 +1667,7 @@ export function renderSiteDetail() {
               (p) => `<div class="photo-thumb"><img src="${p.url}" data-action="view-site-photo" data-url="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
             )
             .join('')}
-          <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" data-action="add-site-photo"></label>
+          <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" capture="environment" data-action="add-site-photo"></label>
         </div>
       </div>
     </div>

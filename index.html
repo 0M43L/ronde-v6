@@ -52,6 +52,7 @@
       </div>
     </div>
     <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncLabel">à jour</span></div>
+    <button class="icon-btn" id="globalSearchBtn" title="Recherche" aria-label="Recherche"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <button class="icon-btn" id="themeToggle" title="Thème" aria-label="Changer de thème">◐</button>
     <button class="icon-btn" id="logoutBtn" title="Déconnexion" aria-label="Déconnexion">⏻</button>
   </div>
@@ -226,7 +227,7 @@
           <div class="form-group">
             <label>Photo</label>
             <div class="photo-row" id="ficheFormPhotoRow">
-              <label class="photo-btn"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7 9.2 4.5A1 1 0 0 1 10.1 4h3.8a1 1 0 0 1 .9.5L16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.4"/></svg> Ajouter<input type="file" accept="image/*" id="fichePhotoInput"></label>
+              <label class="photo-btn"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7 9.2 4.5A1 1 0 0 1 10.1 4h3.8a1 1 0 0 1 .9.5L16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.4"/></svg> Ajouter<input type="file" accept="image/*" capture="environment" id="fichePhotoInput"></label>
             </div>
           </div>
           <div class="btn-row">
@@ -416,6 +417,26 @@
             <button class="chip" data-filter="arret">Arrêt</button>
             <button class="chip" data-filter="anomalies">Anomalies</button>
           </div>
+          <details style="margin-top:10px;">
+            <summary class="hint" style="cursor:pointer;">Filtres avancés (date, intervenant)</summary>
+            <div class="form-row" style="margin-top:10px;">
+              <div class="form-group">
+                <label>Du</label>
+                <input type="date" id="histDateFrom">
+              </div>
+              <div class="form-group">
+                <label>Au</label>
+                <input type="date" id="histDateTo">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Intervenant</label>
+              <select id="histTechFilter">
+                <option value="">Tous les intervenants</option>
+              </select>
+            </div>
+            <button class="btn-secondary" id="histFiltersReset" type="button" style="width:100%;">Réinitialiser les filtres avancés</button>
+          </details>
         </div>
       </div>
       <div id="historiqueContent"></div>
@@ -429,6 +450,14 @@
 <div class="lightbox" id="photoLightbox" hidden>
   <button class="lightbox-close" aria-label="Fermer">&times;</button>
   <img id="lightboxImg" src="" alt="Photo agrandie">
+</div>
+
+<div class="search-overlay" id="globalSearchOverlay" hidden>
+  <div class="search-overlay-bar">
+    <input type="text" id="globalSearchInput" placeholder="Chercher un site, une fiche, une ronde..." autocomplete="off">
+    <button class="icon-btn" id="closeGlobalSearchBtn" aria-label="Fermer">&times;</button>
+  </div>
+  <div id="globalSearchResults"></div>
 </div>
 
 <script type="module" src="js/app.js"></script>

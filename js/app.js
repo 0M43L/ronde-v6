@@ -111,9 +111,81 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   localStorage.setItem('theme_v6', next);
 });
 
+// ===== RECHERCHE UNIFIÉE =====
+document.getElementById('globalSearchBtn').addEventListener('click', () => {
+  document.getElementById('globalSearchOverlay').hidden = false;
+  document.getElementById('globalSearchInput').value = '';
+  document.getElementById('globalSearchResults').innerHTML = '';
+  document.getElementById('globalSearchInput').focus();
+});
+
+function closeGlobalSearch() {
+  document.getElementById('globalSearchOverlay').hidden = true;
+}
+document.getElementById('closeGlobalSearchBtn').addEventListener('click', closeGlobalSearch);
+
+document.getElementById('globalSearchInput').addEventListener('input', (e) => {
+  ui.renderGlobalSearchResults(e.target.value);
+});
+
+document.getElementById('globalSearchResults').addEventListener('click', (e) => {
+  const siteItem = e.target.closest('[data-action="goto-search-site"]');
+  const ficheItem = e.target.closest('[data-action="goto-search-fiche"]');
+  const histItem = e.target.closest('[data-action="goto-search-hist"]');
+  const query = document.getElementById('globalSearchInput').value;
+
+  if (siteItem) {
+    closeGlobalSearch();
+    ui.switchTab('sites');
+    ui.selectSite(siteItem.dataset.id);
+    loadSiteDetailIfNeeded(siteItem.dataset.id);
+  } else if (ficheItem) {
+    closeGlobalSearch();
+    ui.switchTab('fiches');
+    document.getElementById('ficheSearch').value = query;
+    ui.renderFiches(query);
+  } else if (histItem) {
+    closeGlobalSearch();
+    ui.switchTab('historique');
+    document.getElementById('histSearch').value = query;
+    ui.renderHistorique(histFilter, query);
+  }
+});
+
 // ===== SYNC PILL =====
 let errorToastShown = false;
+
+// Met à jour state.syncQueueKeys immédiatement après avoir mis un élément en
+// file d'attente (ronde/action/fiche/session MES), pour que le repère "en
+// attente" (ui.syncPendingMark) soit juste dès l'ajout — sinon il ne
+// deviendrait correct qu'au prochain passage de refreshSyncPendingKeys(),
+// potentiellement 5 minutes plus tard (minuteur périodique).
+async function queueSyncTracked(entityType, action, payload) {
+  await dbLayer.queueSync(entityType, action, payload);
+  const id = payload.id ?? payload.substation_id;
+  if (id) state.syncQueueKeys.add(`${entityType}:${id}`);
+}
+
+// Le badge global "en attente (N)" ne dit pas LEQUEL des N éléments bloque —
+// pile ce qui rendait la file d'Axel incompréhensible. On recalcule ici les
+// ids précis encore dans la file locale, pour un repère par élément dans les
+// listes (voir syncPendingMark() dans ui.js) plutôt qu'un chiffre global.
+async function refreshSyncPendingKeys() {
+  const queue = await dbLayer.getSyncQueue();
+  const keys = new Set();
+  for (const item of queue) {
+    const id = item.payload?.id ?? item.payload?.substation_id;
+    if (id) keys.add(`${item.entity_type}:${id}`);
+  }
+  state.syncQueueKeys = keys;
+  if (state.currentTab === 'actions') ui.renderActions();
+  else if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
+  else if (state.currentTab === 'mes') ui.renderMesHistory();
+  else if (state.currentTab === 'historique') ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+}
+
 setSyncStatusListener((status, count, error) => {
+  refreshSyncPendingKeys();
   const pill = document.getElementById('syncPill');
   const label = document.getElementById('syncLabel');
   pill.className = `sync-pill ${status === 'synced' ? '' : status}`;
@@ -296,7 +368,7 @@ document.getElementById('ficheConflicts').addEventListener('click', async (e) =>
     merged.photos = Array.from(byId.values());
 
     await dbLayer.put('fiches', merged);
-    await dbLayer.queueSync('fiche', 'upsert', merged);
+    await queueSyncTracked('fiche', 'upsert', merged);
     state.fiches = state.fiches.map((f) => (f.id === merged.id ? merged : f));
 
     await dbLayer.removeFicheConflict(conflict.id);
@@ -400,6 +472,36 @@ function mergeById(local, server, pendingIds) {
 }
 
 let histFilter = 'tous';
+
+// true tant que la toute première récupération réseau (premier lancement,
+// cache local vide) n'est pas terminée — permet de continuer à afficher le
+// squelette de chargement de la liste des sites même si le technicien
+// change d'onglet avant que les données ne soient arrivées, au lieu que le
+// gestionnaire de clic sur l'onglet n'écrase le squelette par la liste
+// (encore vide à ce moment-là) et son message "Aucune sous-station trouvée".
+let firstLoadInFlight = false;
+
+// Suppression différée avec "Annuler" (fiches/actions/MES/rondes) : l'élément
+// disparaît immédiatement de toutes les listes (state.pendingDeleteIds, lu
+// par les fonctions de rendu concernées) mais n'est réellement supprimé de
+// la base locale ni de la file de synchro qu'après le délai du toast, sans
+// clic sur "Annuler" — jusqu'ici la suppression individuelle était instantanée
+// et définitive, sans confirmation ni retour possible.
+function softDelete(id, message, { onCommit, refresh }) {
+  state.pendingDeleteIds.add(id);
+  refresh();
+  ui.showUndoToast(message, {
+    onUndo: () => {
+      state.pendingDeleteIds.delete(id);
+      refresh();
+    },
+    onCommit: async () => {
+      state.pendingDeleteIds.delete(id);
+      await onCommit();
+      refresh();
+    },
+  });
+}
 
 function getSiteThreshold() {
   return Number(localStorage.getItem('site_threshold_days_v6')) || 30;
@@ -515,6 +617,11 @@ async function loadAppData() {
   state.ficheConflicts = await dbLayer.getFicheConflicts();
 
   renderAllData();
+  // Première ouverture sur cet appareil (rien encore en cache) : la liste
+  // des sites serait sinon affichée comme "vide" un instant, avant d'être
+  // remplacée par les 140 sous-stations une fois le réseau revenu.
+  firstLoadInFlight = cachedSubstations.length === 0;
+  if (firstLoadInFlight) ui.renderSiteListSkeleton();
 
   refreshRondeDateTime();
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
@@ -620,6 +727,7 @@ async function loadAppData() {
       }
     })(),
   ]).then(() => {
+    firstLoadInFlight = false;
     renderAllData();
     renderSiteMarkers();
   });
@@ -649,7 +757,10 @@ document.getElementById('tabs').addEventListener('click', (e) => {
     ui.renderActionsRetardSite();
   }
   if (tab.dataset.tab === 'historique') ui.renderStorageUsage();
-  if (tab.dataset.tab === 'sites') ui.renderSiteList(document.getElementById('siteSearch').value);
+  if (tab.dataset.tab === 'sites') {
+    if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
+    else ui.renderSiteList(document.getElementById('siteSearch').value);
+  }
 });
 
 // ===== SITES (fiche technique) =====
@@ -1163,7 +1274,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
-    await dbLayer.queueSync('action', 'upsert', action);
+    await queueSyncTracked('action', 'upsert', action);
     state.actions.push(action);
     c.actionCreated = true;
     ui.renderControls();
@@ -1230,7 +1341,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   };
 
   await dbLayer.put('rondes', ronde);
-  await dbLayer.queueSync('ronde', 'upsert', ronde);
+  await queueSyncTracked('ronde', 'upsert', ronde);
   state.rondes.push(ronde);
 
   // Anomalies sans action déjà créée manuellement -> actions en attente
@@ -1252,7 +1363,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
-    await dbLayer.queueSync('action', 'upsert', action);
+    await queueSyncTracked('action', 'upsert', action);
     state.actions.push(action);
     createdCount++;
   }
@@ -1475,7 +1586,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
     if (fiche) {
       Object.assign(fiche, fields, { title, photos: ficheFormPhotos });
       await dbLayer.put('fiches', fiche);
-      await dbLayer.queueSync('fiche', 'upsert', fiche);
+      await queueSyncTracked('fiche', 'upsert', fiche);
       ui.showToast('Fiche mise à jour');
     }
   } else {
@@ -1489,7 +1600,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
       ts: Date.now(),
     };
     await dbLayer.put('fiches', fiche);
-    await dbLayer.queueSync('fiche', 'upsert', fiche);
+    await queueSyncTracked('fiche', 'upsert', fiche);
     state.fiches.push(fiche);
     ui.showToast('Fiche ajoutée');
   }
@@ -1508,11 +1619,17 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
     const id = delBtn.dataset.id;
     const fiche = state.fiches.find((f) => f.id === id);
     if (!fiche || fiche.is_reference) return;
-    await dbLayer.remove('fiches', id);
-    await dbLayer.queueSync('fiche', 'delete', { id });
-    state.fiches = state.fiches.filter((f) => f.id !== id);
-    ui.renderFiches(document.getElementById('ficheSearch').value);
-    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    softDelete(id, 'Fiche supprimée', {
+      refresh: () => {
+        ui.renderFiches(document.getElementById('ficheSearch').value);
+        ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('fiches', id);
+        await dbLayer.queueSync('fiche', 'delete', { id });
+        state.fiches = state.fiches.filter((f) => f.id !== id);
+      },
+    });
     return;
   }
   const editBtn = e.target.closest('[data-action="edit-fiche"]');
@@ -1576,7 +1693,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
     ts: Date.now(),
   };
   await dbLayer.put('actions', action);
-  await dbLayer.queueSync('action', 'upsert', action);
+  await queueSyncTracked('action', 'upsert', action);
   state.actions.push(action);
   input.value = '';
   closeNewActionModal();
@@ -1590,12 +1707,18 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-action="delete-action"]');
   if (del) {
     const id = del.dataset.id;
-    await dbLayer.remove('actions', id);
-    await dbLayer.queueSync('action', 'delete', { id });
-    state.actions = state.actions.filter((a) => a.id !== id);
-    ui.renderActions();
-    ui.renderBilanStats();
-    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    softDelete(id, 'Action supprimée', {
+      refresh: () => {
+        ui.renderActions();
+        ui.renderBilanStats();
+        ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('actions', id);
+        await dbLayer.queueSync('action', 'delete', { id });
+        state.actions = state.actions.filter((a) => a.id !== id);
+      },
+    });
     return;
   }
   // La case à cocher a son propre gestionnaire sur l'événement 'change' :
@@ -1622,7 +1745,7 @@ document.getElementById('actionsList').addEventListener('change', async (e) => {
   if (!action) return;
   action.done = box.checked;
   await dbLayer.put('actions', action);
-  await dbLayer.queueSync('action', 'upsert', action);
+  await queueSyncTracked('action', 'upsert', action);
   ui.renderActions();
   ui.renderBilanStats();
 });
@@ -1767,7 +1890,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
     ts: Date.now(),
   };
   await dbLayer.put('mes', session);
-  await dbLayer.queueSync('mes_session', 'upsert', session);
+  await queueSyncTracked('mes_session', 'upsert', session);
   state.mesSessions.push(session);
   document.getElementById('mesNotes').value = '';
   document.getElementById('mesSubstation').value = '';
@@ -1788,11 +1911,17 @@ document.getElementById('mesHistoryList').addEventListener('click', async (e) =>
   const btn = e.target.closest('[data-action="delete-mes"]');
   if (!btn) return;
   const id = btn.dataset.id;
-  await dbLayer.remove('mes', id);
-  await dbLayer.queueSync('mes_session', 'delete', { id });
-  state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
-  ui.renderMesHistory();
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  softDelete(id, 'Session MES supprimée', {
+    refresh: () => {
+      ui.renderMesHistory();
+      ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+    },
+    onCommit: async () => {
+      await dbLayer.remove('mes', id);
+      await dbLayer.queueSync('mes_session', 'delete', { id });
+      state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+    },
+  });
 });
 
 // ===== HISTORIQUE =====
@@ -1806,28 +1935,59 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
     ui.loadMoreHistorique();
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
     return;
-  } else if (action === 'delete-ronde') {
-    await dbLayer.remove('rondes', id);
-    await dbLayer.queueSync('ronde', 'delete', { id });
-    state.rondes = state.rondes.filter((r) => r.id !== id);
+  }
+
+  const refreshHist = () => ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+
+  if (action === 'delete-ronde') {
+    softDelete(id, 'Ronde supprimée', {
+      refresh: refreshHist,
+      onCommit: async () => {
+        await dbLayer.remove('rondes', id);
+        await dbLayer.queueSync('ronde', 'delete', { id });
+        state.rondes = state.rondes.filter((r) => r.id !== id);
+      },
+    });
   } else if (action === 'delete-fiche') {
     const fiche = state.fiches.find((f) => f.id === id);
     if (!fiche || fiche.is_reference) return;
-    await dbLayer.remove('fiches', id);
-    await dbLayer.queueSync('fiche', 'delete', { id });
-    state.fiches = state.fiches.filter((f) => f.id !== id);
+    softDelete(id, 'Fiche supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderFiches(document.getElementById('ficheSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('fiches', id);
+        await dbLayer.queueSync('fiche', 'delete', { id });
+        state.fiches = state.fiches.filter((f) => f.id !== id);
+      },
+    });
   } else if (action === 'delete-action') {
-    await dbLayer.remove('actions', id);
-    await dbLayer.queueSync('action', 'delete', { id });
-    state.actions = state.actions.filter((a) => a.id !== id);
+    softDelete(id, 'Action supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderActions();
+        ui.renderBilanStats();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('actions', id);
+        await dbLayer.queueSync('action', 'delete', { id });
+        state.actions = state.actions.filter((a) => a.id !== id);
+      },
+    });
   } else if (action === 'delete-mes') {
-    await dbLayer.remove('mes', id);
-    await dbLayer.queueSync('mes_session', 'delete', { id });
-    state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
-  } else {
-    return;
+    softDelete(id, 'Session MES supprimée', {
+      refresh: () => {
+        refreshHist();
+        ui.renderMesHistory();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('mes', id);
+        await dbLayer.queueSync('mes_session', 'delete', { id });
+        state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+      },
+    });
   }
-  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
 document.getElementById('histSearch').addEventListener('input', (e) => {
@@ -1839,6 +1999,19 @@ document.getElementById('histFilterChips').addEventListener('click', (e) => {
   if (!chip) return;
   histFilter = chip.dataset.filter;
   document.querySelectorAll('#histFilterChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+});
+
+['histDateFrom', 'histDateTo', 'histTechFilter'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => {
+    ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  });
+});
+
+document.getElementById('histFiltersReset').addEventListener('click', () => {
+  document.getElementById('histDateFrom').value = '';
+  document.getElementById('histDateTo').value = '';
+  document.getElementById('histTechFilter').value = '';
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
