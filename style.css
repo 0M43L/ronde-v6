@@ -30,8 +30,9 @@
   --radius-sm: 6px;
   --mono: "SF Mono", "Roboto Mono", "Courier New", monospace;
   --shadow: 0 1px 2px rgba(20, 20, 25, 0.04), 0 4px 16px rgba(20, 20, 25, 0.05);
+  --shadow-nav: 0 10px 28px rgba(20, 20, 25, 0.14), 0 2px 8px rgba(20, 20, 25, 0.06);
   --header-h: 64px;
-  --bottom-nav-h: 58px;
+  --bottom-nav-h: 72px;
   color-scheme: light;
 }
 
@@ -59,6 +60,7 @@
     --cat-instrumentation: #4FD1C5;
     --cat-instrumentation-soft: #102A28;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-nav: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
 }
@@ -86,6 +88,7 @@
   --cat-instrumentation: #4FD1C5;
   --cat-instrumentation-soft: #102A28;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-nav: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
@@ -226,30 +229,38 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
    Diagnostic/MES) vivent dans la feuille "Plus" (#moreMenuOverlay) — au-delà
    de 5 entrées une barre basse devient illisible sur un écran de téléphone. */
 .tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 150;
+  position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 150;
   display: flex;
+  gap: 2px;
   background: var(--bg-elevated);
-  border-top: 1px solid var(--border);
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
-  max-width: 760px; margin: 0 auto;
-}
-@media (min-width: 780px) {
-  .tabs { left: 50%; transform: translateX(-50%); width: 100%; }
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px;
+  max-width: 736px; margin: 0 auto;
+  /* Barre flottante détachée du bord plutôt que collée en plein écran, avec
+     une vraie ombre portée plutôt qu'un simple filet — sans ça la barre
+     précédente (fond plat, bord droit, changement de couleur seul sur
+     l'onglet actif) paraissait trop nue à côté du reste de l'appli. */
+  box-shadow: var(--shadow-nav);
 }
 
 .tab {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  padding: 4px 2px;
+  padding: 7px 2px;
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);
-  border-radius: var(--radius-sm);
+  border-radius: 14px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
 }
-.tab:active { background: var(--neutral-soft); }
-.tab.active { color: var(--accent); font-weight: 600; }
+.tab:active { transform: scale(0.93); }
+.tab.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
 
 /* ===== CONTENT ===== */
 .content { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 14px; }
