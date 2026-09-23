@@ -1488,11 +1488,25 @@ export function renderActionsRetardSite(thresholdDays = 7) {
 let selectedSiteId = null;
 let editingSiteInfo = false;
 let editingCommentId = null;
+// Position capturée via GPS pendant l'édition, en attente d'enregistrement —
+// distincte de site.lat/lon tant que "Enregistrer" n'a pas été cliqué, pour
+// pouvoir annuler l'édition sans avoir déjà modifié la position du site.
+let editSiteGeoCoords = null;
 
 export function toggleSiteInfoEdit(on) {
   editingSiteInfo = on;
+  editSiteGeoCoords = null;
   if (on) editingCommentId = null;
   renderSiteDetail();
+}
+
+export function setEditSiteGeoCoords(lat, lon) {
+  editSiteGeoCoords = { lat, lon };
+  renderSiteDetail();
+}
+
+export function getEditSiteGeoCoords() {
+  return editSiteGeoCoords;
 }
 
 export function setEditingComment(id) {
@@ -1641,6 +1655,17 @@ export function renderSiteDetail() {
                <div class="form-group">
                  <label>Notes d'accès</label>
                  <textarea id="editSiteNotes" placeholder="Code portail, accès, etc.">${escapeHtml(site.notes_acces || '')}</textarea>
+               </div>
+               <div class="form-group">
+                 <label>Position GPS</label>
+                 <p class="hint" id="editSiteGeoStatus" style="margin:0 0 8px;">${
+                   editSiteGeoCoords
+                     ? `Nouvelle position capturée (${editSiteGeoCoords.lat.toFixed(5)}, ${editSiteGeoCoords.lon.toFixed(5)}) — sera enregistrée.`
+                     : site.lat != null && site.lon != null
+                       ? `Position actuelle : ${site.lat.toFixed(5)}, ${site.lon.toFixed(5)}`
+                       : 'Aucune position enregistrée pour ce site.'
+                 }</p>
+                 <button class="btn btn-secondary" data-action="edit-site-geo-btn" type="button" style="width:100%;">${icon('mapPin', 14)} Mettre à jour avec ma position actuelle</button>
                </div>
                <div class="btn-row" style="margin-top:4px;">
                  <button class="btn" data-action="save-site-info">Enregistrer</button>

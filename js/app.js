@@ -1082,6 +1082,19 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.toggleSiteInfoEdit(false);
     return;
   }
+  const editGeoBtn = e.target.closest('[data-action="edit-site-geo-btn"]');
+  if (editGeoBtn) {
+    if (!navigator.geolocation) {
+      ui.showToast('Géolocalisation indisponible sur cet appareil');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => ui.setEditSiteGeoCoords(pos.coords.latitude, pos.coords.longitude),
+      (err) => ui.showToast(`Position indisponible (${err.message})`),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+    return;
+  }
   const saveInfoBtn = e.target.closest('[data-action="save-site-info"]');
   if (saveInfoBtn) {
     const site = ui.getSelectedSite();
@@ -1098,6 +1111,12 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     }
     site.name = name;
     site.notes_acces = document.getElementById('editSiteNotes').value.trim();
+    const newGeo = ui.getEditSiteGeoCoords();
+    if (newGeo) {
+      site.lat = newGeo.lat;
+      site.lon = newGeo.lon;
+      site.needs_review = false;
+    }
     await dbLayer.put('substations', site);
     // Le nom et les notes d'accès sont des infos communes au site (pas
     // propres à un technicien), donc synchronisées comme le reste des
@@ -1108,6 +1127,16 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.renderSiteList(document.getElementById('siteSearch').value);
     ui.toggleSiteInfoEdit(false);
     ui.showToast('Sous-station mise à jour');
+    if (newGeo) {
+      prefetchTilesAround(newGeo.lat, newGeo.lon).catch(() => {});
+      renderMarkers(state.substations, (id) => {
+        const s = state.substations.find((x) => x.id === id);
+        if (s) {
+          document.getElementById('rondeSubstation').value = s.name;
+          onSubstationInput();
+        }
+      });
+    }
     return;
   }
 });
