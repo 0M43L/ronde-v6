@@ -72,14 +72,17 @@ export async function login(email, password) {
 }
 
 // ===== FACE ID / TOUCH ID (WebAuthn) =====
+// Les 5 opérations sont regroupées derrière /api/webauthn?action=... dans un
+// seul fichier côté serveur (voir api/webauthn.js) pour rester sous la
+// limite de fonctions serverless du plan Vercel Hobby.
 export async function webauthnRegisterOptions() {
-  const res = await authedFetch('/api/webauthn/register-options', { method: 'POST' });
+  const res = await authedFetch('/api/webauthn?action=register-options', { method: 'POST' });
   if (!res.ok) throw new Error('Impossible de préparer l\'inscription Face ID/Touch ID');
   return res.json();
 }
 
 export async function webauthnRegisterVerify(attestationResponse, deviceName) {
-  const res = await authedFetch('/api/webauthn/register-verify', {
+  const res = await authedFetch('/api/webauthn?action=register-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...attestationResponse, deviceName }),
@@ -90,14 +93,14 @@ export async function webauthnRegisterVerify(attestationResponse, deviceName) {
 }
 
 export async function webauthnListCredentials() {
-  const res = await authedFetch('/api/webauthn/credentials');
+  const res = await authedFetch('/api/webauthn?action=credentials');
   if (!res.ok) return [];
   const data = await res.json();
   return data.credentials || [];
 }
 
 export async function webauthnRemoveCredential(id) {
-  const res = await authedFetch('/api/webauthn/credentials', {
+  const res = await authedFetch('/api/webauthn?action=credentials', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
@@ -108,13 +111,13 @@ export async function webauthnRemoveCredential(id) {
 // Pas de session existante à ce stade (écran de connexion) : fetch() simple,
 // pas authedFetch().
 export async function webauthnLoginOptions() {
-  const res = await fetch('/api/webauthn/login-options', { method: 'POST' });
+  const res = await fetch('/api/webauthn?action=login-options', { method: 'POST' });
   if (!res.ok) throw new Error('Face ID/Touch ID indisponible pour l\'instant');
   return res.json();
 }
 
 export async function webauthnLoginVerify(challengeId, assertionResponse) {
-  const res = await fetch('/api/webauthn/login-verify', {
+  const res = await fetch('/api/webauthn?action=login-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ challengeId, response: assertionResponse }),
