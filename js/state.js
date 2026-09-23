@@ -5,6 +5,7 @@ export const CONTROLS_DEF = [
   { id: 'instrumentation', label: 'État instrumentation' },
   { id: 'bruit', label: 'Bruit / vibrations anormaux' },
   { id: 'compteur', label: 'État compteur énergie' },
+  { id: 'plombs', label: 'Présence des plombs sur les intégrateurs' },
   { id: 'proprete', label: 'Propreté locale technique' },
   { id: 'graissage', label: 'Graissage vanne' },
 ];
