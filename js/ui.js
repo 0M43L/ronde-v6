@@ -59,14 +59,23 @@ export function showUndoToast(message, { onUndo, onCommit, duration = 5000 } = {
   btn.addEventListener('click', () => finish(false));
 }
 
+// Mémorise l'élément qui avait le focus avant l'ouverture pour l'y rendre à
+// la fermeture — sans ça, un utilisateur au clavier perdait le focus dans le
+// vide (retombé sur <body>) une fois la photo refermée.
+let lightboxTrigger = null;
+
 export function openPhotoLightbox(url) {
+  lightboxTrigger = document.activeElement;
   document.getElementById('lightboxImg').src = url;
   document.getElementById('photoLightbox').hidden = false;
+  document.getElementById('lightboxCloseBtn').focus();
 }
 
 export function closePhotoLightbox() {
   document.getElementById('photoLightbox').hidden = true;
   document.getElementById('lightboxImg').src = '';
+  if (lightboxTrigger && document.body.contains(lightboxTrigger)) lightboxTrigger.focus();
+  lightboxTrigger = null;
 }
 
 // Repère "pas encore synchronisé" sur un élément précis, plutôt que le seul
@@ -93,10 +102,16 @@ const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes'];
 
 export function switchTab(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach((t) => {
-    t.classList.toggle('active', t.dataset.tab === tab);
+    const active = t.dataset.tab === tab;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', String(active));
   });
   const moreBtn = document.getElementById('moreTabBtn');
-  if (moreBtn) moreBtn.classList.toggle('active', MORE_MENU_TABS.includes(tab));
+  if (moreBtn) {
+    const active = MORE_MENU_TABS.includes(tab);
+    moreBtn.classList.toggle('active', active);
+    moreBtn.setAttribute('aria-selected', String(active));
+  }
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${tab}`));
   state.currentTab = tab;
 }
@@ -1055,7 +1070,7 @@ export function buildHistoriqueItems() {
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
+      items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: isOwned(f), tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
     items.push({ type: 'Action', entityType: 'action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), tech: a.tech || null, searchable: a.text.toLowerCase() });

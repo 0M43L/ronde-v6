@@ -377,9 +377,23 @@ const TABLES = {
 // fiches de référence et les sous-stations n'ont pas cette contrainte).
 const OWNED_TABLES = new Set(['rondes', 'actions', 'mes_sessions']);
 
-function deleteItem(entity_type, id, userId) {
+async function deleteItem(entity_type, id, userId) {
   const table = TABLES[entity_type];
   if (!table) throw new Error(`Type inconnu: ${entity_type}`);
+  // Même règle que pour la modification (voir case 'fiche' dans syncItem) :
+  // une fiche terrain ne peut être supprimée que par son auteur, une fiche
+  // de référence (sans auteur personnel) reste supprimable par tous. Sans
+  // ça, n'importe quel technicien pouvait supprimer la fiche d'un collègue.
+  if (table === 'fiches') {
+    const existing = await db.execute({ sql: `SELECT user_id, is_reference FROM fiches WHERE id = ?`, args: [id] });
+    const row = existing.rows[0];
+    if (row && !row.is_reference && row.user_id && row.user_id !== userId) {
+      const err = new Error('FORBIDDEN_NOT_OWNER');
+      err.code = 'FORBIDDEN_NOT_OWNER';
+      throw err;
+    }
+    return db.execute({ sql: `DELETE FROM fiches WHERE id = ?`, args: [id] });
+  }
   if (OWNED_TABLES.has(table)) {
     return db.execute({ sql: `DELETE FROM ${table} WHERE id = ? AND user_id = ?`, args: [id, userId] });
   }
