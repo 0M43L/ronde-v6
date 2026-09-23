@@ -344,6 +344,12 @@ loginForm.addEventListener('submit', async (e) => {
   }
 });
 
+// Ferme au tap n'importe où sauf sur la photo elle-même (fond ou bouton croix).
+document.getElementById('photoLightbox').addEventListener('click', (e) => {
+  if (e.target.id === 'lightboxImg') return;
+  ui.closePhotoLightbox();
+});
+
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await api.logout();
   api.clearSession();
@@ -708,6 +714,11 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const backBtn = e.target.closest('[data-action="back-to-sites"]');
   if (backBtn) {
     ui.backToSiteList();
+    return;
+  }
+  const viewPhotoBtn = e.target.closest('[data-action="view-site-photo"]');
+  if (viewPhotoBtn) {
+    ui.openPhotoLightbox(viewPhotoBtn.dataset.url);
     return;
   }
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
@@ -1531,6 +1542,17 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
 });
 
 // ===== ACTIONS =====
+document.getElementById('openNewActionBtn').addEventListener('click', () => {
+  document.getElementById('newActionOverlay').hidden = false;
+});
+function closeNewActionModal() {
+  document.getElementById('newActionOverlay').hidden = true;
+}
+document.getElementById('closeNewActionBtn').addEventListener('click', closeNewActionModal);
+document.getElementById('newActionOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'newActionOverlay') closeNewActionModal();
+});
+
 document.getElementById('addActionBtn').addEventListener('click', async () => {
   const input = document.getElementById('actionInput');
   const text = input.value.trim();
@@ -1557,6 +1579,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   await dbLayer.queueSync('action', 'upsert', action);
   state.actions.push(action);
   input.value = '';
+  closeNewActionModal();
   ui.renderActions();
   ui.renderBilanStats();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
