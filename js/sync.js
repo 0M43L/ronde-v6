@@ -99,7 +99,28 @@ async function syncBatch(batch, ctx) {
   }
 }
 
-export async function syncNow() {
+// syncNow() est déclenché de plein d'endroits différents (minuteur toutes les
+// 5 min, retour en ligne, clic manuel sur le badge, après avoir archivé une
+// ronde/session MES/ajouté une photo...) sans qu'aucun ne sache si un envoi
+// est déjà en cours. Deux synchros qui se chevauchent peuvent chacune lire
+// puis écrire l'état d'UNE MÊME sous-station (ex : galerie de photos) sur la
+// base de sa propre lecture, la seconde écrasant le travail de la première
+// sans le savoir — perte silencieuse d'une photo pourtant bien envoyée. Avec
+// des photos (envoi lent, fenêtre de chevauchement large), c'est le scénario
+// le plus probable. Un seul envoi actif à la fois : tout appel pendant qu'un
+// autre tourne déjà réutilise SON résultat plutôt que d'en démarrer un 2e en
+// parallèle.
+let inFlightSync = null;
+
+export function syncNow() {
+  if (inFlightSync) return inFlightSync;
+  inFlightSync = runSync().finally(() => {
+    inFlightSync = null;
+  });
+  return inFlightSync;
+}
+
+async function runSync() {
   if (!navigator.onLine) {
     await refreshSyncStatus();
     return { synced: 0, skipped: true };
