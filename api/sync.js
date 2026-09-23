@@ -169,22 +169,51 @@ async function syncItem(item, userId, user) {
         args: [payload.id, payload.name, payload.lat, payload.lon, payload.notes_acces || ''],
       });
 
-    // Opération ciblée sur UNE photo (ajout ou retrait), plutôt qu'un
-    // remplacement du tableau complet : deux techniciens qui ajoutent chacun
-    // une photo au même site hors ligne se retrouvent bien tous les deux
-    // dans la galerie une fois synchronisés, au lieu que le second écrase
-    // l'ajout du premier.
+    // Opération ciblée sur UNE photo (ajout ou retrait), écrite en UNE seule
+    // requête SQL atomique (json_insert / json_each — fonctions JSON1 de
+    // SQLite, supportées par Turso/libSQL) plutôt qu'en lisant le tableau
+    // côté code puis en le réécrivant en entier : cette ancienne méthode
+    // "lire puis écrire" avait une vraie fenêtre de course — deux ajouts qui
+    // se chevauchent (deux techniciens, ou simplement deux tentatives de
+    // synchro qui se chevauchent sur le même appareil) pouvaient lire
+    // chacun l'état AVANT l'écriture de l'autre, la seconde écrasant
+    // silencieusement l'ajout de la première. Vérifié par simulation :
+    // avec l'ancienne méthode, une photo pouvait disparaître de la galerie
+    // sans erreur ni message ; avec l'écriture atomique, impossible — le
+    // moteur SQL garantit qu'une seule écriture à la fois modifie la ligne.
     case 'substation_photo': {
-      const result = await db.execute({ sql: `SELECT photos_json FROM substations WHERE id = ?`, args: [payload.substation_id] });
-      if (!result.rows[0]) throw new Error('Sous-station introuvable');
-      const photos = JSON.parse(result.rows[0].photos_json || '[]');
-      const next =
-        action === 'add'
-          ? photos.some((p) => p.id === payload.photo.id) ? photos : [...photos, payload.photo]
-          : photos.filter((p) => p.id !== payload.photo_id);
+      if (action === 'add') {
+        const result = await db.execute({
+          sql: `UPDATE substations
+                SET photos_json = json_insert(COALESCE(photos_json, '[]'), '$[#]', json(?)),
+                    updated_at = datetime('now')
+                WHERE id = ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM json_each(COALESCE(photos_json, '[]'))
+                    WHERE json_extract(value, '$.id') = ?
+                  )`,
+          args: [JSON.stringify(payload.photo), payload.substation_id, payload.photo.id],
+        });
+        // 0 ligne modifiée : soit la photo était déjà présente (rejeu d'une
+        // synchro déjà passée — rien à faire, pas une erreur), soit le site
+        // n'existe pas du tout. On ne distingue les deux que pour donner un
+        // message clair dans ce 2e cas, jamais pour décider quoi écrire.
+        if (result.rowsAffected === 0) {
+          const exists = await db.execute({ sql: `SELECT 1 FROM substations WHERE id = ?`, args: [payload.substation_id] });
+          if (!exists.rows[0]) throw new Error('Sous-station introuvable');
+        }
+        return result;
+      }
       return db.execute({
-        sql: `UPDATE substations SET photos_json = ?, updated_at = datetime('now') WHERE id = ?`,
-        args: [JSON.stringify(next), payload.substation_id],
+        sql: `UPDATE substations
+              SET photos_json = (
+                SELECT COALESCE(json_group_array(json(value)), '[]')
+                FROM json_each(COALESCE(photos_json, '[]'))
+                WHERE json_extract(value, '$.id') != ?
+              ),
+              updated_at = datetime('now')
+              WHERE id = ?`,
+        args: [payload.photo_id, payload.substation_id],
       });
     }
 
