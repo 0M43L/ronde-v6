@@ -27,6 +27,16 @@ export function showToast(message, { sticky = false } = {}) {
   }
 }
 
+export function openPhotoLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('photoLightbox').hidden = false;
+}
+
+export function closePhotoLightbox() {
+  document.getElementById('photoLightbox').hidden = true;
+  document.getElementById('lightboxImg').src = '';
+}
+
 export function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
@@ -685,59 +695,28 @@ export function expandAction(id) {
   renderActions();
 }
 
-// Même code visuel que renderBilanStatusChart() (donut + légende) : l'onglet
-// Actions n'avait jusqu'ici qu'une liste brute, sans vue d'ensemble — étend
-// le traitement visuel du Bilan à un autre onglet qui en manquait, comme
-// demandé.
+// Bandeau compact de 3 chiffres (au lieu d'un donut) : lisible en un coup
+// d'œil sans manger d'espace vertical avant la liste elle-même, qui est ce
+// qu'on vient consulter sur cette page.
 export function renderActionsSummary() {
   const el = document.getElementById('actionsSummary');
   if (!el) return;
 
-  const total = state.actions.length;
-  if (total === 0) {
-    el.innerHTML = '<div class="trend-empty">Aucune action pour l\'instant</div>';
+  if (state.actions.length === 0) {
+    el.innerHTML = '';
     return;
   }
 
   const open = state.actions.filter((a) => !a.done);
-  const counts = {
-    danger: open.filter((a) => a.severity === 'danger').length,
-    warning: open.filter((a) => a.severity === 'warning').length,
-    none: open.filter((a) => a.severity === 'none').length,
-    done: state.actions.filter((a) => a.done).length,
-  };
-
-  const segments = [
-    { label: 'Urgentes', count: counts.danger, color: 'var(--danger)' },
-    { label: 'À surveiller', count: counts.warning, color: 'var(--warning)' },
-    { label: 'Info', count: counts.none, color: 'var(--text-muted)' },
-    { label: 'Traitées', count: counts.done, color: 'var(--success)' },
-  ].filter((s) => s.count > 0);
-
-  const size = 140, radius = 52, center = size / 2, circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  const arcs = segments
-    .map((s) => {
-      const dash = (s.count / total) * circumference;
-      const circle = `<circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${center} ${center})"></circle>`;
-      offset += dash;
-      return circle;
-    })
-    .join('');
-  const donePct = Math.round((counts.done / total) * 100);
-
-  const legend = segments
-    .map((s) => `<div class="donut-legend-row"><span class="donut-legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)} <strong>${s.count}</strong> <span class="hint">(${Math.round((s.count / total) * 100)}%)</span></div>`)
-    .join('');
+  const danger = open.filter((a) => a.severity === 'danger').length;
+  const warning = open.filter((a) => a.severity === 'warning').length;
+  const done = state.actions.filter((a) => a.done).length;
 
   el.innerHTML = `
-    <div class="donut-wrap">
-      <svg class="donut-chart" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-        ${arcs}
-        <text x="${center}" y="${center - 2}" text-anchor="middle" class="donut-center-value">${donePct}%</text>
-        <text x="${center}" y="${center + 15}" text-anchor="middle" class="donut-center-label">Traitées</text>
-      </svg>
-      <div class="donut-legend">${legend}</div>
+    <div class="action-stats">
+      <div class="action-stat-chip danger"><span class="count">${danger}</span><span class="label">Urgentes</span></div>
+      <div class="action-stat-chip warning"><span class="count">${warning}</span><span class="label">À surveiller</span></div>
+      <div class="action-stat-chip done"><span class="count">${done}</span><span class="label">Traitées</span></div>
     </div>`;
 }
 
@@ -755,29 +734,28 @@ export function renderActions() {
     return (b.ts || 0) - (a.ts || 0);
   });
 
-  list.innerHTML = sorted
-    .map((a) => {
-      const expanded = expandedActionId === a.id;
-      const substation = state.substations.find((s) => s.id === a.substation_id);
-      return `
-    <div class="item" data-action="toggle-action-detail" data-id="${a.id}" style="cursor:pointer;">
+  list.innerHTML = sorted.map((a) => renderActionItem(a)).join('');
+}
+
+function renderActionItem(a) {
+  const expanded = expandedActionId === a.id;
+  const substation = state.substations.find((s) => s.id === a.substation_id);
+  const sevClass = a.done ? 'sev-done' : a.severity === 'danger' ? 'sev-danger' : a.severity === 'warning' ? 'sev-warning' : '';
+  return `
+    <div class="item action-item ${sevClass}" data-action="toggle-action-detail" data-id="${a.id}" style="cursor:pointer;">
       <div class="item-row">
         <input type="checkbox" ${a.done ? 'checked' : ''} data-action="toggle-action" data-id="${a.id}">
         <div style="flex:1;">
           <div style="${a.done ? 'text-decoration:line-through;opacity:.5;' : ''}">
-            ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span> ` : ''}
+            ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? icon('alertTriangle', 10) : ''}${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span> ` : ''}
             ${escapeHtml(a.text)}
           </div>
           <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}</div>
+          ${substation ? `<div><span class="site-pill">${icon('mapPin', 11)}${escapeHtml(substation.name)}</span></div>` : ''}
           ${
             expanded
               ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
-                  ${
-                    a.substation_id
-                      ? `<div class="item-meta">${substation ? `Site : ${escapeHtml(substation.name)}` : 'Site : introuvable (site peut-être supprimé)'}</div>`
-                      : `<div class="item-meta">Aucun site associé à cette action</div>`
-                  }
-                  <div class="item-meta" style="margin-top:2px;">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
+                  <div class="item-meta">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
                   ${a.photo ? `<img src="${a.photo}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
                   ${substation ? `<button class="btn-secondary" data-action="goto-action-site" data-site-id="${substation.id}" style="width:100%;margin-top:10px;">Voir la fiche du site</button>` : ''}
                 </div>`
@@ -789,8 +767,6 @@ export function renderActions() {
         ${isOwned(a) ? `<button class="btn-ghost" data-action="delete-action" data-id="${a.id}">✕</button>` : ''}
       </div>
     </div>`;
-    })
-    .join('');
 }
 
 // ===== MES : identification du poste =====
@@ -1549,7 +1525,7 @@ export function renderSiteDetail() {
         <div class="photo-row">
           ${(site.photos || [])
             .map(
-              (p) => `<div class="photo-thumb"><img src="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
+              (p) => `<div class="photo-thumb"><img src="${p.url}" data-action="view-site-photo" data-url="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
             )
             .join('')}
           <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" data-action="add-site-photo"></label>
