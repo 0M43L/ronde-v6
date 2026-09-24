@@ -273,6 +273,21 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ===== CLAVIER MOBILE : masque la barre du bas / le bouton flottant =====
+// Safari iOS ne repositionne pas fiablement les éléments position:fixed
+// quand le clavier virtuel apparaît (ex. en tapant le nom d'une sous-station
+// avec les suggestions) — ils peuvent se retrouver au milieu de l'écran ou
+// superposés au champ en cours de saisie. On les masque simplement tant
+// qu'un champ texte a le focus plutôt que d'essayer de recalculer leur
+// position en direct (voir la classe body.keyboard-open dans style.css).
+const KEYBOARD_INPUT_SELECTOR = 'input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], input:not([type]), textarea';
+document.addEventListener('focusin', (e) => {
+  if (e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.add('keyboard-open');
+});
+document.addEventListener('focusout', (e) => {
+  if (e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
+});
+
 // ===== RECHERCHE UNIFIÉE =====
 document.getElementById('globalSearchBtn').addEventListener('click', () => {
   overlayTriggers.globalSearchOverlay = document.activeElement;
@@ -2445,7 +2460,7 @@ document.getElementById('clearHistoryBtn').addEventListener('click', async () =>
   const ownRondes = state.rondes.filter(isMine);
   const ownActions = state.actions.filter(isMine);
   const ownMes = state.mesSessions.filter(isMine);
-  const ownFiches = state.fiches.filter((f) => !f.is_reference);
+  const ownFiches = state.fiches.filter((f) => !f.is_reference && isMine(f));
 
   for (const r of ownRondes) {
     await dbLayer.remove('rondes', r.id);
