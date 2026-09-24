@@ -31,6 +31,8 @@
   --mono: "SF Mono", "Roboto Mono", "Courier New", monospace;
   --shadow: 0 1px 2px rgba(20, 20, 25, 0.04), 0 4px 16px rgba(20, 20, 25, 0.05);
   --shadow-nav: 0 10px 28px rgba(20, 20, 25, 0.14), 0 2px 8px rgba(20, 20, 25, 0.06);
+  --nav-bg: rgba(255, 255, 255, 0.72);
+  --nav-border: rgba(20, 20, 25, 0.08);
   --header-h: 64px;
   --bottom-nav-h: 72px;
   color-scheme: light;
@@ -61,6 +63,8 @@
     --cat-instrumentation-soft: #102A28;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
     --shadow-nav: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --nav-bg: rgba(25, 25, 28, 0.72);
+    --nav-border: rgba(255, 255, 255, 0.08);
     color-scheme: dark;
   }
 }
@@ -89,6 +93,8 @@
   --cat-instrumentation-soft: #102A28;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-nav: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --nav-bg: rgba(25, 25, 28, 0.72);
+  --nav-border: rgba(255, 255, 255, 0.08);
   color-scheme: dark;
 }
 
@@ -232,15 +238,17 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 150;
   display: flex;
   gap: 2px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  /* Verre dépoli (fond translucide + flou de ce qui défile dessous) façon
+     barre de navigation iOS, plutôt qu'un aplat opaque — donne à la barre
+     flottante un rendu plus "fini" que du blanc/noir plein. -webkit- requis
+     pour Safari iOS, le navigateur réel utilisé sur le terrain. */
+  background: var(--nav-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--nav-border);
   border-radius: 20px;
   padding: 6px;
   max-width: 736px; margin: 0 auto;
-  /* Barre flottante détachée du bord plutôt que collée en plein écran, avec
-     une vraie ombre portée plutôt qu'un simple filet — sans ça la barre
-     précédente (fond plat, bord droit, changement de couleur seul sur
-     l'onglet actif) paraissait trop nue à côté du reste de l'appli. */
   box-shadow: var(--shadow-nav);
 }
 
@@ -255,11 +263,22 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
 }
+.tab svg { width: 22px; height: 22px; transition: transform 0.18s ease; }
 .tab:active { transform: scale(0.93); }
 .tab.active {
   color: var(--accent);
   font-weight: 600;
   background: var(--accent-soft);
+  animation: tab-pop 0.22s ease;
+}
+.tab.active svg { transform: translateY(-1px); }
+@keyframes tab-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab.active { animation: none; }
 }
 
 /* ===== CONTENT ===== */
