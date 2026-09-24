@@ -287,6 +287,14 @@ document.addEventListener('focusin', (e) => {
 document.addEventListener('focusout', (e) => {
   if (e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
 });
+// Filet de sécurité : un champ retiré du DOM pendant qu'il a le focus (ex.
+// un bouton "Enregistrer" qui redessine toute la carte via innerHTML) ne
+// déclenche pas toujours focusout de façon fiable sur Safari — sans ça, la
+// barre restait cachée indéfiniment après un enregistrement. N'importe quel
+// tap ailleurs que dans un champ texte force la classe à disparaître.
+document.addEventListener('click', (e) => {
+  if (!e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
+}, true);
 
 // ===== RECHERCHE UNIFIÉE =====
 document.getElementById('globalSearchBtn').addEventListener('click', () => {
