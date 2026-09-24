@@ -182,10 +182,22 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
      logo/titre/badge de synchro se retrouvent masqués dessous, et l'appli a
      l'air de démarrer directement sur les onglets. */
   height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+/* Le bandeau lui-même reste plein écran (fond + filet), mais son contenu
+   (logo, titre, badge, boutons) est recentré sur la même largeur que le
+   reste de l'appli — sans ça, sur tablette/ordinateur, le bandeau s'étirait
+   bord à bord pendant que tout le contenu en dessous restait dans une
+   colonne étroite centrée : les deux ne s'alignaient plus du tout. */
+.header-inner {
   display: flex;
   align-items: center;
-  padding: env(safe-area-inset-top, 0px) 16px 0;
   gap: 12px;
+  height: var(--header-h);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 .header .brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
@@ -619,7 +631,12 @@ body.keyboard-open .fab {
   background: var(--bg-elevated); color: var(--text);
   padding: 9px 12px; font-size: 14px;
 }
-#globalSearchResults { flex: 1; overflow-y: auto; padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+/* Même colonne centrée que le reste de l'appli sur tablette/ordinateur —
+   sinon le champ de recherche et les résultats s'étiraient bord à bord sur
+   un grand écran, seuls éléments de l'appli à ne pas suivre cette règle. */
+.search-overlay-bar { justify-content: center; }
+.search-overlay-bar input { max-width: 760px; }
+#globalSearchResults { flex: 1; overflow-y: auto; padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 .search-group-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 16px 0 6px; }
 .search-group-header:first-child { margin-top: 4px; }
 .search-result-item { display: flex; align-items: center; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
