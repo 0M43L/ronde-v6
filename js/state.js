@@ -1,13 +1,13 @@
 export const CONTROLS_DEF = [
-  { id: 'fuite', label: 'Absence de fuite' },
-  { id: 'isolation', label: 'État isolations / calorifuge' },
-  { id: 'vannes', label: 'État vannes' },
-  { id: 'instrumentation', label: 'État instrumentation' },
-  { id: 'bruit', label: 'Bruit / vibrations anormaux' },
-  { id: 'compteur', label: 'État compteur énergie' },
-  { id: 'plombs', label: 'Présence des plombs sur les intégrateurs' },
-  { id: 'proprete', label: 'Propreté locale technique' },
-  { id: 'graissage', label: 'Graissage vanne' },
+  { id: 'fuite', label: 'Absence de fuite (raccords, vannes, échangeur, purgeurs)' },
+  { id: 'isolation', label: 'Calorifuge en bon état (pas de manchon arraché, déchiré ou manquant)' },
+  { id: 'vannes', label: 'Vannes manœuvrables, sans blocage ni fuite au presse-étoupe' },
+  { id: 'instrumentation', label: 'Instrumentation lisible et fonctionnelle (sondes, capteurs, afficheurs)' },
+  { id: 'bruit', label: 'Absence de bruit ou vibration anormale (pompe, vannes, échangeur)' },
+  { id: 'compteur', label: "Compteur d'énergie fonctionnel, affichage cohérent" },
+  { id: 'plombs', label: 'Plombs de sécurité présents sur les intégrateurs (non arrachés)' },
+  { id: 'proprete', label: "Propreté du local (sol, armoire, pas d'encombrement)" },
+  { id: 'graissage', label: 'Graissage des vannes à jour (pas de grippage constaté)' },
 ];
 
 // Les 41 points de mise en service IDEX, en 8 phases.

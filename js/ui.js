@@ -59,14 +59,23 @@ export function showUndoToast(message, { onUndo, onCommit, duration = 5000 } = {
   btn.addEventListener('click', () => finish(false));
 }
 
+// Mémorise l'élément qui avait le focus avant l'ouverture pour l'y rendre à
+// la fermeture — sans ça, un utilisateur au clavier perdait le focus dans le
+// vide (retombé sur <body>) une fois la photo refermée.
+let lightboxTrigger = null;
+
 export function openPhotoLightbox(url) {
+  lightboxTrigger = document.activeElement;
   document.getElementById('lightboxImg').src = url;
   document.getElementById('photoLightbox').hidden = false;
+  document.getElementById('lightboxCloseBtn').focus();
 }
 
 export function closePhotoLightbox() {
   document.getElementById('photoLightbox').hidden = true;
   document.getElementById('lightboxImg').src = '';
+  if (lightboxTrigger && document.body.contains(lightboxTrigger)) lightboxTrigger.focus();
+  lightboxTrigger = null;
 }
 
 // Repère "pas encore synchronisé" sur un élément précis, plutôt que le seul
@@ -93,10 +102,16 @@ const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes'];
 
 export function switchTab(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach((t) => {
-    t.classList.toggle('active', t.dataset.tab === tab);
+    const active = t.dataset.tab === tab;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', String(active));
   });
   const moreBtn = document.getElementById('moreTabBtn');
-  if (moreBtn) moreBtn.classList.toggle('active', MORE_MENU_TABS.includes(tab));
+  if (moreBtn) {
+    const active = MORE_MENU_TABS.includes(tab);
+    moreBtn.classList.toggle('active', active);
+    moreBtn.setAttribute('aria-selected', String(active));
+  }
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${tab}`));
   state.currentTab = tab;
 }
@@ -1055,7 +1070,7 @@ export function buildHistoriqueItems() {
   state.fiches
     .filter((f) => !f.is_reference)
     .forEach((f) => {
-      items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: true, tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
+      items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: isOwned(f), tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
     items.push({ type: 'Action', entityType: 'action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), tech: a.tech || null, searchable: a.text.toLowerCase() });
@@ -1488,11 +1503,25 @@ export function renderActionsRetardSite(thresholdDays = 7) {
 let selectedSiteId = null;
 let editingSiteInfo = false;
 let editingCommentId = null;
+// Position capturée via GPS pendant l'édition, en attente d'enregistrement —
+// distincte de site.lat/lon tant que "Enregistrer" n'a pas été cliqué, pour
+// pouvoir annuler l'édition sans avoir déjà modifié la position du site.
+let editSiteGeoCoords = null;
 
 export function toggleSiteInfoEdit(on) {
   editingSiteInfo = on;
+  editSiteGeoCoords = null;
   if (on) editingCommentId = null;
   renderSiteDetail();
+}
+
+export function setEditSiteGeoCoords(lat, lon) {
+  editSiteGeoCoords = { lat, lon };
+  renderSiteDetail();
+}
+
+export function getEditSiteGeoCoords() {
+  return editSiteGeoCoords;
 }
 
 export function setEditingComment(id) {
@@ -1642,6 +1671,17 @@ export function renderSiteDetail() {
                  <label>Notes d'accès</label>
                  <textarea id="editSiteNotes" placeholder="Code portail, accès, etc.">${escapeHtml(site.notes_acces || '')}</textarea>
                </div>
+               <div class="form-group">
+                 <label>Position GPS</label>
+                 <p class="hint" id="editSiteGeoStatus" style="margin:0 0 8px;">${
+                   editSiteGeoCoords
+                     ? `Nouvelle position capturée (${editSiteGeoCoords.lat.toFixed(5)}, ${editSiteGeoCoords.lon.toFixed(5)}) — sera enregistrée.`
+                     : site.lat != null && site.lon != null
+                       ? `Position actuelle : ${site.lat.toFixed(5)}, ${site.lon.toFixed(5)}`
+                       : 'Aucune position enregistrée pour ce site.'
+                 }</p>
+                 <button class="btn btn-secondary" data-action="edit-site-geo-btn" type="button" style="width:100%;">${icon('mapPin', 14)} Mettre à jour avec ma position actuelle</button>
+               </div>
                <div class="btn-row" style="margin-top:4px;">
                  <button class="btn" data-action="save-site-info">Enregistrer</button>
                  <button class="btn btn-secondary" data-action="cancel-site-info">Annuler</button>
@@ -1674,7 +1714,7 @@ export function renderSiteDetail() {
               (p) => `<div class="photo-thumb"><img src="${p.url}" data-action="view-site-photo" data-url="${p.url}"><button class="remove-photo" data-action="remove-site-photo" data-photo-id="${p.id}">${icon('xCircle', 11)}</button></div>`
             )
             .join('')}
-          <label class="photo-btn">${icon('camera', 14)} Ajouter<input type="file" accept="image/*" capture="environment" data-action="add-site-photo"></label>
+          <label class="photo-btn">${icon('image', 14)} Ajouter<input type="file" accept="image/*" data-action="add-site-photo"></label>
         </div>
       </div>
     </div>

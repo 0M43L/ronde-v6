@@ -246,8 +246,51 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   localStorage.setItem('theme_v6', next);
 });
 
+// ===== ACCESSIBILITÉ CLAVIER : fermeture Échap + retour du focus =====
+// Un clavier/lecteur d'écran qui ouvre une des fenêtres superposées (menu
+// "Plus", recherche, nouvelle action, photo) doit pouvoir la refermer sans
+// souris (Échap) et retrouver le focus là où il était avant l'ouverture
+// plutôt que de le perdre sur <body>. overlayTriggers mémorise, par overlay,
+// l'élément qui avait le focus juste avant l'ouverture.
+const overlayTriggers = {};
+function returnFocusAfterOverlay(overlayId) {
+  const trigger = overlayTriggers[overlayId];
+  if (trigger && document.body.contains(trigger)) trigger.focus();
+  overlayTriggers[overlayId] = null;
+}
+// Un seul overlay de ce type est visible à la fois en pratique : sur Échap,
+// on ferme le premier non masqué trouvé dans cet ordre.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!document.getElementById('photoLightbox').hidden) {
+    ui.closePhotoLightbox();
+  } else if (!document.getElementById('moreMenuOverlay').hidden) {
+    closeMoreMenu();
+  } else if (!document.getElementById('newActionOverlay').hidden) {
+    closeNewActionModal();
+  } else if (!document.getElementById('globalSearchOverlay').hidden) {
+    closeGlobalSearch();
+  }
+});
+
+// ===== CLAVIER MOBILE : masque la barre du bas / le bouton flottant =====
+// Safari iOS ne repositionne pas fiablement les éléments position:fixed
+// quand le clavier virtuel apparaît (ex. en tapant le nom d'une sous-station
+// avec les suggestions) — ils peuvent se retrouver au milieu de l'écran ou
+// superposés au champ en cours de saisie. On les masque simplement tant
+// qu'un champ texte a le focus plutôt que d'essayer de recalculer leur
+// position en direct (voir la classe body.keyboard-open dans style.css).
+const KEYBOARD_INPUT_SELECTOR = 'input[type="text"], input[type="search"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], input:not([type]), textarea';
+document.addEventListener('focusin', (e) => {
+  if (e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.add('keyboard-open');
+});
+document.addEventListener('focusout', (e) => {
+  if (e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
+});
+
 // ===== RECHERCHE UNIFIÉE =====
 document.getElementById('globalSearchBtn').addEventListener('click', () => {
+  overlayTriggers.globalSearchOverlay = document.activeElement;
   document.getElementById('globalSearchOverlay').hidden = false;
   document.getElementById('globalSearchInput').value = '';
   document.getElementById('globalSearchResults').innerHTML = '';
@@ -256,6 +299,7 @@ document.getElementById('globalSearchBtn').addEventListener('click', () => {
 
 function closeGlobalSearch() {
   document.getElementById('globalSearchOverlay').hidden = true;
+  returnFocusAfterOverlay('globalSearchOverlay');
 }
 document.getElementById('closeGlobalSearchBtn').addEventListener('click', closeGlobalSearch);
 
@@ -457,18 +501,28 @@ async function captureFicheConflict(item) {
 // on resynchronise la vraie version et on prévient.
 async function rejectNonOwnedFicheEdit(item) {
   await dbLayer.clearSyncQueueItems([item.id]);
+  let title = item.payload.title;
   try {
     const fresh = await api.fetchFiches();
     const serverFiche = fresh.find((f) => f.id === item.payload.id);
     if (serverFiche) {
-      state.fiches = state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f));
+      title = serverFiche.title;
+      // Pour un "delete" rejeté, la fiche avait déjà été retirée de
+      // state.fiches par softDelete() avant l'échec de synchro (voir
+      // onCommit) : un simple .map() ne la réinsère pas puisqu'elle n'a plus
+      // d'entrée à remplacer, elle resterait invisible jusqu'au prochain
+      // rechargement complet malgré son existence bien réelle côté serveur.
+      const exists = state.fiches.some((f) => f.id === serverFiche.id);
+      state.fiches = exists ? state.fiches.map((f) => (f.id === serverFiche.id ? serverFiche : f)) : [...state.fiches, serverFiche];
       await dbLayer.put('fiches', serverFiche);
     }
   } catch {
     // Hors-ligne : la version correcte reviendra au prochain chargement de l'appli.
   }
   if (state.currentTab === 'fiches') ui.renderFiches(document.getElementById('ficheSearch').value);
-  ui.showToast(`Tu ne peux modifier que les fiches que tu as créées ("${item.payload.title}" appartient à un autre technicien).`);
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  const verb = item.action === 'delete' ? 'supprimer' : 'modifier';
+  ui.showToast(`Tu ne peux ${verb} que les fiches que tu as créées${title ? ` ("${title}")` : ''} — elle appartient à un autre technicien.`);
 }
 
 document.getElementById('ficheConflicts').addEventListener('click', async (e) => {
@@ -907,12 +961,24 @@ function goToTab(tabName) {
 
 document.getElementById('tabs').addEventListener('click', (e) => {
   if (e.target.closest('#moreTabBtn')) {
+    overlayTriggers.moreMenuOverlay = document.activeElement;
     document.getElementById('moreMenuOverlay').hidden = false;
+    document.querySelector('#moreMenuList .more-menu-item').focus();
     return;
   }
   const tab = e.target.closest('.tab');
   if (!tab) return;
   goToTab(tab.dataset.tab);
+});
+// role="tab"/role="button" sur des <div> (voir index.html) ne réagit pas
+// nativement à Entrée/Espace comme le ferait un vrai <button> — sans ça, la
+// barre du bas et le menu "Plus" sont invisibles au clavier.
+document.getElementById('tabs').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  e.preventDefault();
+  tab.click();
 });
 
 // ===== MENU "PLUS" (onglets secondaires : Fiches, Bilan, Diagnostic, MES) =====
@@ -921,6 +987,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
 // (touch targets trop petits). Les 4 restants vivent dans cette feuille.
 function closeMoreMenu() {
   document.getElementById('moreMenuOverlay').hidden = true;
+  returnFocusAfterOverlay('moreMenuOverlay');
 }
 document.getElementById('closeMoreMenuBtn').addEventListener('click', closeMoreMenu);
 document.getElementById('moreMenuOverlay').addEventListener('click', (e) => {
@@ -931,6 +998,13 @@ document.getElementById('moreMenuList').addEventListener('click', (e) => {
   if (!item) return;
   closeMoreMenu();
   goToTab(item.dataset.tab);
+});
+document.getElementById('moreMenuList').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const item = e.target.closest('.more-menu-item');
+  if (!item) return;
+  e.preventDefault();
+  item.click();
 });
 
 // ===== SITES (fiche technique) =====
@@ -1082,6 +1156,19 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.toggleSiteInfoEdit(false);
     return;
   }
+  const editGeoBtn = e.target.closest('[data-action="edit-site-geo-btn"]');
+  if (editGeoBtn) {
+    if (!navigator.geolocation) {
+      ui.showToast('Géolocalisation indisponible sur cet appareil');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => ui.setEditSiteGeoCoords(pos.coords.latitude, pos.coords.longitude),
+      (err) => ui.showToast(`Position indisponible (${err.message})`),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+    return;
+  }
   const saveInfoBtn = e.target.closest('[data-action="save-site-info"]');
   if (saveInfoBtn) {
     const site = ui.getSelectedSite();
@@ -1098,6 +1185,12 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     }
     site.name = name;
     site.notes_acces = document.getElementById('editSiteNotes').value.trim();
+    const newGeo = ui.getEditSiteGeoCoords();
+    if (newGeo) {
+      site.lat = newGeo.lat;
+      site.lon = newGeo.lon;
+      site.needs_review = false;
+    }
     await dbLayer.put('substations', site);
     // Le nom et les notes d'accès sont des infos communes au site (pas
     // propres à un technicien), donc synchronisées comme le reste des
@@ -1108,6 +1201,16 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.renderSiteList(document.getElementById('siteSearch').value);
     ui.toggleSiteInfoEdit(false);
     ui.showToast('Sous-station mise à jour');
+    if (newGeo) {
+      prefetchTilesAround(newGeo.lat, newGeo.lon).catch(() => {});
+      renderMarkers(state.substations, (id) => {
+        const s = state.substations.find((x) => x.id === id);
+        if (s) {
+          document.getElementById('rondeSubstation').value = s.name;
+          onSubstationInput();
+        }
+      });
+    }
     return;
   }
 });
@@ -1830,10 +1933,13 @@ document.getElementById('fichesList').addEventListener('click', async (e) => {
 
 // ===== ACTIONS =====
 document.getElementById('openNewActionBtn').addEventListener('click', () => {
+  overlayTriggers.newActionOverlay = document.activeElement;
   document.getElementById('newActionOverlay').hidden = false;
+  document.getElementById('actionInput').focus();
 });
 function closeNewActionModal() {
   document.getElementById('newActionOverlay').hidden = true;
+  returnFocusAfterOverlay('newActionOverlay');
 }
 document.getElementById('closeNewActionBtn').addEventListener('click', closeNewActionModal);
 document.getElementById('newActionOverlay').addEventListener('click', (e) => {
@@ -2354,7 +2460,7 @@ document.getElementById('clearHistoryBtn').addEventListener('click', async () =>
   const ownRondes = state.rondes.filter(isMine);
   const ownActions = state.actions.filter(isMine);
   const ownMes = state.mesSessions.filter(isMine);
-  const ownFiches = state.fiches.filter((f) => !f.is_reference);
+  const ownFiches = state.fiches.filter((f) => !f.is_reference && isMine(f));
 
   for (const r of ownRondes) {
     await dbLayer.remove('rondes', r.id);
