@@ -296,6 +296,68 @@ document.addEventListener('click', (e) => {
   if (!e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
 }, true);
 
+// ===== TIRER POUR ACTUALISER =====
+// Geste standard : tirer vers le bas tout en haut de l'écran relance un
+// chargement complet. Réutilise loadAppData() (déjà appelé au démarrage et
+// après restauration de sauvegarde) : cache local réaffiché instantanément,
+// puis rafraîchi depuis le serveur en arrière-plan — jamais de double appel
+// pendant qu'un rafraîchissement est déjà en cours. Ignoré si le geste
+// démarre sur la carte (Leaflet a besoin de ses propres gestes tactiles) ou
+// dans une fenêtre superposée (menu, recherche, visionneuse photo).
+const PULL_REFRESH_THRESHOLD = 70;
+const pullRefreshEl = document.getElementById('pullRefreshIndicator');
+let pullRefreshStartY = null;
+let pullRefreshActive = false;
+
+function pullRefreshShouldArm(target) {
+  return (
+    !pullRefreshActive &&
+    window.scrollY === 0 &&
+    document.getElementById('app').classList.contains('visible') &&
+    !target.closest?.('#map, .modal-overlay, .lightbox, .search-overlay')
+  );
+}
+
+document.addEventListener('touchstart', (e) => {
+  pullRefreshStartY = pullRefreshShouldArm(e.target) ? e.touches[0].clientY : null;
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (pullRefreshStartY === null || pullRefreshActive) return;
+  const delta = e.touches[0].clientY - pullRefreshStartY;
+  if (delta <= 0 || window.scrollY > 0) {
+    pullRefreshEl.style.height = '0px';
+    pullRefreshEl.classList.remove('ready');
+    return;
+  }
+  e.preventDefault();
+  const height = Math.min(delta * 0.5, 90);
+  pullRefreshEl.style.height = `${height}px`;
+  pullRefreshEl.classList.toggle('ready', height >= PULL_REFRESH_THRESHOLD);
+}, { passive: false });
+
+document.addEventListener('touchend', async () => {
+  if (pullRefreshStartY === null || pullRefreshActive) { pullRefreshStartY = null; return; }
+  pullRefreshStartY = null;
+  const shouldRefresh = pullRefreshEl.classList.contains('ready');
+  if (!shouldRefresh) {
+    pullRefreshEl.style.height = '0px';
+    return;
+  }
+  pullRefreshActive = true;
+  pullRefreshEl.style.height = '48px';
+  pullRefreshEl.classList.remove('ready');
+  pullRefreshEl.classList.add('refreshing');
+  try {
+    await loadAppData();
+    ui.showToast('Actualisé');
+  } finally {
+    pullRefreshEl.classList.remove('refreshing');
+    pullRefreshEl.style.height = '0px';
+    pullRefreshActive = false;
+  }
+});
+
 // ===== RECHERCHE UNIFIÉE =====
 document.getElementById('globalSearchBtn').addEventListener('click', () => {
   overlayTriggers.globalSearchOverlay = document.activeElement;

@@ -9,6 +9,34 @@ function isOwned(item) {
   return !item.user_id || item.user_id === state.user?.id;
 }
 
+// Anime un chiffre affiché (ex. compteur de la page Actions/fiche Site) de
+// son ancienne valeur vers la nouvelle, mais seulement quand elle a vraiment
+// changé depuis le dernier rendu de CET élément précis (mémorisée dans son
+// dataset) — sans ça, un simple re-rendu identique (ex. après une synchro
+// qui ne change rien) relancerait l'animation depuis 0 à chaque fois.
+function animateCountUp(el) {
+  if (!el) return;
+  const target = Number(el.textContent);
+  if (Number.isNaN(target)) return;
+  const prevRaw = el.dataset.animatedValue;
+  el.dataset.animatedValue = String(target);
+  if (prevRaw === undefined || Number(prevRaw) === target) return;
+  const prev = Number(prevRaw);
+  const duration = 400;
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    if (t < 1) {
+      el.textContent = String(Math.round(prev + (target - prev) * eased));
+      requestAnimationFrame(step);
+    } else {
+      el.textContent = String(target);
+    }
+  }
+  requestAnimationFrame(step);
+}
+
 // sticky: reste affiché jusqu'à ce qu'on tape dessus, au lieu de disparaître
 // tout seul après 2.6s — pour un message qu'on a besoin de lire en entier ou
 // de capturer en photo (ex : détail d'une erreur de synchro), pas juste une
@@ -782,6 +810,7 @@ export function renderActionsSummary() {
       <div class="action-stat-chip warning"><span class="count">${warning}</span><span class="label">À surveiller</span></div>
       <div class="action-stat-chip done"><span class="count">${done}</span><span class="label">Traitées</span></div>
     </div>`;
+  el.querySelectorAll('.action-stat-chip .count').forEach(animateCountUp);
 }
 
 export function renderActions() {
@@ -1774,6 +1803,7 @@ export function renderSiteDetail() {
       <div class="card-body">${historiqueHtml}</div>
     </div>
   `;
+  el.querySelectorAll('.stat-tile .value').forEach(animateCountUp);
 }
 
 export function selectSite(id) {
