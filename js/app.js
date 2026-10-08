@@ -305,6 +305,13 @@ document.addEventListener('click', (e) => {
 // démarre sur la carte (Leaflet a besoin de ses propres gestes tactiles) ou
 // dans une fenêtre superposée (menu, recherche, visionneuse photo).
 const PULL_REFRESH_THRESHOLD = 70;
+// Marge avant de considérer le geste comme un "tirer pour actualiser" : sans
+// elle, le moindre micro-mouvement du doigt pendant un tap tout en haut d'une
+// page (ex. le bouton "Générer rapport hebdomadaire", premier élément de
+// l'onglet Bilan) était intercepté comme un début de pull-to-refresh — le
+// preventDefault() qui suit annule alors le tap avant qu'il n'atteigne le
+// bouton.
+const PULL_REFRESH_DEAD_ZONE = 10;
 const pullRefreshEl = document.getElementById('pullRefreshIndicator');
 let pullRefreshStartY = null;
 let pullRefreshActive = false;
@@ -330,8 +337,9 @@ document.addEventListener('touchmove', (e) => {
     pullRefreshEl.classList.remove('ready');
     return;
   }
+  if (delta < PULL_REFRESH_DEAD_ZONE) return;
   e.preventDefault();
-  const height = Math.min(delta * 0.5, 90);
+  const height = Math.min((delta - PULL_REFRESH_DEAD_ZONE) * 0.5, 90);
   pullRefreshEl.style.height = `${height}px`;
   pullRefreshEl.classList.toggle('ready', height >= PULL_REFRESH_THRESHOLD);
 }, { passive: false });
