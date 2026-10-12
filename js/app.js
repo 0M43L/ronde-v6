@@ -756,6 +756,14 @@ function mergeById(local, server, pendingIds) {
 }
 
 let histFilter = 'tous';
+let siteSectorFilter = 'tous';
+// Centralise les (nombreux) points de rafraîchissement de la liste des
+// sites : chacun doit repasser par la recherche ET le filtre de secteur en
+// cours, sans quoi un rafraîchissement déclenché depuis ailleurs (Bilan,
+// Actions...) écraserait silencieusement le filtre actif de l'utilisateur.
+function refreshSiteList() {
+  ui.renderSiteList(document.getElementById('siteSearch').value, siteSectorFilter);
+}
 
 // true tant que la toute première récupération réseau (premier lancement,
 // cache local vide) n'est pas terminée — permet de continuer à afficher le
@@ -836,7 +844,7 @@ function refreshRondeDateTime() {
 // partout ailleurs dans l'appli après chaque sauvegarde.
 function renderAllData() {
   ui.renderSubstationDatalist();
-  ui.renderSiteList();
+  refreshSiteList();
   ui.renderControls();
   ui.renderRondeStatut();
   ui.renderBilan();
@@ -1046,7 +1054,7 @@ function goToTab(tabName) {
   if (tabName === 'historique') ui.renderStorageUsage();
   if (tabName === 'sites') {
     if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
-    else ui.renderSiteList(document.getElementById('siteSearch').value);
+    else refreshSiteList();
   }
 }
 
@@ -1099,7 +1107,15 @@ document.getElementById('moreMenuList').addEventListener('keydown', (e) => {
 });
 
 // ===== SITES (fiche technique) =====
-document.getElementById('siteSearch').addEventListener('input', (e) => ui.renderSiteList(e.target.value));
+document.getElementById('siteSearch').addEventListener('input', refreshSiteList);
+
+document.getElementById('siteSectorChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  siteSectorFilter = chip.dataset.sector;
+  document.querySelectorAll('#siteSectorChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+  refreshSiteList();
+});
 
 document.getElementById('siteList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="select-site"]');
@@ -1112,7 +1128,7 @@ document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="goto-site-alert"]');
   if (!item) return;
   ui.switchTab('sites');
-  ui.renderSiteList();
+  refreshSiteList();
   ui.selectSite(item.dataset.id);
   loadSiteDetailIfNeeded(item.dataset.id);
 });
@@ -1289,7 +1305,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     // photos/commentaires, gérés à part (voir substation_photo/comment).
     await dbLayer.queueSync('substation', 'upsert', site);
     ui.renderSubstationDatalist();
-    ui.renderSiteList(document.getElementById('siteSearch').value);
+    refreshSiteList();
     ui.toggleSiteInfoEdit(false);
     ui.showToast('Sous-station mise à jour');
     if (newGeo) {
@@ -1466,7 +1482,7 @@ document.getElementById('saveNewSiteBtn').addEventListener('click', async () => 
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
   ui.renderSubstationDatalist();
-  ui.renderSiteList(document.getElementById('siteSearch').value);
+  refreshSiteList();
   document.getElementById('addSiteForm').hidden = true;
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
@@ -2095,7 +2111,7 @@ document.getElementById('actionsList').addEventListener('click', async (e) => {
   const gotoSite = e.target.closest('[data-action="goto-action-site"]');
   if (gotoSite) {
     ui.switchTab('sites');
-    ui.renderSiteList();
+    refreshSiteList();
     ui.selectSite(gotoSite.dataset.siteId);
     loadSiteDetailIfNeeded(gotoSite.dataset.siteId);
     return;
@@ -2628,7 +2644,7 @@ document.getElementById('bilanStats').addEventListener('click', (e) => {
   const site = e.target.closest('[data-action="goto-site-alert"]');
   if (site) {
     ui.switchTab('sites');
-    ui.renderSiteList();
+    refreshSiteList();
     ui.selectSite(site.dataset.id);
     loadSiteDetailIfNeeded(site.dataset.id);
     return;

@@ -974,6 +974,7 @@ body.keyboard-open .fab {
 }
 .site-list-item:last-child { border-bottom: none; }
 .site-list-item:active { background: var(--neutral-soft); }
+.site-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .site-list-item .name { font-weight: 600; font-size: 13.5px; }
 .site-list-item .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .site-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }

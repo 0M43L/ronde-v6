@@ -1565,6 +1565,52 @@ const SITE_STATUT_BADGE = {
   arret: '<span class="badge immediat">Arrêt</span>',
 };
 
+// Les 3 vraies stations principales du réseau (Bergère/Puteaux, Garenne et
+// Hanriot/Nanterre), vers lesquelles remontent toutes les sous-stations —
+// mêmes coordonnées que le schéma de réseau déjà validé avec Axel. Le
+// rattachement se fait par plus proche voisin (approximation plan : à
+// l'échelle de La Défense/Nanterre/Puteaux, la courbure terrestre est
+// négligeable).
+const SECTOR_HUBS = [
+  { name: 'Bergère', lat: 48.8862364794624, lon: 2.230592976725403 },
+  { name: 'Garenne', lat: 48.89785729326517, lon: 2.231933033859941 },
+  { name: 'Hanriot', lat: 48.9027321959182, lon: 2.228193764238062 },
+];
+function siteSector(site) {
+  if (site.lat == null || site.lon == null) return null;
+  const latRad = (site.lat * Math.PI) / 180;
+  let best = null;
+  let bestDist = Infinity;
+  SECTOR_HUBS.forEach((hub) => {
+    const dLat = site.lat - hub.lat;
+    const dLon = (site.lon - hub.lon) * Math.cos(latRad);
+    const dist = Math.hypot(dLat, dLon);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = hub.name;
+    }
+  });
+  return best;
+}
+
+// "jamais" (jamais visitée) n'est pas un statut de ronde — c'est l'état par
+// défaut tant qu'aucune ronde n'existe pour le site. Priorité = ce qui mérite
+// l'attention d'abord (arrêt avant réserve avant jamais visité), opérationnel
+// en dernier.
+const SITE_STATUS_PRIORITY = { arret: 0, reserve: 1, jamais: 2, operationnel: 3 };
+const SITE_STATUS_DOT_COLOR = {
+  arret: 'var(--danger)',
+  reserve: 'var(--warning)',
+  operationnel: 'var(--success)',
+  jamais: 'var(--text-muted)',
+};
+const SITE_STATUS_DOT_LABEL = {
+  arret: 'Arrêt / intervention requise',
+  reserve: 'Opérationnel avec réserve',
+  operationnel: 'Opérationnel',
+  jamais: 'Jamais visitée',
+};
+
 // Affiché à la toute première ouverture de l'appli sur un appareil (cache
 // local encore vide) le temps que les sous-stations arrivent du serveur —
 // remplace le "Aucune sous-station trouvée" trompeur qui donnait l'impression
@@ -1581,37 +1627,81 @@ export function renderSiteListSkeleton() {
   listEl.innerHTML = row.repeat(6);
 }
 
-export function renderSiteList(searchTerm = '') {
+export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
   const listEl = document.getElementById('siteList');
   const needle = searchTerm.trim().toLowerCase();
-  const sites = state.substations
-    .filter((s) => !needle || s.name.toLowerCase().includes(needle))
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
-  if (sites.length === 0) {
+  const lastRondeInfo = {};
+  state.rondes.forEach((r) => {
+    if (!r.date) return;
+    const t = new Date(r.date).getTime();
+    if (!lastRondeInfo[r.substation_id] || t > lastRondeInfo[r.substation_id].t) {
+      lastRondeInfo[r.substation_id] = { t, statut: r.statut || 'operationnel' };
+    }
+  });
+  const alertedSiteIds = new Set(computeSiteAlerts().map((a) => a.substation_id));
+
+  const entries = state.substations
+    .filter((s) => !needle || s.name.toLowerCase().includes(needle))
+    .map((s) => {
+      const info = lastRondeInfo[s.id];
+      return { site: s, sector: siteSector(s), statusKey: info ? info.statut : 'jamais', lastTs: info ? info.t : null };
+    })
+    .filter((entry) => sectorFilter === 'tous' || entry.sector === sectorFilter);
+
+  if (entries.length === 0) {
     listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucune sous-station trouvée</p></div>`;
     return;
   }
 
-  const lastVisit = {};
-  state.rondes.forEach((r) => {
-    if (!r.date) return;
-    const t = new Date(r.date).getTime();
-    if (!lastVisit[r.substation_id] || t > lastVisit[r.substation_id]) lastVisit[r.substation_id] = t;
-  });
-  const alertedSiteIds = new Set(computeSiteAlerts().map((a) => a.substation_id));
+  // À secteur égal, ce qui a besoin d'attention remonte en premier (arrêt >
+  // réserve > jamais visité > opérationnel) ; à priorité égale, ordre
+  // alphabétique.
+  const byPriorityThenName = (a, b) => {
+    const diff = (SITE_STATUS_PRIORITY[a.statusKey] ?? 2) - (SITE_STATUS_PRIORITY[b.statusKey] ?? 2);
+    return diff !== 0 ? diff : a.site.name.localeCompare(b.site.name, 'fr');
+  };
 
-  listEl.innerHTML = sites
-    .map((s) => {
-      const last = lastVisit[s.id];
-      const days = last ? Math.floor((Date.now() - last) / 86400000) : null;
-      const sub = days === null ? 'Jamais visitée' : `Vue il y a ${days} j`;
-      return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
-        <div><div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}</div><div class="sub">${sub}</div></div>
+  function renderRow({ site: s, statusKey, lastTs }) {
+    const days = lastTs ? Math.floor((Date.now() - lastTs) / 86400000) : null;
+    const sub = days === null ? 'Jamais visitée' : days === 0 ? "Vue aujourd'hui" : `Vue il y a ${days} j`;
+    return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          <span class="site-status-dot" style="background:${SITE_STATUS_DOT_COLOR[statusKey]};" title="${SITE_STATUS_DOT_LABEL[statusKey]}"></span>
+          <div style="min-width:0;">
+            <div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}</div>
+            <div class="sub">${sub}</div>
+          </div>
+        </div>
         ${icon('chevronRight', 16)}
       </div>`;
-    })
+  }
+
+  // Un secteur précis est actif (chip Bergère/Garenne/Hanriot) : tous les
+  // résultats restants appartiennent déjà à ce seul secteur, pas besoin
+  // d'en-têtes de groupe. "Tous" : regroupe par station principale réelle
+  // (ordre géographique fixe) puis les sites sans position GPS à part.
+  if (sectorFilter !== 'tous') {
+    listEl.innerHTML = entries.slice().sort(byPriorityThenName).map(renderRow).join('');
+    return;
+  }
+
+  const groups = [
+    ['Bergère', entries.filter((e) => e.sector === 'Bergère')],
+    ['Garenne', entries.filter((e) => e.sector === 'Garenne')],
+    ['Hanriot', entries.filter((e) => e.sector === 'Hanriot')],
+    [null, entries.filter((e) => e.sector === null)],
+  ].filter(([, list]) => list.length > 0);
+
+  listEl.innerHTML = groups
+    .map(
+      ([sector, list]) =>
+        `<div class="search-group-header">${sector ? `${sector} · ${list.length}` : `Sans position GPS · ${list.length}`}</div>${list
+          .slice()
+          .sort(byPriorityThenName)
+          .map(renderRow)
+          .join('')}`
+    )
     .join('');
 }
 
