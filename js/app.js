@@ -233,6 +233,32 @@ webauthnPlatformAvailable().then((available) => {
   document.getElementById('webauthnLoginDivider').hidden = !available;
 });
 
+// ===== THEME =====
+// data-theme="dark"/"light" force un choix manuel (mémorisé) ; sans ça,
+// --prefers-color-scheme du système décide. L'habillage "glassy" (halo +
+// verre dépoli) ne s'applique qu'en mode sombre — voir style.css.
+function syncThemeColorMeta() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    || (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#0A0A0E' : '#FFFFFF');
+}
+function initTheme() {
+  const saved = localStorage.getItem('theme_v6');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  syncThemeColorMeta();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!document.documentElement.getAttribute('data-theme')) syncThemeColorMeta();
+  });
+}
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    || (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme_v6', next);
+  syncThemeColorMeta();
+});
+
 // ===== ACCESSIBILITÉ CLAVIER : fermeture Échap + retour du focus =====
 // Un clavier/lecteur d'écran qui ouvre une des fenêtres superposées (menu
 // "Plus", recherche, nouvelle action, photo) doit pouvoir la refermer sans
@@ -636,6 +662,7 @@ document.getElementById('ficheConflicts').addEventListener('click', async (e) =>
 
 // ===== LOGIN =====
 window.addEventListener('load', async () => {
+  initTheme();
   const token = api.getToken();
   const cachedUser = api.getStoredUser();
   if (token && cachedUser) {
