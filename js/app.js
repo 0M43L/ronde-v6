@@ -233,19 +233,6 @@ webauthnPlatformAvailable().then((available) => {
   document.getElementById('webauthnLoginDivider').hidden = !available;
 });
 
-// ===== THEME =====
-function initTheme() {
-  const saved = localStorage.getItem('theme_v6');
-  if (saved) document.documentElement.setAttribute('data-theme', saved);
-}
-document.getElementById('themeToggle').addEventListener('click', () => {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
-    || (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const next = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('theme_v6', next);
-});
-
 // ===== ACCESSIBILITÉ CLAVIER : fermeture Échap + retour du focus =====
 // Un clavier/lecteur d'écran qui ouvre une des fenêtres superposées (menu
 // "Plus", recherche, nouvelle action, photo) doit pouvoir la refermer sans
@@ -649,7 +636,6 @@ document.getElementById('ficheConflicts').addEventListener('click', async (e) =>
 
 // ===== LOGIN =====
 window.addEventListener('load', async () => {
-  initTheme();
   const token = api.getToken();
   const cachedUser = api.getStoredUser();
   if (token && cachedUser) {
