@@ -233,19 +233,6 @@ webauthnPlatformAvailable().then((available) => {
   document.getElementById('webauthnLoginDivider').hidden = !available;
 });
 
-// ===== THEME =====
-function initTheme() {
-  const saved = localStorage.getItem('theme_v6');
-  if (saved) document.documentElement.setAttribute('data-theme', saved);
-}
-document.getElementById('themeToggle').addEventListener('click', () => {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
-    || (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const next = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('theme_v6', next);
-});
-
 // ===== ACCESSIBILITÉ CLAVIER : fermeture Échap + retour du focus =====
 // Un clavier/lecteur d'écran qui ouvre une des fenêtres superposées (menu
 // "Plus", recherche, nouvelle action, photo) doit pouvoir la refermer sans
@@ -305,6 +292,13 @@ document.addEventListener('click', (e) => {
 // démarre sur la carte (Leaflet a besoin de ses propres gestes tactiles) ou
 // dans une fenêtre superposée (menu, recherche, visionneuse photo).
 const PULL_REFRESH_THRESHOLD = 70;
+// Marge avant de considérer le geste comme un "tirer pour actualiser" : sans
+// elle, le moindre micro-mouvement du doigt pendant un tap tout en haut d'une
+// page (ex. le bouton "Générer rapport hebdomadaire", premier élément de
+// l'onglet Bilan) était intercepté comme un début de pull-to-refresh — le
+// preventDefault() qui suit annule alors le tap avant qu'il n'atteigne le
+// bouton.
+const PULL_REFRESH_DEAD_ZONE = 10;
 const pullRefreshEl = document.getElementById('pullRefreshIndicator');
 let pullRefreshStartY = null;
 let pullRefreshActive = false;
@@ -330,8 +324,9 @@ document.addEventListener('touchmove', (e) => {
     pullRefreshEl.classList.remove('ready');
     return;
   }
+  if (delta < PULL_REFRESH_DEAD_ZONE) return;
   e.preventDefault();
-  const height = Math.min(delta * 0.5, 90);
+  const height = Math.min((delta - PULL_REFRESH_DEAD_ZONE) * 0.5, 90);
   pullRefreshEl.style.height = `${height}px`;
   pullRefreshEl.classList.toggle('ready', height >= PULL_REFRESH_THRESHOLD);
 }, { passive: false });
@@ -641,7 +636,6 @@ document.getElementById('ficheConflicts').addEventListener('click', async (e) =>
 
 // ===== LOGIN =====
 window.addEventListener('load', async () => {
-  initTheme();
   const token = api.getToken();
   const cachedUser = api.getStoredUser();
   if (token && cachedUser) {
