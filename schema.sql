@@ -65,7 +65,17 @@ CREATE TABLE IF NOT EXISTS substations (
   source       TEXT NOT NULL DEFAULT 'kml',
   photos_json  TEXT,
   comments_json TEXT,
-  network_plan_json TEXT,
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Plan du réseau d'eau chaude/froide : une seule ligne globale ('global'),
+-- pas rattachée à une sous-station — Axel voulait une vue d'ensemble du
+-- réseau, pas un plan par site. Réservée à Axel en écriture (voir
+-- api/sync.js), lisible par tous.
+CREATE TABLE IF NOT EXISTS network_plan (
+  id           TEXT PRIMARY KEY DEFAULT 'global',
+  base_image   TEXT,
+  strokes_json TEXT NOT NULL DEFAULT '[]',
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

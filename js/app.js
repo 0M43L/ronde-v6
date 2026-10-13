@@ -867,6 +867,7 @@ function renderAllData() {
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.renderStorageUsage();
+  ui.renderReseauPage();
 }
 
 function renderSiteMarkers() {
@@ -885,12 +886,13 @@ async function loadAppData() {
   const pendingIdsFor = (entityType) =>
     new Set(queue.filter((q) => q.entity_type === entityType && q.action === 'upsert').map((q) => q.payload.id));
 
-  const [cachedSubstations, cachedFiches, cachedRondes, cachedActions, cachedMes] = await Promise.all([
+  const [cachedSubstations, cachedFiches, cachedRondes, cachedActions, cachedMes, cachedNetworkPlan] = await Promise.all([
     dbLayer.getAll('substations'),
     dbLayer.getAll('fiches'),
     dbLayer.getAll('rondes'),
     dbLayer.getAll('actions'),
     dbLayer.getAll('mes'),
+    dbLayer.getAll('network_plan'),
   ]);
 
   // ===== AFFICHAGE IMMÉDIAT DEPUIS LE CACHE LOCAL =====
@@ -908,6 +910,7 @@ async function loadAppData() {
   state.rondes = cachedRondes;
   state.actions = cachedActions;
   state.mesSessions = cachedMes;
+  state.networkPlan = cachedNetworkPlan[0] ? { baseImage: cachedNetworkPlan[0].baseImage, strokes: cachedNetworkPlan[0].strokes } : null;
   state.ficheConflicts = await dbLayer.getFicheConflicts();
 
   renderAllData();
@@ -1013,11 +1016,17 @@ async function loadAppData() {
     })(),
     (async () => {
       try {
-        const fresh = await api.fetchMesSessions(cachedMes.length > 0 ? sinceIso : undefined);
-        state.mesSessions = mergeById(cachedMes, fresh, pendingIdsFor('mes_session'));
-        await dbLayer.putAll('mes', state.mesSessions);
+        const fresh = await api.fetchNetworkPlan();
+        // Un plan local pas encore synchronisé (dessiné hors-ligne) ne doit
+        // jamais être écrasé par une version serveur plus ancienne — même
+        // principe que les photos de site, adapté à un objet unique plutôt
+        // qu'un tableau à fusionner.
+        if (!pendingIdsFor('network_plan').has('global')) {
+          state.networkPlan = fresh;
+          await dbLayer.put('network_plan', { id: 'global', baseImage: fresh?.baseImage ?? null, strokes: fresh?.strokes ?? [] });
+        }
       } catch {
-        state.mesSessions = cachedMes;
+        // garde la version en cache locale
       }
     })(),
   ]).then(() => {
@@ -1058,6 +1067,7 @@ function goToTab(tabName) {
     if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
     else refreshSiteList();
   }
+  if (tabName === 'reseau') ui.renderReseauPage();
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -1164,10 +1174,6 @@ async function loadSiteDetailIfNeeded(id) {
     const detail = await api.fetchSubstationDetail(id);
     site.photos = unionById(detail.photos || [], site.photos);
     site.comments = unionById(detail.comments || [], site.comments);
-    // Un seul plan par site (pas un tableau à fusionner comme les photos) :
-    // on ne garde le plan local que s'il existe déjà (ex. dessiné hors-ligne,
-    // pas encore synchronisé) — sinon la version serveur prévaut.
-    site.networkPlan = site.networkPlan ?? detail.networkPlan ?? null;
     site.detailLoaded = true;
     await dbLayer.put('substations', site);
     if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
@@ -1187,12 +1193,6 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const viewPhotoBtn = e.target.closest('[data-action="view-site-photo"]');
   if (viewPhotoBtn) {
     ui.openPhotoLightbox(viewPhotoBtn.dataset.url);
-    return;
-  }
-  const editPlanBtn = e.target.closest('[data-action="edit-network-plan"]');
-  if (editPlanBtn) {
-    const site = ui.getSelectedSite();
-    if (site) openNetworkPlanEditor(site);
     return;
   }
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
@@ -1337,12 +1337,11 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
 // ===== PLAN DU RÉSEAU (dessiné à la main, réservé à Axel — voir aussi la
 // même vérification côté serveur dans api/sync.js, seule qui compte
 // vraiment) =====
-// Un seul plan par site : une photo de fond optionnelle + des traits
-// vectoriels en coordonnées normalisées 0..1 (indépendantes de la taille
-// d'affichage), redessinés par ui.drawNetworkPlan() aussi bien ici que dans
-// la fiche en lecture — jamais aplatis dans l'image, pour pouvoir reprendre
-// le dessin plus tard sans perdre les traits déjà posés.
-let networkPlanSite = null;
+// Un seul plan global (pas un par site) : une photo de fond optionnelle +
+// des traits vectoriels en coordonnées normalisées 0..1 (indépendantes de
+// la taille d'affichage), redessinés par ui.drawNetworkPlan() aussi bien
+// ici que sur la page Réseau — jamais aplatis dans l'image, pour pouvoir
+// reprendre le dessin plus tard sans perdre les traits déjà posés.
 let networkPlanStrokes = [];
 let networkPlanCurrentStroke = null;
 let networkPlanImage = null;
@@ -1369,11 +1368,10 @@ function networkPlanResizeCanvas() {
   networkPlanRedraw();
 }
 
-async function openNetworkPlanEditor(site) {
-  networkPlanSite = site;
-  networkPlanStrokes = (site.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
+async function openNetworkPlanEditor() {
+  networkPlanStrokes = (state.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
   networkPlanCurrentStroke = null;
-  networkPlanImage = site.networkPlan?.baseImage ? await ui.loadImage(site.networkPlan.baseImage).catch(() => null) : null;
+  networkPlanImage = state.networkPlan?.baseImage ? await ui.loadImage(state.networkPlan.baseImage).catch(() => null) : null;
   networkPlanSetCategory('chaude');
   networkPlanResizeCanvas();
   overlayTriggers.networkPlanOverlay = document.activeElement;
@@ -1387,6 +1385,9 @@ function closeNetworkPlanEditor() {
 document.getElementById('closeNetworkPlanBtn').addEventListener('click', closeNetworkPlanEditor);
 document.getElementById('networkPlanOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'networkPlanOverlay') closeNetworkPlanEditor();
+});
+document.getElementById('page-reseau').addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="edit-network-plan"]')) openNetworkPlanEditor();
 });
 
 function networkPlanPointFromEvent(e) {
@@ -1432,14 +1433,12 @@ document.getElementById('networkPlanClearBtn').addEventListener('click', () => {
 });
 
 document.getElementById('saveNetworkPlanBtn').addEventListener('click', async () => {
-  const site = networkPlanSite;
-  if (!site) return;
   const networkPlan = { baseImage: networkPlanImage ? networkPlanImage.src : null, strokes: networkPlanStrokes };
-  site.networkPlan = networkPlan;
-  await dbLayer.put('substations', site);
-  await dbLayer.queueSync('substation_network_plan', 'upsert', { substation_id: site.id, networkPlan });
+  state.networkPlan = networkPlan;
+  await dbLayer.put('network_plan', { id: 'global', ...networkPlan });
+  await dbLayer.queueSync('network_plan', 'upsert', { id: 'global', networkPlan });
   closeNetworkPlanEditor();
-  ui.renderSiteDetail();
+  ui.renderReseauPage();
   ui.showToast('Plan enregistré');
 });
 

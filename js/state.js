@@ -122,6 +122,7 @@ export const state = {
   user: null,
   currentTab: 'ronde',
   substations: [],
+  networkPlan: null,
   controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
   rondeStatut: 'operationnel',
   fiches: [],
