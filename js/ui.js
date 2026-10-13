@@ -1586,10 +1586,18 @@ export function loadImage(src) {
   });
 }
 
+// Rouge = eau chaude (départ), bleu = eau froide (retour) — le code couleur
+// plomberie habituel. Exporté pour que l'éditeur (app.js) affiche les mêmes
+// couleurs sur ses boutons de catégorie que sur le dessin lui-même.
+export const NETWORK_PLAN_COLORS = { chaude: '#DC2626', froide: '#2563EB' };
+
 // Dessine un plan (image de fond optionnelle + traits vectoriels 0..1) sur
 // un canvas — la même fonction sert à la fois à l'affichage en lecture
 // (ici) et à l'éditeur (app.js, qui lui passe en plus le trait en cours de
-// dessin), pour que les deux rendus restent strictement identiques.
+// dessin), pour que les deux rendus restent strictement identiques. Chaque
+// trait porte sa propre catégorie (chaude/froide) : les traits enregistrés
+// avant l'ajout de cette distinction n'en ont pas, et retombent sur le bleu
+// par défaut plutôt que de disparaître.
 export function drawNetworkPlan(canvas, { image, strokes } = {}) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
@@ -1598,12 +1606,12 @@ export function drawNetworkPlan(canvas, { image, strokes } = {}) {
   ctx.fillStyle = '#E8E8EA';
   ctx.fillRect(0, 0, w, h);
   if (image) ctx.drawImage(image, 0, 0, w, h);
-  ctx.strokeStyle = '#2563EB';
   ctx.lineWidth = Math.max(2, w * 0.006);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   (strokes || []).forEach((s) => {
     if (!s.points || s.points.length < 2) return;
+    ctx.strokeStyle = NETWORK_PLAN_COLORS[s.category] || NETWORK_PLAN_COLORS.froide;
     ctx.beginPath();
     ctx.moveTo(s.points[0][0] * w, s.points[0][1] * h);
     for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i][0] * w, s.points[i][1] * h);
@@ -1889,6 +1897,10 @@ export function renderSiteDetail() {
         ${
           site.networkPlan
             ? `<canvas id="networkPlanView" class="network-plan-canvas"></canvas>
+               <div class="network-plan-legend">
+                 <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.chaude};display:inline-block;"></span>Eau chaude</span>
+                 <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.froide};display:inline-block;"></span>Eau froide</span>
+               </div>
                ${isAxel() ? `<button class="btn-secondary" data-action="edit-network-plan" style="width:100%;margin-top:10px;">${icon('pencil', 14)} Modifier le plan</button>` : ''}`
             : isAxel()
               ? `<p class="hint" style="margin:0 0 10px;">Aucun plan pour ce site.</p>

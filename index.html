@@ -300,7 +300,15 @@
           <h2>Plan du réseau</h2>
           <button class="icon-btn" id="closeNetworkPlanBtn" aria-label="Fermer">&times;</button>
         </div>
-        <p class="hint" style="margin:0 0 10px;">Importe une photo ou un plan, puis trace au doigt le passage du réseau. Sans photo, tu dessines sur un fond vide.</p>
+        <p class="hint" style="margin:0 0 10px;">Importe une photo ou un plan, choisis le réseau à tracer, puis dessine au doigt. Sans photo, tu dessines sur un fond vide.</p>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button type="button" class="np-cat-btn active" id="networkPlanCatChaude" data-category="chaude" style="--cat-color:#DC2626;--cat-soft:rgba(220,38,38,0.12);">
+            <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau chaude
+          </button>
+          <button type="button" class="np-cat-btn" id="networkPlanCatFroide" data-category="froide" style="--cat-color:#2563EB;--cat-soft:rgba(37,99,235,0.12);">
+            <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau froide
+          </button>
+        </div>
         <canvas id="networkPlanCanvas" class="network-plan-canvas" style="touch-action:none;"></canvas>
         <div class="btn-row">
           <label class="photo-btn" style="flex:1;justify-content:center;">Photo / plan<input type="file" accept="image/*" id="networkPlanPhotoInput" style="display:none;"></label>
