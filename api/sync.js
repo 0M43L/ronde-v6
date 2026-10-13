@@ -36,6 +36,7 @@ export default async function handler(req, res) {
       mes_session: 1,
       substation_photo: 1,
       substation_comment: 1,
+      substation_network_plan: 1,
       action: 2,
       fiche: 2,
     };
@@ -113,7 +114,7 @@ async function assertOwnerOrNew(table, id, userId) {
 // différents) puisqu'elles lisent-modifient-écrivent le même champ JSON —
 // elles doivent donc rester dans le même groupe séquentiel.
 function conflictKeyFor(item) {
-  if (item.entity_type === 'substation_photo' || item.entity_type === 'substation_comment') {
+  if (item.entity_type === 'substation_photo' || item.entity_type === 'substation_comment' || item.entity_type === 'substation_network_plan') {
     return `substation:${item.payload.substation_id}`;
   }
   return `${item.entity_type}:${item.payload.id}`;
@@ -242,6 +243,22 @@ async function syncItem(item, userId, user) {
       return db.execute({
         sql: `UPDATE substations SET comments_json = ?, updated_at = datetime('now') WHERE id = ?`,
         args: [JSON.stringify(next), payload.substation_id],
+      });
+    }
+
+    // Le plan réseau d'un site (tracé dessiné à la main sur une photo/plan)
+    // est réservé à Axel — vérifié ici côté serveur, pas seulement en
+    // cachant l'outil de dessin côté client (même principe que pour les
+    // fiches : jamais contournable par un appel direct à l'API).
+    case 'substation_network_plan': {
+      if ((user?.prenom || '').toLowerCase() !== 'axel') {
+        const err = new Error('FORBIDDEN_NOT_AXEL');
+        err.code = 'FORBIDDEN_NOT_AXEL';
+        throw err;
+      }
+      return db.execute({
+        sql: `UPDATE substations SET network_plan_json = ?, updated_at = datetime('now') WHERE id = ?`,
+        args: [JSON.stringify(payload.networkPlan), payload.substation_id],
       });
     }
 

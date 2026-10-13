@@ -987,6 +987,9 @@ body.keyboard-open .fab {
   background: none; border: none; padding: 4px 0; margin-bottom: 10px; cursor: pointer;
 }
 
+/* ===== PLAN DU RÉSEAU ===== */
+.network-plan-canvas { width: 100%; height: auto; display: block; border-radius: var(--radius-sm); background: #E8E8EA; }
+
 @media (max-width: 480px) {
   .form-row { grid-template-columns: 1fr; }
   .check-buttons { grid-template-columns: repeat(2, 1fr); }

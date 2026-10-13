@@ -9,6 +9,14 @@ function isOwned(item) {
   return !item.user_id || item.user_id === state.user?.id;
 }
 
+// Le plan réseau d'un site est réservé à Axel (voir api/sync.js, qui
+// applique la même règle côté serveur — ce contrôle côté client ne sert
+// qu'à cacher l'outil de dessin aux autres, jamais à sécuriser quoi que ce
+// soit à lui seul).
+function isAxel() {
+  return (state.user?.prenom || '').toLowerCase() === 'axel';
+}
+
 // Anime un chiffre affiché (ex. compteur de la page Actions/fiche Site) de
 // son ancienne valeur vers la nouvelle, mais seulement quand elle a vraiment
 // changé depuis le dernier rendu de CET élément précis (mémorisée dans son
@@ -1565,6 +1573,44 @@ const SITE_STATUT_BADGE = {
   arret: '<span class="badge immediat">Arrêt</span>',
 };
 
+// ===== PLAN DU RÉSEAU (fiche de site) =====
+// Charge une image depuis une dataURL (promesse) — utilisé aussi bien pour
+// afficher un plan déjà enregistré que, côté éditeur (app.js), pour charger
+// une fois la photo choisie avant de redessiner en direct à chaque trait.
+export function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// Dessine un plan (image de fond optionnelle + traits vectoriels 0..1) sur
+// un canvas — la même fonction sert à la fois à l'affichage en lecture
+// (ici) et à l'éditeur (app.js, qui lui passe en plus le trait en cours de
+// dessin), pour que les deux rendus restent strictement identiques.
+export function drawNetworkPlan(canvas, { image, strokes } = {}) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#E8E8EA';
+  ctx.fillRect(0, 0, w, h);
+  if (image) ctx.drawImage(image, 0, 0, w, h);
+  ctx.strokeStyle = '#2563EB';
+  ctx.lineWidth = Math.max(2, w * 0.006);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  (strokes || []).forEach((s) => {
+    if (!s.points || s.points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(s.points[0][0] * w, s.points[0][1] * h);
+    for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i][0] * w, s.points[i][1] * h);
+    ctx.stroke();
+  });
+}
+
 // Les 3 vraies stations principales du réseau (Bergère/Puteaux, Garenne et
 // Hanriot/Nanterre), vers lesquelles remontent toutes les sous-stations —
 // mêmes coordonnées que le schéma de réseau déjà validé avec Axel. Le
@@ -1838,6 +1884,20 @@ export function renderSiteDetail() {
       </div>
     </div>
     <div class="card">
+      <div class="card-header">${icon('droplet', 12)} Plan du réseau</div>
+      <div class="card-body">
+        ${
+          site.networkPlan
+            ? `<canvas id="networkPlanView" class="network-plan-canvas"></canvas>
+               ${isAxel() ? `<button class="btn-secondary" data-action="edit-network-plan" style="width:100%;margin-top:10px;">${icon('pencil', 14)} Modifier le plan</button>` : ''}`
+            : isAxel()
+              ? `<p class="hint" style="margin:0 0 10px;">Aucun plan pour ce site.</p>
+                 <button class="btn-secondary" data-action="edit-network-plan" style="width:100%;">${icon('pencil', 14)} Tracer le passage du réseau</button>`
+              : `<p class="hint" style="margin:0;">Aucun plan pour ce site.</p>`
+        }
+      </div>
+    </div>
+    <div class="card">
       <div class="card-header">${icon('clipboard', 12)} Commentaires</div>
       <div class="card-body">
         ${site.comments === undefined ? `<p class="hint" style="margin:0 0 8px;">Chargement des commentaires...</p>` : ''}
@@ -1894,6 +1954,25 @@ export function renderSiteDetail() {
     </div>
   `;
   el.querySelectorAll('.stat-tile .value').forEach(animateCountUp);
+  const planCanvas = document.getElementById('networkPlanView');
+  if (planCanvas && site.networkPlan) {
+    const plan = site.networkPlan;
+    planCanvas.width = 900;
+    if (plan.baseImage) {
+      loadImage(plan.baseImage)
+        .then((img) => {
+          planCanvas.height = Math.round(900 * (img.height / img.width));
+          drawNetworkPlan(planCanvas, { image: img, strokes: plan.strokes });
+        })
+        .catch(() => {
+          planCanvas.height = 675;
+          drawNetworkPlan(planCanvas, { strokes: plan.strokes });
+        });
+    } else {
+      planCanvas.height = 675;
+      drawNetworkPlan(planCanvas, { strokes: plan.strokes });
+    }
+  }
 }
 
 export function selectSite(id) {
