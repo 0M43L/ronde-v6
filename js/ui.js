@@ -9,11 +9,11 @@ function isOwned(item) {
   return !item.user_id || item.user_id === state.user?.id;
 }
 
-// Le plan réseau d'un site est réservé à Axel (voir api/sync.js, qui
-// applique la même règle côté serveur — ce contrôle côté client ne sert
-// qu'à cacher l'outil de dessin aux autres, jamais à sécuriser quoi que ce
-// soit à lui seul).
-function isAxel() {
+// Le plan du réseau est réservé à Axel (voir api/sync.js, qui applique la
+// même règle côté serveur — ce contrôle côté client ne sert qu'à cacher
+// l'outil de dessin aux autres, jamais à sécuriser quoi que ce soit à lui
+// seul).
+export function isAxel() {
   return (state.user?.prenom || '').toLowerCase() === 'axel';
 }
 
@@ -1573,51 +1573,6 @@ const SITE_STATUT_BADGE = {
   arret: '<span class="badge immediat">Arrêt</span>',
 };
 
-// ===== PLAN DU RÉSEAU (fiche de site) =====
-// Charge une image depuis une dataURL (promesse) — utilisé aussi bien pour
-// afficher un plan déjà enregistré que, côté éditeur (app.js), pour charger
-// une fois la photo choisie avant de redessiner en direct à chaque trait.
-export function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-// Rouge = eau chaude (départ), bleu = eau froide (retour) — le code couleur
-// plomberie habituel. Exporté pour que l'éditeur (app.js) affiche les mêmes
-// couleurs sur ses boutons de catégorie que sur le dessin lui-même.
-export const NETWORK_PLAN_COLORS = { chaude: '#DC2626', froide: '#2563EB' };
-
-// Dessine un plan (image de fond optionnelle + traits vectoriels 0..1) sur
-// un canvas — la même fonction sert à la fois à l'affichage en lecture
-// (ici) et à l'éditeur (app.js, qui lui passe en plus le trait en cours de
-// dessin), pour que les deux rendus restent strictement identiques. Chaque
-// trait porte sa propre catégorie (chaude/froide) : les traits enregistrés
-// avant l'ajout de cette distinction n'en ont pas, et retombent sur le bleu
-// par défaut plutôt que de disparaître.
-export function drawNetworkPlan(canvas, { image, strokes } = {}) {
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#E8E8EA';
-  ctx.fillRect(0, 0, w, h);
-  if (image) ctx.drawImage(image, 0, 0, w, h);
-  ctx.lineWidth = Math.max(2, w * 0.006);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  (strokes || []).forEach((s) => {
-    if (!s.points || s.points.length < 2) return;
-    ctx.strokeStyle = NETWORK_PLAN_COLORS[s.category] || NETWORK_PLAN_COLORS.froide;
-    ctx.beginPath();
-    ctx.moveTo(s.points[0][0] * w, s.points[0][1] * h);
-    for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i][0] * w, s.points[i][1] * h);
-    ctx.stroke();
-  });
-}
 
 // Les 3 vraies stations principales du réseau (Bergère/Puteaux, Garenne et
 // Hanriot/Nanterre), vers lesquelles remontent toutes les sous-stations —
@@ -1948,42 +1903,6 @@ export function renderSiteDetail() {
     </div>
   `;
   el.querySelectorAll('.stat-tile .value').forEach(animateCountUp);
-}
-
-// ===== RÉSEAU (plan global eau chaude/froide, pas rattaché à un site) =====
-export function renderReseauPage() {
-  const el = document.getElementById('reseauBody');
-  if (!el) return;
-  const plan = state.networkPlan;
-  el.innerHTML = plan
-    ? `<canvas id="networkPlanView" class="network-plan-canvas"></canvas>
-       <div class="network-plan-legend">
-         <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.chaude};display:inline-block;"></span>Eau chaude</span>
-         <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.froide};display:inline-block;"></span>Eau froide</span>
-       </div>
-       ${isAxel() ? `<button class="btn-secondary" data-action="edit-network-plan" style="width:100%;margin-top:10px;">${icon('pencil', 14)} Modifier le plan</button>` : ''}`
-    : isAxel()
-      ? `<p class="hint" style="margin:0 0 10px;">Aucun plan enregistré pour l'instant.</p>
-         <button class="btn-secondary" data-action="edit-network-plan" style="width:100%;">${icon('pencil', 14)} Tracer le réseau</button>`
-      : `<p class="hint" style="margin:0;">Aucun plan enregistré pour l'instant.</p>`;
-
-  const planCanvas = document.getElementById('networkPlanView');
-  if (!planCanvas || !plan) return;
-  planCanvas.width = 900;
-  if (plan.baseImage) {
-    loadImage(plan.baseImage)
-      .then((img) => {
-        planCanvas.height = Math.round(900 * (img.height / img.width));
-        drawNetworkPlan(planCanvas, { image: img, strokes: plan.strokes });
-      })
-      .catch(() => {
-        planCanvas.height = 675;
-        drawNetworkPlan(planCanvas, { strokes: plan.strokes });
-      });
-  } else {
-    planCanvas.height = 675;
-    drawNetworkPlan(planCanvas, { strokes: plan.strokes });
-  }
 }
 
 export function selectSite(id) {

@@ -62,6 +62,60 @@ export function invalidateMapSize() {
   if (map) setTimeout(() => map.invalidateSize(), 80);
 }
 
+// ===== CARTE DE L'ONGLET RÉSEAU =====
+// Instance Leaflet séparée de celle de l'onglet Ronde (deux conteneurs
+// différents, visibles sur des pages différentes) — même principe de
+// regroupement des marqueurs, même fond de carte réelle.
+let reseauMap = null;
+let reseauMarkers = [];
+let reseauMarkerLayer = null;
+
+export function initReseauMap() {
+  if (reseauMap || !document.getElementById('reseauMap') || !isMapAvailable()) return null;
+  reseauMap = L.map('reseauMap', { attributionControl: false }).setView([48.8905, 2.238], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(reseauMap);
+  return reseauMap;
+}
+
+export function getReseauMap() {
+  return reseauMap;
+}
+
+export function renderReseauMarkers(substations, onSelect) {
+  if (!reseauMap || !isMapAvailable()) return;
+
+  if (reseauMarkerLayer) {
+    reseauMap.removeLayer(reseauMarkerLayer);
+    reseauMarkerLayer = null;
+  }
+  reseauMarkers.forEach((m) => reseauMap.removeLayer(m));
+  reseauMarkers = [];
+
+  const clustering = hasClustering();
+  if (clustering) {
+    reseauMarkerLayer = L.markerClusterGroup({ maxClusterRadius: 50, spiderfyOnMaxZoom: true });
+  }
+
+  substations.forEach((s) => {
+    if (s.lat == null || s.lon == null) return;
+    const marker = L.marker([s.lat, s.lon]);
+    marker.bindPopup(`<b>${escapeHtml(s.name)}</b>`);
+    marker.on('click', () => onSelect && onSelect(s.id));
+    if (clustering) {
+      reseauMarkerLayer.addLayer(marker);
+    } else {
+      marker.addTo(reseauMap);
+      reseauMarkers.push(marker);
+    }
+  });
+
+  if (clustering) reseauMap.addLayer(reseauMarkerLayer);
+}
+
+export function invalidateReseauMapSize() {
+  if (reseauMap) setTimeout(() => reseauMap.invalidateSize(), 80);
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
