@@ -593,6 +593,7 @@ body.keyboard-open .fab {
 
 /* ===== MAP ===== */
 #map { width: 100%; height: 260px; border-radius: var(--radius); overflow: hidden; }
+#reseauMap { width: 100%; height: 440px; border-radius: var(--radius); overflow: hidden; background: var(--neutral-soft); }
 .map-offline-note {
   width: 100%; height: 260px; border-radius: var(--radius);
   background: var(--neutral-soft); color: var(--text-muted);
@@ -988,7 +989,6 @@ body.keyboard-open .fab {
 }
 
 /* ===== PLAN DU RÉSEAU ===== */
-.network-plan-canvas { width: 100%; height: auto; display: block; border-radius: var(--radius-sm); background: #E8E8EA; }
 .np-cat-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 9px; border-radius: 999px; border: 1.5px solid var(--border);

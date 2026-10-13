@@ -295,33 +295,6 @@
       </div>
     </div>
 
-    <div class="modal-overlay" id="networkPlanOverlay" hidden>
-      <div class="modal-card" style="max-width:560px;">
-        <div class="modal-card-header">
-          <h2>Plan du réseau</h2>
-          <button class="icon-btn" id="closeNetworkPlanBtn" aria-label="Fermer">&times;</button>
-        </div>
-        <p class="hint" style="margin:0 0 10px;">Importe une photo ou un plan, choisis le réseau à tracer, puis dessine au doigt. Sans photo, tu dessines sur un fond vide.</p>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <button type="button" class="np-cat-btn active" id="networkPlanCatChaude" data-category="chaude" style="--cat-color:#DC2626;--cat-soft:rgba(220,38,38,0.12);">
-            <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau chaude
-          </button>
-          <button type="button" class="np-cat-btn" id="networkPlanCatFroide" data-category="froide" style="--cat-color:#2563EB;--cat-soft:rgba(37,99,235,0.12);">
-            <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau froide
-          </button>
-        </div>
-        <canvas id="networkPlanCanvas" class="network-plan-canvas" style="touch-action:none;"></canvas>
-        <div class="btn-row">
-          <label class="photo-btn" style="flex:1;justify-content:center;">Photo / plan<input type="file" accept="image/*" id="networkPlanPhotoInput" style="display:none;"></label>
-          <button class="btn-secondary" id="networkPlanUndoBtn" type="button">Annuler le trait</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn-secondary" id="networkPlanClearBtn" type="button">Tout effacer</button>
-          <button class="btn" id="saveNetworkPlanBtn" type="button">Enregistrer</button>
-        </div>
-      </div>
-    </div>
-
     <!-- BILAN -->
     <div class="page" id="page-bilan">
       <button class="btn btn-secondary" id="weeklyReportBtn" style="width:100%; margin-bottom:14px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg> Générer rapport hebdomadaire</button>
@@ -451,7 +424,36 @@
     <div class="page" id="page-reseau">
       <div class="card">
         <div class="card-header"><svg class="icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7s6.5 7.3 6.5 12a6.5 6.5 0 0 1-13 0c0-4.7 6.5-12 6.5-12Z"/></svg> Réseau d'eau chaude / eau froide</div>
-        <div class="card-body" id="reseauBody"></div>
+        <div class="card-body">
+          <div id="reseauMap"></div>
+          <div class="network-plan-legend" style="margin-top:10px;">
+            <span><span style="width:9px;height:9px;border-radius:50%;background:#DC2626;display:inline-block;"></span>Eau chaude</span>
+            <span><span style="width:9px;height:9px;border-radius:50%;background:#2563EB;display:inline-block;"></span>Eau froide</span>
+          </div>
+          <p class="hint" style="margin:8px 0 0;">Touche une sous-station sur la carte pour ouvrir sa fiche.</p>
+
+          <button class="btn-secondary" id="startNetworkDrawBtn" type="button" style="width:100%;margin-top:12px;" hidden>Tracer le réseau</button>
+
+          <div id="networkDrawControls" hidden style="margin-top:12px;">
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="np-cat-btn active" id="networkPlanCatChaude" data-category="chaude" style="--cat-color:#DC2626;--cat-soft:rgba(220,38,38,0.12);">
+                <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau chaude
+              </button>
+              <button type="button" class="np-cat-btn" id="networkPlanCatFroide" data-category="froide" style="--cat-color:#2563EB;--cat-soft:rgba(37,99,235,0.12);">
+                <span class="np-cat-dot" style="background:var(--cat-color);"></span>Eau froide
+              </button>
+            </div>
+            <p class="hint" style="margin:8px 0;">Fais glisser le doigt sur la carte pour tracer. La carte ne bouge plus tant que ce mode est actif.</p>
+            <div class="btn-row">
+              <button class="btn-secondary" id="networkPlanUndoBtn" type="button">Annuler le trait</button>
+              <button class="btn-secondary" id="networkPlanClearBtn" type="button">Tout effacer</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn-secondary" id="cancelNetworkDrawBtn" type="button">Annuler</button>
+              <button class="btn" id="saveNetworkPlanBtn" type="button">Enregistrer</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

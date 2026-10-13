@@ -2,7 +2,17 @@ import { state, resetControls, resetMesChecks, emptyEchangeur } from './state.js
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
-import { initMap, renderMarkers, focusSubstation, invalidateMapSize, isMapAvailable } from './map.js';
+import {
+  initMap,
+  renderMarkers,
+  focusSubstation,
+  invalidateMapSize,
+  isMapAvailable,
+  initReseauMap,
+  getReseauMap,
+  renderReseauMarkers,
+  invalidateReseauMapSize,
+} from './map.js';
 import { prefetchTilesAround } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener, setSyncProgressListener } from './sync.js';
 
@@ -283,8 +293,8 @@ document.addEventListener('keydown', (e) => {
     closeNewActionModal();
   } else if (!document.getElementById('globalSearchOverlay').hidden) {
     closeGlobalSearch();
-  } else if (!document.getElementById('networkPlanOverlay').hidden) {
-    closeNetworkPlanEditor();
+  } else if (networkDrawActive) {
+    stopNetworkDraw();
   }
 });
 
@@ -721,6 +731,7 @@ async function enterApp() {
     document.getElementById('webauthnAccountCard').hidden = !available;
     if (available) renderWebauthnCredentialsList();
   });
+  document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()
@@ -728,11 +739,19 @@ async function enterApp() {
       initMap();
       renderSiteMarkers();
       invalidateMapSize();
+      const reseauMap = initReseauMap();
+      if (reseauMap) initNetworkDrawHandlers(reseauMap);
+      refreshReseauMap();
     })
     .catch(() => {
       const mapEl = document.getElementById('map');
       if (mapEl && !isMapAvailable()) {
         mapEl.innerHTML =
+          '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
+      }
+      const reseauMapEl = document.getElementById('reseauMap');
+      if (reseauMapEl && !isMapAvailable()) {
+        reseauMapEl.innerHTML =
           '<div class="map-offline-note">Carte indisponible hors-ligne pour l\'instant — elle se chargera au prochain accès réseau, puis restera disponible hors-ligne.</div>';
       }
     });
@@ -867,7 +886,7 @@ function renderAllData() {
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.renderStorageUsage();
-  ui.renderReseauPage();
+  refreshReseauMap();
 }
 
 function renderSiteMarkers() {
@@ -1067,7 +1086,7 @@ function goToTab(tabName) {
     if (firstLoadInFlight && state.substations.length === 0) ui.renderSiteListSkeleton();
     else refreshSiteList();
   }
-  if (tabName === 'reseau') ui.renderReseauPage();
+  if (tabName === 'reseau') refreshReseauMap();
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -1334,18 +1353,23 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   }
 });
 
-// ===== PLAN DU RÉSEAU (dessiné à la main, réservé à Axel — voir aussi la
-// même vérification côté serveur dans api/sync.js, seule qui compte
-// vraiment) =====
-// Un seul plan global (pas un par site) : une photo de fond optionnelle +
-// des traits vectoriels en coordonnées normalisées 0..1 (indépendantes de
-// la taille d'affichage), redessinés par ui.drawNetworkPlan() aussi bien
-// ici que sur la page Réseau — jamais aplatis dans l'image, pour pouvoir
-// reprendre le dessin plus tard sans perdre les traits déjà posés.
+// ===== RÉSEAU (carte réelle, dessin réservé à Axel — voir aussi la même
+// vérification côté serveur dans api/sync.js, seule qui compte vraiment) =====
+// Plan global (pas un par site) : des traits vectoriels en coordonnées GPS
+// réelles [lat, lon] — tracés directement sur la vraie carte (plus de photo
+// de fond à importer), affichés comme des L.polyline par-dessus les
+// marqueurs des 140 sous-stations. Chaque trait garde sa catégorie
+// (chaude/froide) ; ceux enregistrés avant son ajout retombent sur froide.
+let networkDrawActive = false;
 let networkPlanStrokes = [];
 let networkPlanCurrentStroke = null;
-let networkPlanImage = null;
 let networkPlanCategory = 'chaude';
+let networkStrokeLayers = [];
+let networkCurrentLayer = null;
+
+function networkPlanColor(category) {
+  return category === 'chaude' ? '#DC2626' : '#2563EB';
+}
 
 function networkPlanSetCategory(category) {
   networkPlanCategory = category;
@@ -1354,91 +1378,130 @@ function networkPlanSetCategory(category) {
 document.getElementById('networkPlanCatChaude').addEventListener('click', () => networkPlanSetCategory('chaude'));
 document.getElementById('networkPlanCatFroide').addEventListener('click', () => networkPlanSetCategory('froide'));
 
-function networkPlanRedraw() {
-  const canvas = document.getElementById('networkPlanCanvas');
-  const strokes = networkPlanCurrentStroke ? [...networkPlanStrokes, networkPlanCurrentStroke] : networkPlanStrokes;
-  ui.drawNetworkPlan(canvas, { image: networkPlanImage, strokes });
+function renderNetworkStrokeLayers() {
+  const reseauMap = getReseauMap();
+  if (!reseauMap) return;
+  networkStrokeLayers.forEach((l) => reseauMap.removeLayer(l));
+  networkStrokeLayers = networkPlanStrokes
+    .filter((s) => s.points.length > 1)
+    .map((s) => L.polyline(s.points, { color: networkPlanColor(s.category), weight: 4 }).addTo(reseauMap));
 }
 
-function networkPlanResizeCanvas() {
-  const canvas = document.getElementById('networkPlanCanvas');
-  const ratio = networkPlanImage ? networkPlanImage.height / networkPlanImage.width : 0.75;
-  canvas.width = 900;
-  canvas.height = Math.round(900 * ratio);
-  networkPlanRedraw();
+// Rappelée après chaque (re)chargement des sous-stations/du plan (cache
+// local, puis rafraîchissement serveur) : la carte elle-même n'est créée
+// qu'une fois (voir enterApp()), mais marqueurs et traits doivent suivre
+// les données à chaque fois qu'elles changent.
+function refreshReseauMap() {
+  const reseauMap = getReseauMap();
+  if (!reseauMap) return;
+  renderReseauMarkers(state.substations, (id) => {
+    ui.switchTab('sites');
+    ui.selectSite(id);
+    loadSiteDetailIfNeeded(id);
+  });
+  invalidateReseauMapSize();
+  if (!networkDrawActive) {
+    networkPlanStrokes = (state.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
+  }
+  renderNetworkStrokeLayers();
 }
 
-async function openNetworkPlanEditor() {
-  networkPlanStrokes = (state.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
-  networkPlanCurrentStroke = null;
-  networkPlanImage = state.networkPlan?.baseImage ? await ui.loadImage(state.networkPlan.baseImage).catch(() => null) : null;
+// Écoute les événements de pointeur sur le CONTENEUR DOM de la carte (pas
+// map.on('mousedown'/...)) et reprojette nous-mêmes chaque point en lat/lon
+// via containerPointToLatLng() — plus fiable que de compter sur Leaflet
+// pour abstraire souris/tactile en continu pendant un glissé (déjà le choix
+// fait pour l'éditeur par-dessus une photo, avant que le plan ne devienne
+// une vraie carte). Leaflet met déjà touch-action:none sur ce conteneur
+// pour ses propres gestes : le navigateur ne nous vole donc pas le geste
+// en scrollant la page à la place, qu'on désactive .dragging ou pas.
+// Actifs en continu, mais ne font quoi que ce soit que si networkDrawActive
+// est vrai (mode dessin armé par le bouton).
+function initNetworkDrawHandlers(reseauMap) {
+  const container = reseauMap.getContainer();
+
+  function latLngFromEvent(e) {
+    const rect = container.getBoundingClientRect();
+    return reseauMap.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+  }
+
+  container.addEventListener('pointerdown', (e) => {
+    if (!networkDrawActive) return;
+    container.setPointerCapture(e.pointerId);
+    const latlng = latLngFromEvent(e);
+    networkPlanCurrentStroke = { points: [[latlng.lat, latlng.lng]], category: networkPlanCategory };
+    networkCurrentLayer = L.polyline(networkPlanCurrentStroke.points, { color: networkPlanColor(networkPlanCategory), weight: 4, dashArray: '4,6' }).addTo(reseauMap);
+  });
+  container.addEventListener('pointermove', (e) => {
+    if (!networkDrawActive || !networkPlanCurrentStroke) return;
+    const latlng = latLngFromEvent(e);
+    networkPlanCurrentStroke.points.push([latlng.lat, latlng.lng]);
+    networkCurrentLayer.setLatLngs(networkPlanCurrentStroke.points);
+  });
+  function endStroke() {
+    if (!networkDrawActive || !networkPlanCurrentStroke) return;
+    if (networkPlanCurrentStroke.points.length > 1) networkPlanStrokes.push(networkPlanCurrentStroke);
+    networkPlanCurrentStroke = null;
+    if (networkCurrentLayer) {
+      reseauMap.removeLayer(networkCurrentLayer);
+      networkCurrentLayer = null;
+    }
+    renderNetworkStrokeLayers();
+  }
+  container.addEventListener('pointerup', endStroke);
+  container.addEventListener('pointercancel', endStroke);
+}
+
+function startNetworkDraw() {
+  const reseauMap = getReseauMap();
+  if (!reseauMap) return;
+  networkDrawActive = true;
+  reseauMap.dragging.disable();
+  if (reseauMap.tap) reseauMap.tap.disable();
+  document.getElementById('startNetworkDrawBtn').hidden = true;
+  document.getElementById('networkDrawControls').hidden = false;
   networkPlanSetCategory('chaude');
-  networkPlanResizeCanvas();
-  overlayTriggers.networkPlanOverlay = document.activeElement;
-  document.getElementById('networkPlanOverlay').hidden = false;
 }
 
-function closeNetworkPlanEditor() {
-  document.getElementById('networkPlanOverlay').hidden = true;
-  returnFocusAfterOverlay('networkPlanOverlay');
-}
-document.getElementById('closeNetworkPlanBtn').addEventListener('click', closeNetworkPlanEditor);
-document.getElementById('networkPlanOverlay').addEventListener('click', (e) => {
-  if (e.target.id === 'networkPlanOverlay') closeNetworkPlanEditor();
-});
-document.getElementById('page-reseau').addEventListener('click', (e) => {
-  if (e.target.closest('[data-action="edit-network-plan"]')) openNetworkPlanEditor();
-});
-
-function networkPlanPointFromEvent(e) {
-  const canvas = document.getElementById('networkPlanCanvas');
-  const rect = canvas.getBoundingClientRect();
-  return [Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)), Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))];
-}
-
-const networkPlanCanvasEl = document.getElementById('networkPlanCanvas');
-networkPlanCanvasEl.addEventListener('pointerdown', (e) => {
-  networkPlanCanvasEl.setPointerCapture(e.pointerId);
-  networkPlanCurrentStroke = { points: [networkPlanPointFromEvent(e)], category: networkPlanCategory };
-});
-networkPlanCanvasEl.addEventListener('pointermove', (e) => {
-  if (!networkPlanCurrentStroke) return;
-  networkPlanCurrentStroke.points.push(networkPlanPointFromEvent(e));
-  networkPlanRedraw();
-});
-function networkPlanEndStroke() {
-  if (networkPlanCurrentStroke && networkPlanCurrentStroke.points.length > 1) networkPlanStrokes.push(networkPlanCurrentStroke);
+function stopNetworkDraw() {
+  const reseauMap = getReseauMap();
+  if (reseauMap) {
+    reseauMap.dragging.enable();
+    if (reseauMap.tap) reseauMap.tap.enable();
+    if (networkCurrentLayer) {
+      reseauMap.removeLayer(networkCurrentLayer);
+      networkCurrentLayer = null;
+    }
+  }
+  networkDrawActive = false;
   networkPlanCurrentStroke = null;
-  networkPlanRedraw();
+  document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
+  document.getElementById('networkDrawControls').hidden = true;
 }
-networkPlanCanvasEl.addEventListener('pointerup', networkPlanEndStroke);
-networkPlanCanvasEl.addEventListener('pointercancel', networkPlanEndStroke);
 
-document.getElementById('networkPlanPhotoInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  networkPlanImage = await ui.loadImage(await fileToDataUrl(file));
-  networkPlanResizeCanvas();
-  e.target.value = '';
+document.getElementById('startNetworkDrawBtn').addEventListener('click', startNetworkDraw);
+
+document.getElementById('cancelNetworkDrawBtn').addEventListener('click', () => {
+  networkPlanStrokes = (state.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
+  renderNetworkStrokeLayers();
+  stopNetworkDraw();
 });
 
 document.getElementById('networkPlanUndoBtn').addEventListener('click', () => {
   networkPlanStrokes.pop();
-  networkPlanRedraw();
+  renderNetworkStrokeLayers();
 });
 
 document.getElementById('networkPlanClearBtn').addEventListener('click', () => {
   networkPlanStrokes = [];
-  networkPlanRedraw();
+  renderNetworkStrokeLayers();
 });
 
 document.getElementById('saveNetworkPlanBtn').addEventListener('click', async () => {
-  const networkPlan = { baseImage: networkPlanImage ? networkPlanImage.src : null, strokes: networkPlanStrokes };
+  const networkPlan = { baseImage: null, strokes: networkPlanStrokes };
   state.networkPlan = networkPlan;
   await dbLayer.put('network_plan', { id: 'global', ...networkPlan });
   await dbLayer.queueSync('network_plan', 'upsert', { id: 'global', networkPlan });
-  closeNetworkPlanEditor();
-  ui.renderReseauPage();
+  stopNetworkDraw();
   ui.showToast('Plan enregistré');
 });
 
