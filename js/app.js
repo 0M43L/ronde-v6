@@ -1346,6 +1346,14 @@ let networkPlanSite = null;
 let networkPlanStrokes = [];
 let networkPlanCurrentStroke = null;
 let networkPlanImage = null;
+let networkPlanCategory = 'chaude';
+
+function networkPlanSetCategory(category) {
+  networkPlanCategory = category;
+  document.querySelectorAll('.np-cat-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.category === category));
+}
+document.getElementById('networkPlanCatChaude').addEventListener('click', () => networkPlanSetCategory('chaude'));
+document.getElementById('networkPlanCatFroide').addEventListener('click', () => networkPlanSetCategory('froide'));
 
 function networkPlanRedraw() {
   const canvas = document.getElementById('networkPlanCanvas');
@@ -1363,9 +1371,10 @@ function networkPlanResizeCanvas() {
 
 async function openNetworkPlanEditor(site) {
   networkPlanSite = site;
-  networkPlanStrokes = (site.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]) }));
+  networkPlanStrokes = (site.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]), category: s.category || 'froide' }));
   networkPlanCurrentStroke = null;
   networkPlanImage = site.networkPlan?.baseImage ? await ui.loadImage(site.networkPlan.baseImage).catch(() => null) : null;
+  networkPlanSetCategory('chaude');
   networkPlanResizeCanvas();
   overlayTriggers.networkPlanOverlay = document.activeElement;
   document.getElementById('networkPlanOverlay').hidden = false;
@@ -1389,7 +1398,7 @@ function networkPlanPointFromEvent(e) {
 const networkPlanCanvasEl = document.getElementById('networkPlanCanvas');
 networkPlanCanvasEl.addEventListener('pointerdown', (e) => {
   networkPlanCanvasEl.setPointerCapture(e.pointerId);
-  networkPlanCurrentStroke = { points: [networkPlanPointFromEvent(e)] };
+  networkPlanCurrentStroke = { points: [networkPlanPointFromEvent(e)], category: networkPlanCategory };
 });
 networkPlanCanvasEl.addEventListener('pointermove', (e) => {
   if (!networkPlanCurrentStroke) return;
