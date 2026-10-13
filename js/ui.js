@@ -134,7 +134,7 @@ export function escapeHtml(str) {
 // barre, donc quand l'un d'eux est actif c'est le bouton "Plus" lui-même
 // qui doit apparaître sélectionné, sinon la barre du bas semble ne rien
 // indiquer du tout une fois sur Fiches/Bilan/Diagnostic/MES.
-const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes'];
+const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes', 'reseau'];
 
 export function switchTab(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach((t) => {
@@ -1892,24 +1892,6 @@ export function renderSiteDetail() {
       </div>
     </div>
     <div class="card">
-      <div class="card-header">${icon('droplet', 12)} Plan du réseau</div>
-      <div class="card-body">
-        ${
-          site.networkPlan
-            ? `<canvas id="networkPlanView" class="network-plan-canvas"></canvas>
-               <div class="network-plan-legend">
-                 <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.chaude};display:inline-block;"></span>Eau chaude</span>
-                 <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.froide};display:inline-block;"></span>Eau froide</span>
-               </div>
-               ${isAxel() ? `<button class="btn-secondary" data-action="edit-network-plan" style="width:100%;margin-top:10px;">${icon('pencil', 14)} Modifier le plan</button>` : ''}`
-            : isAxel()
-              ? `<p class="hint" style="margin:0 0 10px;">Aucun plan pour ce site.</p>
-                 <button class="btn-secondary" data-action="edit-network-plan" style="width:100%;">${icon('pencil', 14)} Tracer le passage du réseau</button>`
-              : `<p class="hint" style="margin:0;">Aucun plan pour ce site.</p>`
-        }
-      </div>
-    </div>
-    <div class="card">
       <div class="card-header">${icon('clipboard', 12)} Commentaires</div>
       <div class="card-body">
         ${site.comments === undefined ? `<p class="hint" style="margin:0 0 8px;">Chargement des commentaires...</p>` : ''}
@@ -1966,24 +1948,41 @@ export function renderSiteDetail() {
     </div>
   `;
   el.querySelectorAll('.stat-tile .value').forEach(animateCountUp);
+}
+
+// ===== RÉSEAU (plan global eau chaude/froide, pas rattaché à un site) =====
+export function renderReseauPage() {
+  const el = document.getElementById('reseauBody');
+  if (!el) return;
+  const plan = state.networkPlan;
+  el.innerHTML = plan
+    ? `<canvas id="networkPlanView" class="network-plan-canvas"></canvas>
+       <div class="network-plan-legend">
+         <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.chaude};display:inline-block;"></span>Eau chaude</span>
+         <span><span style="width:9px;height:9px;border-radius:50%;background:${NETWORK_PLAN_COLORS.froide};display:inline-block;"></span>Eau froide</span>
+       </div>
+       ${isAxel() ? `<button class="btn-secondary" data-action="edit-network-plan" style="width:100%;margin-top:10px;">${icon('pencil', 14)} Modifier le plan</button>` : ''}`
+    : isAxel()
+      ? `<p class="hint" style="margin:0 0 10px;">Aucun plan enregistré pour l'instant.</p>
+         <button class="btn-secondary" data-action="edit-network-plan" style="width:100%;">${icon('pencil', 14)} Tracer le réseau</button>`
+      : `<p class="hint" style="margin:0;">Aucun plan enregistré pour l'instant.</p>`;
+
   const planCanvas = document.getElementById('networkPlanView');
-  if (planCanvas && site.networkPlan) {
-    const plan = site.networkPlan;
-    planCanvas.width = 900;
-    if (plan.baseImage) {
-      loadImage(plan.baseImage)
-        .then((img) => {
-          planCanvas.height = Math.round(900 * (img.height / img.width));
-          drawNetworkPlan(planCanvas, { image: img, strokes: plan.strokes });
-        })
-        .catch(() => {
-          planCanvas.height = 675;
-          drawNetworkPlan(planCanvas, { strokes: plan.strokes });
-        });
-    } else {
-      planCanvas.height = 675;
-      drawNetworkPlan(planCanvas, { strokes: plan.strokes });
-    }
+  if (!planCanvas || !plan) return;
+  planCanvas.width = 900;
+  if (plan.baseImage) {
+    loadImage(plan.baseImage)
+      .then((img) => {
+        planCanvas.height = Math.round(900 * (img.height / img.width));
+        drawNetworkPlan(planCanvas, { image: img, strokes: plan.strokes });
+      })
+      .catch(() => {
+        planCanvas.height = 675;
+        drawNetworkPlan(planCanvas, { strokes: plan.strokes });
+      });
+  } else {
+    planCanvas.height = 675;
+    drawNetworkPlan(planCanvas, { strokes: plan.strokes });
   }
 }
 

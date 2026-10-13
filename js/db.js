@@ -1,7 +1,7 @@
 // IndexedDB — stockage local offline-first.
 const DB_NAME = 'ronde_v6';
-const DB_VERSION = 2;
-const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue', 'fiche_conflicts'];
+const DB_VERSION = 3;
+const STORES = ['substations', 'rondes', 'fiches', 'actions', 'mes', 'sync_queue', 'fiche_conflicts', 'network_plan'];
 
 let dbPromise = null;
 

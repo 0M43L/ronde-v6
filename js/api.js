@@ -150,6 +150,14 @@ export async function fetchSubstationDetail(id) {
   return data.substation;
 }
 
+// Plan global du réseau d'eau chaude/froide (pas rattaché à un site).
+export async function fetchNetworkPlan() {
+  const res = await authedFetch('/api/network-plan');
+  if (!res.ok) throw new Error('Impossible de récupérer le plan du réseau');
+  const data = await res.json();
+  return data.networkPlan;
+}
+
 export async function fetchFiches() {
   const res = await authedFetch('/api/fiches');
   if (!res.ok) throw new Error('Impossible de récupérer les fiches');
