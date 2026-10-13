@@ -283,6 +283,8 @@ document.addEventListener('keydown', (e) => {
     closeNewActionModal();
   } else if (!document.getElementById('globalSearchOverlay').hidden) {
     closeGlobalSearch();
+  } else if (!document.getElementById('networkPlanOverlay').hidden) {
+    closeNetworkPlanEditor();
   }
 });
 
@@ -1162,6 +1164,10 @@ async function loadSiteDetailIfNeeded(id) {
     const detail = await api.fetchSubstationDetail(id);
     site.photos = unionById(detail.photos || [], site.photos);
     site.comments = unionById(detail.comments || [], site.comments);
+    // Un seul plan par site (pas un tableau à fusionner comme les photos) :
+    // on ne garde le plan local que s'il existe déjà (ex. dessiné hors-ligne,
+    // pas encore synchronisé) — sinon la version serveur prévaut.
+    site.networkPlan = site.networkPlan ?? detail.networkPlan ?? null;
     site.detailLoaded = true;
     await dbLayer.put('substations', site);
     if (ui.getSelectedSite()?.id === id) ui.renderSiteDetail();
@@ -1181,6 +1187,12 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
   const viewPhotoBtn = e.target.closest('[data-action="view-site-photo"]');
   if (viewPhotoBtn) {
     ui.openPhotoLightbox(viewPhotoBtn.dataset.url);
+    return;
+  }
+  const editPlanBtn = e.target.closest('[data-action="edit-network-plan"]');
+  if (editPlanBtn) {
+    const site = ui.getSelectedSite();
+    if (site) openNetworkPlanEditor(site);
     return;
   }
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
@@ -1320,6 +1332,106 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     }
     return;
   }
+});
+
+// ===== PLAN DU RÉSEAU (dessiné à la main, réservé à Axel — voir aussi la
+// même vérification côté serveur dans api/sync.js, seule qui compte
+// vraiment) =====
+// Un seul plan par site : une photo de fond optionnelle + des traits
+// vectoriels en coordonnées normalisées 0..1 (indépendantes de la taille
+// d'affichage), redessinés par ui.drawNetworkPlan() aussi bien ici que dans
+// la fiche en lecture — jamais aplatis dans l'image, pour pouvoir reprendre
+// le dessin plus tard sans perdre les traits déjà posés.
+let networkPlanSite = null;
+let networkPlanStrokes = [];
+let networkPlanCurrentStroke = null;
+let networkPlanImage = null;
+
+function networkPlanRedraw() {
+  const canvas = document.getElementById('networkPlanCanvas');
+  const strokes = networkPlanCurrentStroke ? [...networkPlanStrokes, networkPlanCurrentStroke] : networkPlanStrokes;
+  ui.drawNetworkPlan(canvas, { image: networkPlanImage, strokes });
+}
+
+function networkPlanResizeCanvas() {
+  const canvas = document.getElementById('networkPlanCanvas');
+  const ratio = networkPlanImage ? networkPlanImage.height / networkPlanImage.width : 0.75;
+  canvas.width = 900;
+  canvas.height = Math.round(900 * ratio);
+  networkPlanRedraw();
+}
+
+async function openNetworkPlanEditor(site) {
+  networkPlanSite = site;
+  networkPlanStrokes = (site.networkPlan?.strokes || []).map((s) => ({ points: s.points.map((p) => [...p]) }));
+  networkPlanCurrentStroke = null;
+  networkPlanImage = site.networkPlan?.baseImage ? await ui.loadImage(site.networkPlan.baseImage).catch(() => null) : null;
+  networkPlanResizeCanvas();
+  overlayTriggers.networkPlanOverlay = document.activeElement;
+  document.getElementById('networkPlanOverlay').hidden = false;
+}
+
+function closeNetworkPlanEditor() {
+  document.getElementById('networkPlanOverlay').hidden = true;
+  returnFocusAfterOverlay('networkPlanOverlay');
+}
+document.getElementById('closeNetworkPlanBtn').addEventListener('click', closeNetworkPlanEditor);
+document.getElementById('networkPlanOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'networkPlanOverlay') closeNetworkPlanEditor();
+});
+
+function networkPlanPointFromEvent(e) {
+  const canvas = document.getElementById('networkPlanCanvas');
+  const rect = canvas.getBoundingClientRect();
+  return [Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)), Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))];
+}
+
+const networkPlanCanvasEl = document.getElementById('networkPlanCanvas');
+networkPlanCanvasEl.addEventListener('pointerdown', (e) => {
+  networkPlanCanvasEl.setPointerCapture(e.pointerId);
+  networkPlanCurrentStroke = { points: [networkPlanPointFromEvent(e)] };
+});
+networkPlanCanvasEl.addEventListener('pointermove', (e) => {
+  if (!networkPlanCurrentStroke) return;
+  networkPlanCurrentStroke.points.push(networkPlanPointFromEvent(e));
+  networkPlanRedraw();
+});
+function networkPlanEndStroke() {
+  if (networkPlanCurrentStroke && networkPlanCurrentStroke.points.length > 1) networkPlanStrokes.push(networkPlanCurrentStroke);
+  networkPlanCurrentStroke = null;
+  networkPlanRedraw();
+}
+networkPlanCanvasEl.addEventListener('pointerup', networkPlanEndStroke);
+networkPlanCanvasEl.addEventListener('pointercancel', networkPlanEndStroke);
+
+document.getElementById('networkPlanPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  networkPlanImage = await ui.loadImage(await fileToDataUrl(file));
+  networkPlanResizeCanvas();
+  e.target.value = '';
+});
+
+document.getElementById('networkPlanUndoBtn').addEventListener('click', () => {
+  networkPlanStrokes.pop();
+  networkPlanRedraw();
+});
+
+document.getElementById('networkPlanClearBtn').addEventListener('click', () => {
+  networkPlanStrokes = [];
+  networkPlanRedraw();
+});
+
+document.getElementById('saveNetworkPlanBtn').addEventListener('click', async () => {
+  const site = networkPlanSite;
+  if (!site) return;
+  const networkPlan = { baseImage: networkPlanImage ? networkPlanImage.src : null, strokes: networkPlanStrokes };
+  site.networkPlan = networkPlan;
+  await dbLayer.put('substations', site);
+  await dbLayer.queueSync('substation_network_plan', 'upsert', { substation_id: site.id, networkPlan });
+  closeNetworkPlanEditor();
+  ui.renderSiteDetail();
+  ui.showToast('Plan enregistré');
 });
 
 document.getElementById('siteDetail').addEventListener('change', async (e) => {

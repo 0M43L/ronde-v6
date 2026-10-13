@@ -153,16 +153,17 @@ body::before {
 button, input, select, textarea { font-family: inherit; color: inherit; }
 
 /* ===== VERRE DÉPOLI =====
-   Les mêmes panneaux qu'avant (cartes, en-tête, modales, tuiles…) gardent
-   leurs règles propres plus bas ; ils reçoivent juste en plus le flou
-   d'arrière-plan qui laisse transparaître le halo flouté ci-dessus au lieu
-   d'un simple aplat sombre. */
-.header, .bottom-bar, .login-box,
-.card, .modal-card, .diag-card, .check-item,
-.stat-tile, .action-stat-chip, .fiche-tile, .fiche-cat-tile,
-.alert, .statut-btn, .fiche-suggest, .item, .echangeur-card,
-.icon-btn, .search-overlay-bar input,
-.form-group input, .form-group select, .form-group textarea, .check-comment {
+   Le flou d'arrière-plan (backdrop-filter) a un vrai coût GPU, surtout sur
+   un iPhone pas tout neuf : il force le navigateur à ré-échantillonner ce
+   qu'il y a derrière CHAQUE élément flouté, en continu pendant le
+   défilement. Pour quelques panneaux uniques à l'écran (en-tête, barre du
+   bas, modale, carte de connexion) ça ne coûte rien ; répété sur chaque
+   ligne d'une liste de 100+ sous-stations/fiches/actions, ça fait ramer
+   toute l'appli. Seuls les grands panneaux qui n'apparaissent qu'une fois
+   par écran gardent donc le flou ; les tuiles répétées (.item, .fiche-tile,
+   .stat-tile, etc.) restent en verre dépoli "statique" — un fond teinté
+   translucide sans flou — qui donne un rendu quasi identique sans le coût. */
+.header, .bottom-bar, .login-box, .card, .modal-card {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
 }
@@ -985,6 +986,9 @@ body.keyboard-open .fab {
   font-size: 12.5px; font-weight: 600; color: var(--accent);
   background: none; border: none; padding: 4px 0; margin-bottom: 10px; cursor: pointer;
 }
+
+/* ===== PLAN DU RÉSEAU ===== */
+.network-plan-canvas { width: 100%; height: auto; display: block; border-radius: var(--radius-sm); background: #E8E8EA; }
 
 @media (max-width: 480px) {
   .form-row { grid-template-columns: 1fr; }
