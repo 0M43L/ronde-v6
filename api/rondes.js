@@ -23,11 +23,11 @@ export default async function handler(req, res) {
     const result = await db.execute(
       since
         ? {
-            sql: `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, created_at
+            sql: `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, created_at
                   FROM rondes WHERE created_at >= datetime(?) ORDER BY created_at DESC`,
             args: [since],
           }
-        : `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, created_at
+        : `SELECT id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, created_at
            FROM rondes ORDER BY created_at DESC`
     );
 
@@ -43,6 +43,7 @@ export default async function handler(req, res) {
         controls: JSON.parse(r.controls_json || '[]'),
         observations: r.observations,
         statut: r.statut || 'operationnel',
+        type: r.type || 'ronde',
         ts: Date.parse(`${r.created_at}Z`) || 0,
       })),
     });

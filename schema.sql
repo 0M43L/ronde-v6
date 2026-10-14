@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS rondes (
   controls_json  TEXT NOT NULL,
   observations   TEXT,
   statut         TEXT NOT NULL DEFAULT 'operationnel',
+  type           TEXT NOT NULL DEFAULT 'ronde',
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
