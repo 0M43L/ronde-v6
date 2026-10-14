@@ -101,8 +101,15 @@ export const RONDE_TYPES = [
   { id: 'ronde', label: 'Ronde' },
   { id: 'mes_chaud', label: 'MES chaud' },
   { id: 'mes_froid', label: 'MES froid' },
-  { id: 'coupure', label: 'Coupure' },
+  { id: 'coupure_chaud', label: 'Coupure chaud' },
+  { id: 'coupure_froid', label: 'Coupure froid' },
 ];
+
+// Types qui correspondent à une intervention sur un compteur (pas une simple
+// ronde d'inspection) : on y demande en plus une photo du compteur côté
+// puissance et côté énergie, pour tracer l'état du compteur au moment de
+// l'intervention.
+export const RONDE_TYPES_WITH_METER_PHOTOS = ['mes_chaud', 'mes_froid', 'coupure_chaud', 'coupure_froid'];
 
 export function emptyEchangeur() {
   return {
@@ -136,6 +143,8 @@ export const state = {
   controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
   rondeStatut: 'operationnel',
   rondeType: 'ronde',
+  rondeMeterPuissance: null,
+  rondeMeterEnergie: null,
   fiches: [],
   actions: [],
   mesSessions: [],
@@ -164,6 +173,8 @@ export function resetControls() {
   state.controls = CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
   state.rondeStatut = 'operationnel';
   state.rondeType = 'ronde';
+  state.rondeMeterPuissance = null;
+  state.rondeMeterEnergie = null;
 }
 
 export function resetMesChecks() {

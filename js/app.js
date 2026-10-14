@@ -1749,6 +1749,8 @@ function saveRondeDraft() {
         controls: state.controls,
         rondeStatut: state.rondeStatut,
         rondeType: state.rondeType,
+        rondeMeterPuissance: state.rondeMeterPuissance,
+        rondeMeterEnergie: state.rondeMeterEnergie,
       })
     );
   } catch {
@@ -1777,6 +1779,8 @@ function restoreRondeDraft() {
   }
   if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
   if (draft.rondeType) state.rondeType = draft.rondeType;
+  state.rondeMeterPuissance = draft.rondeMeterPuissance || null;
+  state.rondeMeterEnergie = draft.rondeMeterEnergie || null;
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -1895,6 +1899,37 @@ document.getElementById('rondeTypeChoices').addEventListener('click', (e) => {
   saveRondeDraft();
 });
 
+// ===== PHOTOS COMPTEUR (puissance / énergie) =====
+document.getElementById('rondeMeterPhotosGroup').addEventListener('change', async (e) => {
+  const puissanceInput = e.target.closest('[data-action="set-meter-photo-puissance"]');
+  if (puissanceInput && puissanceInput.files[0]) {
+    state.rondeMeterPuissance = await fileToDataUrl(puissanceInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  const energieInput = e.target.closest('[data-action="set-meter-photo-energie"]');
+  if (energieInput && energieInput.files[0]) {
+    state.rondeMeterEnergie = await fileToDataUrl(energieInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
+document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="remove-meter-photo-puissance"]')) {
+    state.rondeMeterPuissance = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  if (e.target.closest('[data-action="remove-meter-photo-energie"]')) {
+    state.rondeMeterEnergie = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
@@ -1913,6 +1948,8 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     observations: document.getElementById('rondeObservations').value,
     statut: state.rondeStatut,
     type: state.rondeType,
+    compteurPuissancePhoto: state.rondeMeterPuissance || null,
+    compteurEnergiePhoto: state.rondeMeterEnergie || null,
     ts: Date.now(),
   };
 

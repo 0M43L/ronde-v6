@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -293,12 +293,30 @@ export function renderRondeStatut() {
   ).join('');
 }
 
-// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure) =====
+// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure chaud/froid) =====
 export function renderRondeType() {
   const el = document.getElementById('rondeTypeChoices');
   el.innerHTML = RONDE_TYPES.map(
     (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
+  renderRondeMeterPhotos();
+}
+
+// Photos du compteur (puissance + énergie), demandées uniquement pour les
+// mises en service et coupures — pas pour une simple ronde d'inspection.
+export function renderRondeMeterPhotos() {
+  const group = document.getElementById('rondeMeterPhotosGroup');
+  const show = RONDE_TYPES_WITH_METER_PHOTOS.includes(state.rondeType);
+  group.hidden = !show;
+  if (!show) return;
+  const field = (label, value, action) => `
+    <label class="photo-btn">${icon('camera', 14)} ${label}<input type="file" accept="image/*" capture="environment" data-action="set-${action}"></label>
+    ${value ? `<div class="photo-thumb"><img src="${value}"><button class="remove-photo" data-action="remove-${action}">${icon('xCircle', 11)}</button></div>` : ''}`;
+  document.getElementById('rondeMeterPhotos').innerHTML = `
+    <div class="photo-row">
+      ${field('Puissance', state.rondeMeterPuissance, 'meter-photo-puissance')}
+      ${field('Énergie', state.rondeMeterEnergie, 'meter-photo-energie')}
+    </div>`;
 }
 
 // ===== BILAN =====
@@ -1109,6 +1127,8 @@ export function buildHistoriqueItems() {
       substation_id: r.substation_id || null,
       owned: isOwned(r),
       tech: r.tech || null,
+      meterPuissance: r.compteurPuissancePhoto || null,
+      meterEnergie: r.compteurEnergiePhoto || null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
@@ -1208,6 +1228,14 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       <div class="item-meta">${escapeHtml(it.meta)}</div>
       ${syncPendingMark(it.entityType, it.id)}
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+      ${
+        it.meterPuissance || it.meterEnergie
+          ? `<div class="photo-row">
+               ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
+               ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
+             </div>`
+          : ''
+      }
       ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
       )
