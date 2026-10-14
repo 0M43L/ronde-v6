@@ -94,6 +94,16 @@ export const RONDE_STATUTS = [
   { id: 'arret', label: 'Arrêt / intervention requise' },
 ];
 
+// Type d'intervention de la ronde — utile en saison de chauffe/froid, où
+// les visites ne sont plus de simples rondes d'inspection mais des mises en
+// service ou des coupures chez le client.
+export const RONDE_TYPES = [
+  { id: 'ronde', label: 'Ronde' },
+  { id: 'mes_chaud', label: 'MES chaud' },
+  { id: 'mes_froid', label: 'MES froid' },
+  { id: 'coupure', label: 'Coupure' },
+];
+
 export function emptyEchangeur() {
   return {
     type_boucle: 'chaude',
@@ -125,6 +135,7 @@ export const state = {
   networkPlan: null,
   controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
   rondeStatut: 'operationnel',
+  rondeType: 'ronde',
   fiches: [],
   actions: [],
   mesSessions: [],
@@ -152,6 +163,7 @@ export const state = {
 export function resetControls() {
   state.controls = CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
   state.rondeStatut = 'operationnel';
+  state.rondeType = 'ronde';
 }
 
 export function resetMesChecks() {

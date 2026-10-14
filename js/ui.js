@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -290,6 +290,14 @@ export function renderRondeStatut() {
     (s) => `<button class="statut-btn ${state.rondeStatut === s.id ? 'sel ' + s.id : ''}" data-action="set-statut" data-statut="${s.id}">
       ${icon(STATUT_ICON[s.id])} ${escapeHtml(s.label)}
     </button>`
+  ).join('');
+}
+
+// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure) =====
+export function renderRondeType() {
+  const el = document.getElementById('rondeTypeChoices');
+  el.innerHTML = RONDE_TYPES.map(
+    (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
 }
 
@@ -1088,7 +1096,7 @@ export function buildHistoriqueItems() {
     const substation = state.substations.find((s) => s.id === r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger').length;
     items.push({
-      type: 'Ronde',
+      type: RONDE_TYPES.find((t) => t.id === (r.type || 'ronde'))?.label || 'Ronde',
       entityType: 'ronde',
       ts: r.ts || 0,
       title: substation ? substation.name : r.substation_id,

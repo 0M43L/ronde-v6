@@ -868,6 +868,7 @@ function renderAllData() {
   refreshSiteList();
   ui.renderControls();
   ui.renderRondeStatut();
+  ui.renderRondeType();
   ui.renderBilan();
   ui.renderBilanStats();
   ui.renderBilanTrend();
@@ -1747,6 +1748,7 @@ function saveRondeDraft() {
         observations: document.getElementById('rondeObservations').value,
         controls: state.controls,
         rondeStatut: state.rondeStatut,
+        rondeType: state.rondeType,
       })
     );
   } catch {
@@ -1774,9 +1776,11 @@ function restoreRondeDraft() {
     state.controls = draft.controls;
   }
   if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
+  if (draft.rondeType) state.rondeType = draft.rondeType;
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
+  ui.renderRondeType();
   ui.showToast('Ronde en cours restaurée (travail non archivé récupéré)');
 }
 
@@ -1883,6 +1887,14 @@ document.getElementById('rondeStatutChoices').addEventListener('click', (e) => {
   saveRondeDraft();
 });
 
+document.getElementById('rondeTypeChoices').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="set-ronde-type"]');
+  if (!btn) return;
+  state.rondeType = btn.dataset.type;
+  ui.renderRondeType();
+  saveRondeDraft();
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
@@ -1900,6 +1912,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     controls: JSON.parse(JSON.stringify(state.controls)),
     observations: document.getElementById('rondeObservations').value,
     statut: state.rondeStatut,
+    type: state.rondeType,
     ts: Date.now(),
   };
 
@@ -1948,6 +1961,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
+  ui.renderRondeType();
   ui.renderBilan();
   ui.renderBilanStats();
   ui.renderBilanTrend();
