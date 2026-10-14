@@ -2320,6 +2320,16 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   ui.showToast('Action ajoutée');
 });
 
+document.getElementById('actionsSearch').addEventListener('input', () => {
+  ui.renderActions();
+});
+
+document.getElementById('actionsSummary').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-action="filter-actions"]');
+  if (!chip) return;
+  ui.setActionsFilter(chip.dataset.filter);
+});
+
 document.getElementById('actionsList').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-action="delete-action"]');
   if (del) {

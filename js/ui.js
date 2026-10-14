@@ -807,6 +807,18 @@ function renderFicheConflictForm(conflict) {
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 let expandedActionId = null;
+// 'ouvertes' (défaut : tout ce qui reste à traiter) | 'danger' | 'warning' | 'done'.
+// Avant cette refonte, les actions traitées restaient mélangées en bas de la
+// liste des actions à faire — ce qui rendait la page difficile à lire d'un
+// coup d'œil. Les tuiles de résumé (Urgentes/À surveiller/Traitées) servent
+// maintenant aussi de filtres cliquables : la vue par défaut ne montre que ce
+// qui reste à faire, et retaper une tuile déjà active y revient.
+let actionsFilter = 'ouvertes';
+
+export function setActionsFilter(filter) {
+  actionsFilter = actionsFilter === filter ? 'ouvertes' : filter;
+  renderActions();
+}
 
 export function toggleActionDetail(id) {
   expandedActionId = expandedActionId === id ? null : id;
@@ -840,9 +852,9 @@ export function renderActionsSummary() {
 
   el.innerHTML = `
     <div class="action-stats">
-      <div class="action-stat-chip danger"><span class="count">${danger}</span><span class="label">Urgentes</span></div>
-      <div class="action-stat-chip warning"><span class="count">${warning}</span><span class="label">À surveiller</span></div>
-      <div class="action-stat-chip done"><span class="count">${done}</span><span class="label">Traitées</span></div>
+      <button type="button" class="action-stat-chip danger ${actionsFilter === 'danger' ? 'active' : ''}" data-action="filter-actions" data-filter="danger"><span class="count">${danger}</span><span class="label">Urgentes</span></button>
+      <button type="button" class="action-stat-chip warning ${actionsFilter === 'warning' ? 'active' : ''}" data-action="filter-actions" data-filter="warning"><span class="count">${warning}</span><span class="label">À surveiller</span></button>
+      <button type="button" class="action-stat-chip done ${actionsFilter === 'done' ? 'active' : ''}" data-action="filter-actions" data-filter="done"><span class="count">${done}</span><span class="label">Traitées</span></button>
     </div>`;
   el.querySelectorAll('.action-stat-chip .count').forEach(animateCountUp);
 }
@@ -854,8 +866,35 @@ export function renderActions() {
     list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
     return;
   }
-  const sorted = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id)).sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
+
+  let filtered = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id));
+  if (actionsFilter === 'done') filtered = filtered.filter((a) => a.done);
+  else if (actionsFilter === 'danger' || actionsFilter === 'warning') filtered = filtered.filter((a) => !a.done && a.severity === actionsFilter);
+  else filtered = filtered.filter((a) => !a.done);
+
+  const needle = (document.getElementById('actionsSearch')?.value || '').trim().toLowerCase();
+  if (needle) {
+    filtered = filtered.filter((a) => {
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      return a.text.toLowerCase().includes(needle) || (substation?.name || '').toLowerCase().includes(needle) || (a.tech || '').toLowerCase().includes(needle);
+    });
+  }
+
+  if (filtered.length === 0) {
+    const msg = needle
+      ? 'Aucune action ne correspond à la recherche'
+      : actionsFilter === 'done'
+        ? 'Aucune action traitée'
+        : actionsFilter === 'danger'
+          ? 'Aucune action urgente'
+          : actionsFilter === 'warning'
+            ? 'Aucune action à surveiller'
+            : 'Aucune action à traiter — tout est à jour';
+    list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>${msg}</p></div>`;
+    return;
+  }
+
+  const sorted = filtered.sort((a, b) => {
     const sevDiff = (SEVERITY_ORDER[a.severity] ?? 2) - (SEVERITY_ORDER[b.severity] ?? 2);
     if (sevDiff !== 0) return sevDiff;
     return (b.ts || 0) - (a.ts || 0);
