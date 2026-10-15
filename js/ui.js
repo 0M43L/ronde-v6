@@ -804,6 +804,38 @@ function renderFicheConflictForm(conflict) {
     </div>`;
 }
 
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+export function renderTeamCalendar() {
+  const el = document.getElementById('teamCalendar');
+  if (!el) return;
+  const data = state.teamCalendar;
+  if (!data) {
+    el.innerHTML = '';
+    return;
+  }
+  const header = `<div class="card-header">${icon('calendar', 15)} Agenda de l'équipe</div>`;
+  if (!data.configured) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Pas encore activé — il faut configurer le lien de l'agenda partagé côté serveur.</div></div></div>`;
+    return;
+  }
+  if (!data.events || data.events.length === 0) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Aucun événement à venir</div></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card">${header}<div class="card-body">${data.events.slice(0, 10).map(renderTeamCalendarEvent).join('')}</div></div>`;
+}
+
+function renderTeamCalendarEvent(ev) {
+  const start = new Date(ev.start);
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeLabel = ev.allDay ? 'Toute la journée' : start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `
+    <div class="item" style="margin-bottom:6px;">
+      <div class="item-title">${escapeHtml(ev.title)}</div>
+      <div class="item-meta">${dateLabel} · ${timeLabel}${ev.location ? ` · ${escapeHtml(ev.location)}` : ''}</div>
+    </div>`;
+}
+
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 let expandedActionId = null;

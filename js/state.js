@@ -140,6 +140,10 @@ export const state = {
   currentTab: 'ronde',
   substations: [],
   networkPlan: null,
+  // Agenda d'équipe (Google Calendar), chargé à la demande en ouvrant la
+  // page Actions — pas de cache IndexedDB/sync, c'est un enrichissement en
+  // lecture pure, pas une donnée métier de l'appli. { configured, events }.
+  teamCalendar: null,
   controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
   rondeStatut: 'operationnel',
   rondeType: 'ronde',

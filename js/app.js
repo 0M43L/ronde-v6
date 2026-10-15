@@ -1088,6 +1088,29 @@ function goToTab(tabName) {
     else refreshSiteList();
   }
   if (tabName === 'reseau') refreshReseauMap();
+  if (tabName === 'actions') refreshTeamCalendar();
+}
+
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+// Pas de cache IndexedDB : c'est un enrichissement en lecture pure, inutile
+// hors-ligne — on se contente de limiter les re-fetchs à chaque passage sur
+// l'onglet (le planning d'équipe ne change pas d'une minute à l'autre).
+let teamCalendarLastFetch = 0;
+const TEAM_CALENDAR_REFRESH_MS = 5 * 60 * 1000;
+
+async function refreshTeamCalendar() {
+  if (state.teamCalendar && Date.now() - teamCalendarLastFetch < TEAM_CALENDAR_REFRESH_MS) {
+    ui.renderTeamCalendar();
+    return;
+  }
+  try {
+    state.teamCalendar = await api.fetchTeamCalendar();
+    teamCalendarLastFetch = Date.now();
+  } catch {
+    // Hors-ligne ou flux indisponible : on garde l'état précédent (y
+    // compris null) plutôt que de faire planter la page Actions.
+  }
+  ui.renderTeamCalendar();
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
