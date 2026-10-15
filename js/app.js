@@ -510,7 +510,28 @@ document.getElementById('syncPill').addEventListener('click', async () => {
 // versions sont mises de côté pour que le technicien les compare et
 // choisisse lui-même quoi garder, champ par champ — jamais un écrasement
 // automatique et jamais une perte silencieuse.
-const shownSyncErrorKeys = new Set();
+// Persisté (pas juste un Set en mémoire) : un élément qui échoue à chaque
+// tentative (ex: contrainte FOREIGN KEY) resynchronise en boucle toutes les
+// 5 minutes, y compris à chaque réouverture de l'appli — sans survivre au
+// rechargement de page, le dédoublonnage en mémoire seul laissait réafficher
+// un nouveau toast à chaque ouverture, indéfiniment, pour la même cause déjà
+// vue. Montré une fois pour de bon tant que l'erreur ne change pas.
+const SHOWN_SYNC_ERRORS_KEY = 'shown_sync_error_keys_v1';
+function loadShownSyncErrorKeys() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SHOWN_SYNC_ERRORS_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+const shownSyncErrorKeys = loadShownSyncErrorKeys();
+function saveShownSyncErrorKeys() {
+  try {
+    localStorage.setItem(SHOWN_SYNC_ERRORS_KEY, JSON.stringify([...shownSyncErrorKeys]));
+  } catch {
+    // Pas grave : au pire un toast déjà vu se réaffiche une fois de plus.
+  }
+}
 setSyncErrorListener(async (failedItems, errors) => {
   const errorById = new Map(errors.map((e) => [e.id, e.error]));
   const other = [];
@@ -539,6 +560,7 @@ setSyncErrorListener(async (failedItems, errors) => {
         const key = `${item.id}:${code}`;
         if (shownSyncErrorKeys.has(key)) return;
         shownSyncErrorKeys.add(key);
+        saveShownSyncErrorKeys();
         ui.showToast(`Échec de synchro (${item.entity_type}) : ${code}`, { sticky: true });
       });
     } else {

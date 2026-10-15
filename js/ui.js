@@ -49,10 +49,25 @@ function animateCountUp(el) {
 // tout seul après 2.6s — pour un message qu'on a besoin de lire en entier ou
 // de capturer en photo (ex : détail d'une erreur de synchro), pas juste une
 // confirmation éphémère.
+//
+// Tous les toasts partagent la même position à l'écran (voir .toast en CSS :
+// centré, juste au-dessus de la barre du bas) — en empiler plusieurs ne les
+// rend pas visibles côte à côte, ils se superposent exactement. Un élément
+// qui échoue à synchroniser à chaque tentative (ex : erreur FOREIGN KEY) en
+// créait un nouveau à chaque réouverture de l'appli (le dédoublonnage en
+// mémoire ne survit pas à un rechargement de page), sans jamais retirer les
+// précédents puisqu'ils sont "sticky" : après plusieurs réouvertures, une
+// pile invisible de toasts collés les uns sur les autres, qu'il fallait
+// fermer un par un sans que rien ne l'indique — pouvait donner l'impression
+// que l'appli entière était bloquée. Un seul toast sticky affiché à la fois
+// supprime le problème à la racine, quelle qu'en soit la cause.
 export function showToast(message, { sticky = false } = {}) {
   const container = document.getElementById('toastContainer');
+  if (sticky) {
+    container.querySelectorAll('.toast.sticky').forEach((t) => t.remove());
+  }
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = sticky ? 'toast sticky' : 'toast';
   toast.textContent = message;
   container.appendChild(toast);
   if (sticky) {
