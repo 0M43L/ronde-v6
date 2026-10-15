@@ -10,6 +10,26 @@ export const CONTROLS_DEF = [
   { id: 'graissage', label: 'Graissage des vannes à jour (pas de grippage constaté)' },
 ];
 
+// Les libellés de CONTROLS_DEF décrivent le BON état (ce qu'on vérifie) —
+// copiés tels quels dans une action corrective, ils se lisent à l'envers
+// ("Anomalie : Absence de fuite" ne dit pas qu'il y a une fuite). Ce
+// dictionnaire donne le libellé du PROBLÈME réel, utilisé pour le texte de
+// l'action et pour l'étiquette affichée en tête de ligne (voir
+// controlIdFromActionId() dans ui.js, qui retrouve l'id du contrôle à partir
+// de l'id de l'action — donc applicable même aux actions déjà existantes,
+// créées avant ce dictionnaire).
+export const CONTROL_PROBLEM_LABEL = {
+  fuite: 'Fuite',
+  isolation: 'Calorifuge endommagé',
+  vannes: 'Vanne bloquée / fuite presse-étoupe',
+  instrumentation: 'Instrumentation illisible ou en panne',
+  bruit: 'Bruit ou vibration anormale',
+  compteur: 'Compteur en panne',
+  plombs: 'Plomb de sécurité arraché',
+  proprete: 'Local sale ou encombré',
+  graissage: 'Vanne grippée',
+};
+
 // Les 41 points de mise en service IDEX, en 8 phases.
 export const MES_POINTS_DEF = [
   // Phase 1 - Avant mise sous tension
