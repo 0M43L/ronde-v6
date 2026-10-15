@@ -910,18 +910,34 @@ body.keyboard-open .fab {
 /* ===== HISTORIQUE (unifié) ===== */
 .hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 
-/* Repère de date entre les groupes de la journée — casse le flux continu en
-   sections nettes, lisibles d'un coup d'œil en défilant. */
-.hist-date-header {
-  margin: 18px 2px 8px; font-size: 12.5px; font-weight: 700;
-  color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+/* Une carte par jour (titre + nombre d'activités), avec toutes les entrées
+   de cette journée à l'intérieur — le trait de la ligne de temps (.hist-line)
+   ne peut relier visuellement deux entrées que si elles vivent dans la même
+   carte continue, sans bordure/marge entre elles pour casser le trait. */
+.hist-day-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 10px; overflow: hidden;
 }
-.hist-date-header:first-child { margin-top: 2px; }
-.hist-row { display: flex; gap: 10px; align-items: flex-start; }
+.hist-date-header {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 800;
+  color: var(--text); text-transform: uppercase; letter-spacing: .03em;
+}
+.hist-date-count { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: none; letter-spacing: normal; }
+.hist-day-rows { padding: 2px 14px 8px; }
+
+/* Vraie ligne de temps : la colonne icône s'étire sur toute la hauteur de la
+   ligne (align-items: stretch) pour que le trait (.hist-line) rejoigne
+   exactement l'icône suivante, sans calcul de hauteur en JS. */
+.hist-row { display: flex; gap: 10px; align-items: stretch; padding: 10px 0; }
+.hist-row + .hist-row { border-top: 1px solid var(--border); }
+.hist-icon-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 .hist-icon {
   flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
+.hist-line { flex: 1; width: 2px; min-height: 8px; margin: 4px 0; background: var(--border); }
 .hist-row-body { flex: 1; min-width: 0; }
 
 /* ===== STATUT À L'ISSUE ===== */
