@@ -1174,11 +1174,19 @@ function formatHistDateHeader(ts) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function renderHistoriqueItem(it) {
+// showLine : relie cette entrée à la suivante par un trait vertical (faux
+// pour la dernière entrée du jour) — à l'intérieur d'une même carte-jour
+// (voir renderHistorique), ça donne une vraie ligne de temps continue plutôt
+// qu'une simple liste, le repère le plus direct pour "ce qui s'est passé, et
+// quand" — pas juste "quoi".
+function renderHistoriqueItem(it, showLine) {
   const style = HIST_ENTITY_STYLE[it.entityType] || HIST_ENTITY_STYLE.ronde;
   return `
-    <div class="item hist-row">
-      <div class="hist-icon" style="background:${style.bg};color:${style.fg};">${icon(style.icon, 15)}</div>
+    <div class="hist-row">
+      <div class="hist-icon-col">
+        <div class="hist-icon" style="background:${style.bg};color:${style.fg};">${icon(style.icon, 15)}</div>
+        ${showLine ? '<div class="hist-line"></div>' : ''}
+      </div>
       <div class="hist-row-body">
         <div class="hist-type">${escapeHtml(it.type)} ${it.statut ? HIST_STATUT_BADGE[it.statut] || '' : ''}</div>
         <div class="item-title">${escapeHtml(it.title)}</div>
@@ -1266,20 +1274,33 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
   const visible = items.slice(0, historiqueVisibleCount);
   const remaining = items.length - visible.length;
 
-  // Groupée par jour (Aujourd'hui / Hier / Lundi 12 octobre...) avec une
-  // icône colorée par type d'entrée (ronde/fiche/action/MES) : un flux plat
-  // de dizaines d'entrées, distinguées seulement par un petit texte, était
-  // dur à scanner en défilant. Le regroupement par jour casse le flux en
-  // repères visuels nets ; l'icône permet de reconnaître le type d'un coup
-  // d'œil sans lire le texte.
-  let lastDateKey = null;
+  // Vraie ligne de temps, pas juste une liste : chaque jour devient une
+  // carte à part (titre + nombre d'activités), à l'intérieur de laquelle un
+  // trait vertical relie les entrées entre elles — le trait ne peut
+  // connecter visuellement deux entrées que si elles vivent dans la même
+  // carte continue (sans quoi il s'arrêterait dans le vide à chaque bord de
+  // carte). L'icône colorée par type (ronde/fiche/action/MES) se reconnaît
+  // sans lire le texte. Un flux plat de dizaines d'entrées, sans aucun
+  // repère, était dur à scanner en défilant.
+  const dateKeyOf = (it) => new Date(it.ts).toDateString();
+  const dayGroups = [];
+  for (const it of visible) {
+    const key = dateKeyOf(it);
+    const current = dayGroups[dayGroups.length - 1];
+    if (current && current.key === key) current.items.push(it);
+    else dayGroups.push({ key, items: [it] });
+  }
+
   content.innerHTML =
-    visible
-      .map((it) => {
-        const dateKey = new Date(it.ts).toDateString();
-        const header = dateKey !== lastDateKey ? `<div class="hist-date-header">${formatHistDateHeader(it.ts)}</div>` : '';
-        lastDateKey = dateKey;
-        return header + renderHistoriqueItem(it);
+    dayGroups
+      .map((group) => {
+        const count = group.items.length;
+        const rows = group.items.map((it, i) => renderHistoriqueItem(it, i < group.items.length - 1)).join('');
+        return `
+    <div class="hist-day-card">
+      <div class="hist-date-header">${formatHistDateHeader(group.items[0].ts)} <span class="hist-date-count">${count} activité${count > 1 ? 's' : ''}</span></div>
+      <div class="hist-day-rows">${rows}</div>
+    </div>`;
       })
       .join('') +
     (remaining > 0
