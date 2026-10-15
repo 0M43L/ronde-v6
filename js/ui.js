@@ -1234,6 +1234,61 @@ export function buildHistoriqueItems() {
   return items.filter((it) => !state.pendingDeleteIds.has(it.id));
 }
 
+// Icône + couleur par type d'entrée — reconnaissable d'un coup d'œil en
+// défilant, sans avoir à lire le petit texte "Ronde"/"Fiche"/"Action"/"MES".
+const HIST_ENTITY_STYLE = {
+  ronde: { icon: 'clipboard', bg: 'var(--accent-soft)', fg: 'var(--accent)' },
+  fiche: { icon: 'wrench', bg: 'var(--warning-soft)', fg: 'var(--warning)' },
+  action: { icon: 'alertTriangle', bg: 'var(--danger-soft)', fg: 'var(--danger)' },
+  mes_session: { icon: 'gauge', bg: 'var(--success-soft)', fg: 'var(--success)' },
+};
+
+const HIST_STATUT_BADGE = {
+  operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">OK</span>',
+  reserve: '<span class="badge a_planifier">Réserve</span>',
+  arret: '<span class="badge immediat">Arrêt</span>',
+};
+
+// "Aujourd'hui" / "Hier" / "Lundi 12 octobre" (année ajoutée seulement si
+// différente de l'année en cours) — repère de regroupement par jour dans
+// l'Historique, nettement plus rapide à scanner qu'un flux continu.
+function formatHistDateHeader(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return 'Hier';
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  const label = d.toLocaleDateString('fr-FR', opts);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function renderHistoriqueItem(it) {
+  const style = HIST_ENTITY_STYLE[it.entityType] || HIST_ENTITY_STYLE.ronde;
+  return `
+    <div class="item hist-row">
+      <div class="hist-icon" style="background:${style.bg};color:${style.fg};">${icon(style.icon, 15)}</div>
+      <div class="hist-row-body">
+        <div class="hist-type">${escapeHtml(it.type)} ${it.statut ? HIST_STATUT_BADGE[it.statut] || '' : ''}</div>
+        <div class="item-title">${escapeHtml(it.title)}</div>
+        <div class="item-meta">${escapeHtml(it.meta)}</div>
+        ${syncPendingMark(it.entityType, it.id)}
+        ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+        ${
+          it.meterPuissance || it.meterEnergie
+            ? `<div class="photo-row">
+                 ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
+                 ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
+               </div>`
+            : ''
+        }
+        ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
+      </div>
+    </div>`;
+}
+
 // Rendu paginé : au-delà de quelques mois d'usage quotidien sur 140 sites,
 // afficher tout l'historique d'un coup finit par ralentir l'appli (surtout
 // sur téléphone ancien). On affiche par lots, avec un bouton "Afficher
@@ -1299,32 +1354,24 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
     return;
   }
 
-  const statutBadge = { operationnel: '<span class="badge a_surveiller" style="background:var(--success-soft);color:var(--success);">OK</span>', reserve: '<span class="badge a_planifier">Réserve</span>', arret: '<span class="badge immediat">Arrêt</span>' };
-
   const visible = items.slice(0, historiqueVisibleCount);
   const remaining = items.length - visible.length;
 
+  // Groupée par jour (Aujourd'hui / Hier / Lundi 12 octobre...) avec une
+  // icône colorée par type d'entrée (ronde/fiche/action/MES) : un flux plat
+  // de dizaines d'entrées, distinguées seulement par un petit texte, était
+  // dur à scanner en défilant. Le regroupement par jour casse le flux en
+  // repères visuels nets ; l'icône permet de reconnaître le type d'un coup
+  // d'œil sans lire le texte.
+  let lastDateKey = null;
   content.innerHTML =
     visible
-      .map(
-        (it) => `
-    <div class="item">
-      <div class="hist-type">${it.type} ${it.statut ? statutBadge[it.statut] || '' : ''}</div>
-      <div class="item-title">${escapeHtml(it.title)}</div>
-      <div class="item-meta">${escapeHtml(it.meta)}</div>
-      ${syncPendingMark(it.entityType, it.id)}
-      ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
-      ${
-        it.meterPuissance || it.meterEnergie
-          ? `<div class="photo-row">
-               ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
-               ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
-             </div>`
-          : ''
-      }
-      ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
-    </div>`
-      )
+      .map((it) => {
+        const dateKey = new Date(it.ts).toDateString();
+        const header = dateKey !== lastDateKey ? `<div class="hist-date-header">${formatHistDateHeader(it.ts)}</div>` : '';
+        lastDateKey = dateKey;
+        return header + renderHistoriqueItem(it);
+      })
       .join('') +
     (remaining > 0
       ? `<button class="btn-secondary" style="width:100%; margin-top:10px;" data-action="load-more-historique">Afficher plus (${remaining} restant${remaining > 1 ? 's' : ''})</button>`

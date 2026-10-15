@@ -908,7 +908,21 @@ body.keyboard-open .fab {
 .fiche-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 
 /* ===== HISTORIQUE (unifié) ===== */
-.hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
+.hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+
+/* Repère de date entre les groupes de la journée — casse le flux continu en
+   sections nettes, lisibles d'un coup d'œil en défilant. */
+.hist-date-header {
+  margin: 18px 2px 8px; font-size: 12.5px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+}
+.hist-date-header:first-child { margin-top: 2px; }
+.hist-row { display: flex; gap: 10px; align-items: flex-start; }
+.hist-icon {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.hist-row-body { flex: 1; min-width: 0; }
 
 /* ===== STATUT À L'ISSUE ===== */
 .statut-choices { display: flex; flex-direction: column; gap: 8px; }
