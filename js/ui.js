@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, CONTROL_PROBLEM_LABEL } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -950,19 +950,34 @@ export function renderActions() {
   list.innerHTML = sorted.map((a) => renderActionItem(a)).join('');
 }
 
+// L'id d'une action créée depuis une anomalie de ronde embarque l'id du
+// contrôle en cause (voir buildAnomalyActionText côté app.js :
+// `ACTION_${Date.now()}_${c.id}`) — on le retrouve ici pour afficher un
+// libellé de PROBLÈME clair ("Fuite") plutôt que le texte libre, et ça
+// fonctionne même pour des actions déjà créées avant ce dictionnaire
+// puisque l'id, lui, n'a pas changé. Une action ajoutée à la main
+// (`ACTION_${Date.now()}`, sans 3e segment) ne matche jamais.
+function controlIdFromActionId(actionId) {
+  if (typeof actionId !== 'string') return null;
+  const parts = actionId.split('_');
+  return parts.length >= 3 ? parts[parts.length - 1] : null;
+}
+
 function renderActionItem(a) {
   const expanded = expandedActionId === a.id;
   const substation = state.substations.find((s) => s.id === a.substation_id);
   const sevClass = a.done ? 'sev-done' : a.severity === 'danger' ? 'sev-danger' : a.severity === 'warning' ? 'sev-warning' : '';
+  const problem = a.source === 'ronde' ? CONTROL_PROBLEM_LABEL[controlIdFromActionId(a.id)] : null;
   return `
     <div class="item action-item ${sevClass}" data-action="toggle-action-detail" data-id="${a.id}" style="cursor:pointer;">
       <div class="item-row">
         <input type="checkbox" ${a.done ? 'checked' : ''} data-action="toggle-action" data-id="${a.id}">
-        <div style="flex:1;">
-          <div style="${a.done ? 'text-decoration:line-through;opacity:.5;' : ''}">
-            ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? icon('alertTriangle', 10) : ''}${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span> ` : ''}
-            ${escapeHtml(a.text)}
+        <div style="flex:1; ${a.done ? 'opacity:.55;' : ''}">
+          <div class="action-headline">
+            ${a.severity && a.severity !== 'none' ? `<span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? icon('alertTriangle', 10) : ''}${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span>` : ''}
+            ${problem ? `<span class="problem-tag">${escapeHtml(problem)}</span>` : ''}
           </div>
+          <div class="item-title" style="${a.done ? 'text-decoration:line-through;' : ''}">${escapeHtml(a.text)}</div>
           <div class="item-meta">${escapeHtml(a.date || '')}${a.tech ? ` · ${escapeHtml(a.tech)}` : ''}</div>
           ${substation || syncPendingMark('action', a.id) ? `<div>${substation ? `<span class="site-pill">${icon('mapPin', 11)}${escapeHtml(substation.name)}</span>` : ''}${syncPendingMark('action', a.id)}</div>` : ''}
           ${
@@ -1224,7 +1239,25 @@ export function buildHistoriqueItems() {
       items.push({ type: 'Fiche', entityType: 'fiche', ts: f.ts || 0, title: f.title, meta: f.date || '', body: f.solution, deleteAction: 'delete-fiche', id: f.id, statut: null, anomalies: 0, substation_id: null, owned: isOwned(f), tech: null, searchable: `${f.title} ${f.cause_probable || ''}`.toLowerCase() });
     });
   state.actions.forEach((a) => {
-    items.push({ type: 'Action', entityType: 'action', ts: a.ts || 0, title: a.text, meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`, body: a.done ? 'Traitée' : 'En attente', deleteAction: 'delete-action', id: a.id, statut: null, anomalies: a.severity !== 'none' ? 1 : 0, substation_id: a.substation_id || null, owned: isOwned(a), tech: a.tech || null, searchable: a.text.toLowerCase() });
+    items.push({
+      type: 'Action',
+      entityType: 'action',
+      ts: a.ts || 0,
+      title: a.text,
+      meta: `${a.date || ''}${a.tech ? ` · ${a.tech}` : ''}`,
+      body: a.done ? 'Traitée' : 'En attente',
+      deleteAction: 'delete-action',
+      id: a.id,
+      statut: null,
+      anomalies: a.severity !== 'none' ? 1 : 0,
+      substation_id: a.substation_id || null,
+      owned: isOwned(a),
+      tech: a.tech || null,
+      source: a.source || null,
+      severity: a.severity || null,
+      done: !!a.done,
+      searchable: a.text.toLowerCase(),
+    });
   });
   state.mesSessions.forEach((m) => {
     const substation = state.substations.find((s) => s.id === m.substation_id);
@@ -1234,8 +1267,8 @@ export function buildHistoriqueItems() {
   return items.filter((it) => !state.pendingDeleteIds.has(it.id));
 }
 
-// Icône + couleur par type d'entrée — reconnaissable d'un coup d'œil en
-// défilant, sans avoir à lire le petit texte "Ronde"/"Fiche"/"Action"/"MES".
+// Icône + couleur par type d'entrée — reconnaissable d'un coup d'œil, sans
+// avoir à lire le petit texte "Ronde"/"Fiche"/"Action"/"MES".
 const HIST_ENTITY_STYLE = {
   ronde: { icon: 'clipboard', bg: 'var(--accent-soft)', fg: 'var(--accent)' },
   fiche: { icon: 'wrench', bg: 'var(--warning-soft)', fg: 'var(--warning)' },
@@ -1249,50 +1282,78 @@ const HIST_STATUT_BADGE = {
   arret: '<span class="badge immediat">Arrêt</span>',
 };
 
-// "Aujourd'hui" / "Hier" / "Lundi 12 octobre" (année ajoutée seulement si
-// différente de l'année en cours) — repère de regroupement par jour dans
-// l'Historique, nettement plus rapide à scanner qu'un flux continu.
-function formatHistDateHeader(ts) {
+// Deuxième refonte, volontairement différente de la première (plus de
+// regroupement par jour) : un seul flux mélangeant rondes/fiches/actions/MES
+// restait dur à comprendre même trié et illustré d'icônes — le vrai problème
+// était de mélanger 4 types de choses très différentes dans un seul flux.
+// Chaque type a maintenant sa PROPRE section, sous forme de lignes compactes
+// (une ligne par défaut) qui ne se déplient qu'au tap — le détail (texte
+// complet, photos, suppression) ne prend de la place que si on le demande.
+const HIST_SECTIONS = [
+  { entityType: 'ronde', label: 'Rondes' },
+  { entityType: 'action', label: 'Actions' },
+  { entityType: 'fiche', label: 'Fiches' },
+  { entityType: 'mes_session', label: 'Mises en service' },
+];
+
+let expandedHistoriqueId = null;
+let lastHistFilter = 'tous';
+let lastHistSearchTerm = '';
+
+export function toggleHistoriqueDetail(id) {
+  expandedHistoriqueId = expandedHistoriqueId === id ? null : id;
+  renderHistorique(lastHistFilter, lastHistSearchTerm);
+}
+
+// "Aujourd'hui" / "Hier" / "14 oct" — compact (pas de jour de semaine, pas
+// de regroupement) puisque chaque ligne porte sa propre date.
+function formatHistShortDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (diffDays === 0) return "Aujourd'hui";
   if (diffDays === 1) return 'Hier';
-  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  const opts = { day: 'numeric', month: 'short' };
   if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
-  const label = d.toLocaleDateString('fr-FR', opts);
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return d.toLocaleDateString('fr-FR', opts);
 }
 
-// showLine : relie cette entrée à la suivante par un trait vertical (faux
-// pour la dernière entrée du jour) — à l'intérieur d'une même carte-jour
-// (voir renderHistorique), ça donne une vraie ligne de temps continue plutôt
-// qu'une simple liste, le repère le plus direct pour "ce qui s'est passé, et
-// quand" — pas juste "quoi".
-function renderHistoriqueItem(it, showLine) {
+function renderHistoriqueItem(it) {
   const style = HIST_ENTITY_STYLE[it.entityType] || HIST_ENTITY_STYLE.ronde;
+  const expanded = expandedHistoriqueId === it.id;
+  // Étiquette de problème claire ("Fuite") pour une action créée depuis une
+  // anomalie de ronde — voir controlIdFromActionId() et CONTROL_PROBLEM_LABEL.
+  const problem = it.entityType === 'action' && it.source === 'ronde' ? CONTROL_PROBLEM_LABEL[controlIdFromActionId(it.id)] : null;
   return `
-    <div class="hist-row">
-      <div class="hist-icon-col">
-        <div class="hist-icon" style="background:${style.bg};color:${style.fg};">${icon(style.icon, 15)}</div>
-        ${showLine ? '<div class="hist-line"></div>' : ''}
-      </div>
+    <div class="hist-row" data-action="toggle-hist-detail" data-id="${it.id}">
+      <div class="hist-icon" style="background:${style.bg};color:${style.fg};">${icon(style.icon, 14)}</div>
       <div class="hist-row-body">
-        <div class="hist-type">${escapeHtml(it.type)} ${it.statut ? HIST_STATUT_BADGE[it.statut] || '' : ''}</div>
-        <div class="item-title">${escapeHtml(it.title)}</div>
-        <div class="item-meta">${escapeHtml(it.meta)}</div>
+        <div class="hist-row-top">
+          <div class="hist-row-title ${it.entityType === 'action' && it.done ? 'done' : ''}">
+            ${problem ? `<span class="problem-tag">${escapeHtml(problem)}</span>` : escapeHtml(it.title)}
+          </div>
+          <div class="hist-row-date">${formatHistShortDate(it.ts)}</div>
+        </div>
+        <div class="item-meta">${escapeHtml(it.meta)}${it.statut ? ' ' + (HIST_STATUT_BADGE[it.statut] || '') : ''}</div>
         ${syncPendingMark(it.entityType, it.id)}
-        ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
         ${
-          it.meterPuissance || it.meterEnergie
-            ? `<div class="photo-row">
-                 ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
-                 ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
+          expanded
+            ? `<div class="hist-row-detail">
+                 ${problem ? `<div class="item-title">${escapeHtml(it.title)}</div>` : ''}
+                 ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+                 ${
+                   it.meterPuissance || it.meterEnergie
+                     ? `<div class="photo-row">
+                          ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
+                          ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
+                        </div>`
+                     : ''
+                 }
+                 ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
                </div>`
             : ''
         }
-        ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
       </div>
     </div>`;
 }
@@ -1362,38 +1423,26 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
     return;
   }
 
+  lastHistFilter = filter;
+  lastHistSearchTerm = searchTerm;
+
   const visible = items.slice(0, historiqueVisibleCount);
   const remaining = items.length - visible.length;
 
-  // Vraie ligne de temps, pas juste une liste : chaque jour devient une
-  // carte à part (titre + nombre d'activités), à l'intérieur de laquelle un
-  // trait vertical relie les entrées entre elles — le trait ne peut
-  // connecter visuellement deux entrées que si elles vivent dans la même
-  // carte continue (sans quoi il s'arrêterait dans le vide à chaque bord de
-  // carte). L'icône colorée par type (ronde/fiche/action/MES) se reconnaît
-  // sans lire le texte. Un flux plat de dizaines d'entrées, sans aucun
-  // repère, était dur à scanner en défilant.
-  const dateKeyOf = (it) => new Date(it.ts).toDateString();
-  const dayGroups = [];
-  for (const it of visible) {
-    const key = dateKeyOf(it);
-    const current = dayGroups[dayGroups.length - 1];
-    if (current && current.key === key) current.items.push(it);
-    else dayGroups.push({ key, items: [it] });
-  }
-
+  // Sectionné par type (voir HIST_SECTIONS) : l'ordre chronologique global
+  // (le plus récent en premier) reste celui de la pagination, chaque section
+  // ne fait qu'en afficher le sous-ensemble qui la concerne, dans le même
+  // ordre. Une section sans entrée visible n'est pas affichée.
   content.innerHTML =
-    dayGroups
-      .map((group) => {
-        const count = group.items.length;
-        const rows = group.items.map((it, i) => renderHistoriqueItem(it, i < group.items.length - 1)).join('');
-        return `
-    <div class="hist-day-card">
-      <div class="hist-date-header">${formatHistDateHeader(group.items[0].ts)} <span class="hist-date-count">${count} activité${count > 1 ? 's' : ''}</span></div>
-      <div class="hist-day-rows">${rows}</div>
+    HIST_SECTIONS.map((section) => {
+      const sectionItems = visible.filter((it) => it.entityType === section.entityType);
+      if (sectionItems.length === 0) return '';
+      return `
+    <div class="hist-section">
+      <div class="hist-section-header">${escapeHtml(section.label)} <span class="hist-date-count">${sectionItems.length}</span></div>
+      ${sectionItems.map((it) => renderHistoriqueItem(it)).join('')}
     </div>`;
-      })
-      .join('') +
+    }).join('') +
     (remaining > 0
       ? `<button class="btn-secondary" style="width:100%; margin-top:10px;" data-action="load-more-historique">Afficher plus (${remaining} restant${remaining > 1 ? 's' : ''})</button>`
       : '');

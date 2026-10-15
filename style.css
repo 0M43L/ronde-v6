@@ -541,6 +541,16 @@ body.keyboard-open .fab {
 .badge.a_surveiller { background: var(--neutral-soft); color: var(--text-muted); }
 .badge.review { background: var(--warning-soft); color: var(--warning); }
 
+/* Étiquette "ce qui a été relevé" (ex: Fuite) pour une action créée depuis
+   une anomalie de ronde — pleine couleur (pas juste teintée comme .badge)
+   pour être la toute première chose lue sur la ligne, avant même le texte. */
+.action-headline { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.problem-tag {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
+  background: var(--danger); color: #fff;
+}
+
 /* ===== LISTS / ITEMS ===== */
 .item {
   background: var(--bg);
@@ -907,38 +917,40 @@ body.keyboard-open .fab {
 
 .fiche-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 
-/* ===== HISTORIQUE (unifié) ===== */
+/* ===== HISTORIQUE (sectionné par type) ===== */
+/* Toujours utilisé par l'historique affiché sur la fiche d'un site (liste
+   simple, pas sectionnée — voir plus bas dans ce fichier JS). */
 .hist-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 
-/* Une carte par jour (titre + nombre d'activités), avec toutes les entrées
-   de cette journée à l'intérieur — le trait de la ligne de temps (.hist-line)
-   ne peut relier visuellement deux entrées que si elles vivent dans la même
-   carte continue, sans bordure/marge entre elles pour casser le trait. */
-.hist-day-card {
+/* Une section par type d'entrée (Rondes/Actions/Fiches/MES), chacune dans sa
+   propre carte — plus de flux unique mélangeant les 4 types. */
+.hist-section {
   background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: var(--radius); margin-bottom: 10px; overflow: hidden;
 }
-.hist-date-header {
-  display: flex; align-items: baseline; gap: 8px;
-  padding: 11px 14px; border-bottom: 1px solid var(--border);
-  font-size: 12.5px; font-weight: 800;
-  color: var(--text); text-transform: uppercase; letter-spacing: .03em;
+.hist-section-header {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 12px; font-weight: 800;
+  color: var(--text); text-transform: uppercase; letter-spacing: .04em;
 }
 .hist-date-count { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: none; letter-spacing: normal; }
-.hist-day-rows { padding: 2px 14px 8px; }
 
-/* Vraie ligne de temps : la colonne icône s'étire sur toute la hauteur de la
-   ligne (align-items: stretch) pour que le trait (.hist-line) rejoigne
-   exactement l'icône suivante, sans calcul de hauteur en JS. */
-.hist-row { display: flex; gap: 10px; align-items: stretch; padding: 10px 0; }
+/* Ligne compacte (une ligne par défaut) — le détail complet (texte intégral,
+   photos, suppression) ne s'affiche qu'au tap, voir .hist-row-detail. */
+.hist-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; cursor: pointer; }
 .hist-row + .hist-row { border-top: 1px solid var(--border); }
-.hist-icon-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.hist-row:active { background: var(--neutral-soft); }
 .hist-icon {
-  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 1px; width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
-.hist-line { flex: 1; width: 2px; min-height: 8px; margin: 4px 0; background: var(--border); }
 .hist-row-body { flex: 1; min-width: 0; }
+.hist-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.hist-row-title { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-row-title.done { text-decoration: line-through; opacity: .55; }
+.hist-row-date { flex-shrink: 0; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.hist-row-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); cursor: default; }
 
 /* ===== STATUT À L'ISSUE ===== */
 .statut-choices { display: flex; flex-direction: column; gap: 8px; }
