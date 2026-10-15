@@ -571,12 +571,16 @@ body.keyboard-open .fab {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 10px 6px; border-radius: var(--radius); border: 1px solid var(--border);
   background: var(--bg-elevated);
+  font: inherit; appearance: none; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .action-stat-chip .count { font-size: 18px; font-weight: 700; line-height: 1.1; }
 .action-stat-chip .label { font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .action-stat-chip.danger .count { color: var(--danger); }
 .action-stat-chip.warning .count { color: var(--warning); }
 .action-stat-chip.done .count { color: var(--success); }
+.action-stat-chip.danger.active { border-color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--danger); }
+.action-stat-chip.warning.active { border-color: var(--warning); box-shadow: inset 0 0 0 1.5px var(--warning); }
+.action-stat-chip.done.active { border-color: var(--success); box-shadow: inset 0 0 0 1.5px var(--success); }
 
 .item.action-item { border-left: 4px solid var(--border); padding-left: 11px; }
 .item.action-item.sev-danger { border-left-color: var(--danger); }

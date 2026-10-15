@@ -1088,6 +1088,29 @@ function goToTab(tabName) {
     else refreshSiteList();
   }
   if (tabName === 'reseau') refreshReseauMap();
+  if (tabName === 'actions') refreshTeamCalendar();
+}
+
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+// Pas de cache IndexedDB : c'est un enrichissement en lecture pure, inutile
+// hors-ligne — on se contente de limiter les re-fetchs à chaque passage sur
+// l'onglet (le planning d'équipe ne change pas d'une minute à l'autre).
+let teamCalendarLastFetch = 0;
+const TEAM_CALENDAR_REFRESH_MS = 5 * 60 * 1000;
+
+async function refreshTeamCalendar() {
+  if (state.teamCalendar && Date.now() - teamCalendarLastFetch < TEAM_CALENDAR_REFRESH_MS) {
+    ui.renderTeamCalendar();
+    return;
+  }
+  try {
+    state.teamCalendar = await api.fetchTeamCalendar();
+    teamCalendarLastFetch = Date.now();
+  } catch {
+    // Hors-ligne ou flux indisponible : on garde l'état précédent (y
+    // compris null) plutôt que de faire planter la page Actions.
+  }
+  ui.renderTeamCalendar();
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -1749,6 +1772,8 @@ function saveRondeDraft() {
         controls: state.controls,
         rondeStatut: state.rondeStatut,
         rondeType: state.rondeType,
+        rondeMeterPuissance: state.rondeMeterPuissance,
+        rondeMeterEnergie: state.rondeMeterEnergie,
       })
     );
   } catch {
@@ -1777,6 +1802,8 @@ function restoreRondeDraft() {
   }
   if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
   if (draft.rondeType) state.rondeType = draft.rondeType;
+  state.rondeMeterPuissance = draft.rondeMeterPuissance || null;
+  state.rondeMeterEnergie = draft.rondeMeterEnergie || null;
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -1895,6 +1922,37 @@ document.getElementById('rondeTypeChoices').addEventListener('click', (e) => {
   saveRondeDraft();
 });
 
+// ===== PHOTOS COMPTEUR (puissance / énergie) =====
+document.getElementById('rondeMeterPhotosGroup').addEventListener('change', async (e) => {
+  const puissanceInput = e.target.closest('[data-action="set-meter-photo-puissance"]');
+  if (puissanceInput && puissanceInput.files[0]) {
+    state.rondeMeterPuissance = await fileToDataUrl(puissanceInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  const energieInput = e.target.closest('[data-action="set-meter-photo-energie"]');
+  if (energieInput && energieInput.files[0]) {
+    state.rondeMeterEnergie = await fileToDataUrl(energieInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
+document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="remove-meter-photo-puissance"]')) {
+    state.rondeMeterPuissance = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  if (e.target.closest('[data-action="remove-meter-photo-energie"]')) {
+    state.rondeMeterEnergie = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
@@ -1913,6 +1971,8 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     observations: document.getElementById('rondeObservations').value,
     statut: state.rondeStatut,
     type: state.rondeType,
+    compteurPuissancePhoto: state.rondeMeterPuissance || null,
+    compteurEnergiePhoto: state.rondeMeterEnergie || null,
     ts: Date.now(),
   };
 
@@ -2281,6 +2341,16 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   ui.renderBilanStats();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Action ajoutée');
+});
+
+document.getElementById('actionsSearch').addEventListener('input', () => {
+  ui.renderActions();
+});
+
+document.getElementById('actionsSummary').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-action="filter-actions"]');
+  if (!chip) return;
+  ui.setActionsFilter(chip.dataset.filter);
 });
 
 document.getElementById('actionsList').addEventListener('click', async (e) => {

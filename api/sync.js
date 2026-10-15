@@ -135,12 +135,14 @@ async function syncItem(item, userId, user) {
     case 'ronde': {
       await assertOwnerOrNew('rondes', payload.id, userId);
       return db.execute({
-        sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 date = excluded.date, heure = excluded.heure, tech = excluded.tech,
                 controls_json = excluded.controls_json, observations = excluded.observations,
-                statut = excluded.statut, type = excluded.type`,
+                statut = excluded.statut, type = excluded.type,
+                compteur_puissance_photo = excluded.compteur_puissance_photo,
+                compteur_energie_photo = excluded.compteur_energie_photo`,
         args: [
           payload.id,
           payload.substation_id,
@@ -152,6 +154,8 @@ async function syncItem(item, userId, user) {
           payload.observations || '',
           payload.statut || 'operationnel',
           payload.type || 'ronde',
+          payload.compteurPuissancePhoto || null,
+          payload.compteurEnergiePhoto || null,
         ],
       });
     }

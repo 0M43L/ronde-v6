@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -293,12 +293,30 @@ export function renderRondeStatut() {
   ).join('');
 }
 
-// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure) =====
+// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure chaud/froid) =====
 export function renderRondeType() {
   const el = document.getElementById('rondeTypeChoices');
   el.innerHTML = RONDE_TYPES.map(
     (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
+  renderRondeMeterPhotos();
+}
+
+// Photos du compteur (puissance + énergie), demandées uniquement pour les
+// mises en service et coupures — pas pour une simple ronde d'inspection.
+export function renderRondeMeterPhotos() {
+  const group = document.getElementById('rondeMeterPhotosGroup');
+  const show = RONDE_TYPES_WITH_METER_PHOTOS.includes(state.rondeType);
+  group.hidden = !show;
+  if (!show) return;
+  const field = (label, value, action) => `
+    <label class="photo-btn">${icon('camera', 14)} ${label}<input type="file" accept="image/*" capture="environment" data-action="set-${action}"></label>
+    ${value ? `<div class="photo-thumb"><img src="${value}"><button class="remove-photo" data-action="remove-${action}">${icon('xCircle', 11)}</button></div>` : ''}`;
+  document.getElementById('rondeMeterPhotos').innerHTML = `
+    <div class="photo-row">
+      ${field('Puissance', state.rondeMeterPuissance, 'meter-photo-puissance')}
+      ${field('Énergie', state.rondeMeterEnergie, 'meter-photo-energie')}
+    </div>`;
 }
 
 // ===== BILAN =====
@@ -786,9 +804,53 @@ function renderFicheConflictForm(conflict) {
     </div>`;
 }
 
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+export function renderTeamCalendar() {
+  const el = document.getElementById('teamCalendar');
+  if (!el) return;
+  const data = state.teamCalendar;
+  if (!data) {
+    el.innerHTML = '';
+    return;
+  }
+  const header = `<div class="card-header">${icon('calendar', 15)} Agenda de l'équipe</div>`;
+  if (!data.configured) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Pas encore activé — il faut configurer le lien de l'agenda partagé côté serveur.</div></div></div>`;
+    return;
+  }
+  if (!data.events || data.events.length === 0) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Aucun événement à venir</div></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card">${header}<div class="card-body">${data.events.slice(0, 10).map(renderTeamCalendarEvent).join('')}</div></div>`;
+}
+
+function renderTeamCalendarEvent(ev) {
+  const start = new Date(ev.start);
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeLabel = ev.allDay ? 'Toute la journée' : start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `
+    <div class="item" style="margin-bottom:6px;">
+      <div class="item-title">${escapeHtml(ev.title)}</div>
+      <div class="item-meta">${dateLabel} · ${timeLabel}${ev.location ? ` · ${escapeHtml(ev.location)}` : ''}</div>
+    </div>`;
+}
+
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 let expandedActionId = null;
+// 'ouvertes' (défaut : tout ce qui reste à traiter) | 'danger' | 'warning' | 'done'.
+// Avant cette refonte, les actions traitées restaient mélangées en bas de la
+// liste des actions à faire — ce qui rendait la page difficile à lire d'un
+// coup d'œil. Les tuiles de résumé (Urgentes/À surveiller/Traitées) servent
+// maintenant aussi de filtres cliquables : la vue par défaut ne montre que ce
+// qui reste à faire, et retaper une tuile déjà active y revient.
+let actionsFilter = 'ouvertes';
+
+export function setActionsFilter(filter) {
+  actionsFilter = actionsFilter === filter ? 'ouvertes' : filter;
+  renderActions();
+}
 
 export function toggleActionDetail(id) {
   expandedActionId = expandedActionId === id ? null : id;
@@ -822,9 +884,9 @@ export function renderActionsSummary() {
 
   el.innerHTML = `
     <div class="action-stats">
-      <div class="action-stat-chip danger"><span class="count">${danger}</span><span class="label">Urgentes</span></div>
-      <div class="action-stat-chip warning"><span class="count">${warning}</span><span class="label">À surveiller</span></div>
-      <div class="action-stat-chip done"><span class="count">${done}</span><span class="label">Traitées</span></div>
+      <button type="button" class="action-stat-chip danger ${actionsFilter === 'danger' ? 'active' : ''}" data-action="filter-actions" data-filter="danger"><span class="count">${danger}</span><span class="label">Urgentes</span></button>
+      <button type="button" class="action-stat-chip warning ${actionsFilter === 'warning' ? 'active' : ''}" data-action="filter-actions" data-filter="warning"><span class="count">${warning}</span><span class="label">À surveiller</span></button>
+      <button type="button" class="action-stat-chip done ${actionsFilter === 'done' ? 'active' : ''}" data-action="filter-actions" data-filter="done"><span class="count">${done}</span><span class="label">Traitées</span></button>
     </div>`;
   el.querySelectorAll('.action-stat-chip .count').forEach(animateCountUp);
 }
@@ -836,8 +898,35 @@ export function renderActions() {
     list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
     return;
   }
-  const sorted = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id)).sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
+
+  let filtered = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id));
+  if (actionsFilter === 'done') filtered = filtered.filter((a) => a.done);
+  else if (actionsFilter === 'danger' || actionsFilter === 'warning') filtered = filtered.filter((a) => !a.done && a.severity === actionsFilter);
+  else filtered = filtered.filter((a) => !a.done);
+
+  const needle = (document.getElementById('actionsSearch')?.value || '').trim().toLowerCase();
+  if (needle) {
+    filtered = filtered.filter((a) => {
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      return a.text.toLowerCase().includes(needle) || (substation?.name || '').toLowerCase().includes(needle) || (a.tech || '').toLowerCase().includes(needle);
+    });
+  }
+
+  if (filtered.length === 0) {
+    const msg = needle
+      ? 'Aucune action ne correspond à la recherche'
+      : actionsFilter === 'done'
+        ? 'Aucune action traitée'
+        : actionsFilter === 'danger'
+          ? 'Aucune action urgente'
+          : actionsFilter === 'warning'
+            ? 'Aucune action à surveiller'
+            : 'Aucune action à traiter — tout est à jour';
+    list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>${msg}</p></div>`;
+    return;
+  }
+
+  const sorted = filtered.sort((a, b) => {
     const sevDiff = (SEVERITY_ORDER[a.severity] ?? 2) - (SEVERITY_ORDER[b.severity] ?? 2);
     if (sevDiff !== 0) return sevDiff;
     return (b.ts || 0) - (a.ts || 0);
@@ -1109,6 +1198,8 @@ export function buildHistoriqueItems() {
       substation_id: r.substation_id || null,
       owned: isOwned(r),
       tech: r.tech || null,
+      meterPuissance: r.compteurPuissancePhoto || null,
+      meterEnergie: r.compteurEnergiePhoto || null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
@@ -1208,6 +1299,14 @@ export function renderHistorique(filter = 'tous', searchTerm = '') {
       <div class="item-meta">${escapeHtml(it.meta)}</div>
       ${syncPendingMark(it.entityType, it.id)}
       ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+      ${
+        it.meterPuissance || it.meterEnergie
+          ? `<div class="photo-row">
+               ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
+               ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
+             </div>`
+          : ''
+      }
       ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
     </div>`
       )

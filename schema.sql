@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS rondes (
   observations   TEXT,
   statut         TEXT NOT NULL DEFAULT 'operationnel',
   type           TEXT NOT NULL DEFAULT 'ronde',
+  compteur_puissance_photo TEXT,
+  compteur_energie_photo   TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
