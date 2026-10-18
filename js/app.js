@@ -482,8 +482,8 @@ setSyncStatusListener((status, count, error) => {
       errorToastShown = true;
       ui.showToast(
         error?.code === 'UNAUTHORIZED'
-          ? `Session expirée : déconnecte-toi puis reconnecte-toi pour synchroniser tes ${count} élément(s) en attente. Rien n'est perdu, ils sont toujours sur ce téléphone.`
-          : `Impossible de synchroniser tes ${count} élément(s) en attente. Touche le badge "${label.textContent}" en haut pour réessayer.`
+          ? `Session expirée : déconnecte-toi puis reconnecte-toi pour synchroniser t${count > 1 ? 'es' : 'on'} ${count} élément${count > 1 ? 's' : ''} en attente. Rien n'est perdu, ils sont toujours sur ce téléphone.`
+          : `Impossible de synchroniser t${count > 1 ? 'es' : 'on'} ${count} élément${count > 1 ? 's' : ''} en attente. Touche le badge "${label.textContent}" en haut pour réessayer.`
       );
     }
   } else {
@@ -862,7 +862,7 @@ function checkOverdueReminders() {
   const lastNotif = Number(localStorage.getItem('reminders_last_notif_v6') || 0);
   if (overdueCount > 0 && now - lastNotif > 12 * 60 * 60 * 1000) {
     new Notification('Ronde V6 — Sites en retard', {
-      body: `${overdueCount} sous-station(s) non visitée(s) depuis plus de ${threshold} jours.`,
+      body: `${overdueCount} sous-station${overdueCount > 1 ? 's' : ''} non visitée${overdueCount > 1 ? 's' : ''} depuis plus de ${threshold} jours.`,
     });
     localStorage.setItem('reminders_last_notif_v6', String(now));
   }
@@ -2055,7 +2055,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   ui.renderDiagnostic(null);
   ui.renderActions();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-  ui.showToast(createdCount ? `Ronde archivée · ${createdCount} action(s) créée(s)` : 'Ronde archivée');
+  ui.showToast(createdCount ? `Ronde archivée · ${createdCount} action${createdCount > 1 ? 's' : ''} créée${createdCount > 1 ? 's' : ''}` : 'Ronde archivée');
 
   await refreshSyncStatus();
   syncNow().catch(() => {});
@@ -2709,12 +2709,12 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     return [
       r.date || '', r.heure || '', substation ? substation.name : r.substation_id, r.tech || '',
       STATUT_LABEL[r.statut] || r.statut || '', anomalies.length,
-      anomalies.map((a) => a.label).join(', '), r.observations || '',
+      anomalies.map((a) => CONTROL_PROBLEM_LABEL[a.id] || a.label).join(', '), r.observations || '',
     ];
   });
   const rondeSheet = XLSX.utils.aoa_to_sheet([
     [`Historique des rondes — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
-    [`${rondesSorted.length} ronde(s)`],
+    [`${rondesSorted.length} ronde${rondesSorted.length > 1 ? 's' : ''}`],
     [],
     rondeHeaders,
     ...rondeRows,
@@ -2736,7 +2736,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   });
   const actionSheet = XLSX.utils.aoa_to_sheet([
     [`Actions — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
-    [`${actionRows.length} action(s)`],
+    [`${actionRows.length} action${actionRows.length > 1 ? 's' : ''}`],
     [],
     actionHeaders,
     ...actionRows,

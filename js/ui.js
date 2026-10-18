@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, CONTROL_PROBLEM_LABEL } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, CONTROL_PROBLEM_LABEL, CONTROLS_DEF } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -250,7 +250,7 @@ export function updateFicheSuggestions(index) {
 function renderFicheSuggestions(fiches) {
   if (!fiches.length) return '';
   return `<div class="fiche-suggest">
-    <div class="fiche-suggest-label">${icon('search', 12)} Fiche(s) proche(s)</div>
+    <div class="fiche-suggest-label">${icon('search', 12)} Fiche${fiches.length > 1 ? 's' : ''} proche${fiches.length > 1 ? 's' : ''}</div>
     ${fiches
       .map(
         (f) => `<div class="fiche-suggest-item">
@@ -486,6 +486,16 @@ export function renderBilanStats() {
 }
 
 // ===== DIAGNOSTIC IA =====
+// Le diagnostic IA reçoit le libellé complet d'un point de contrôle (utile
+// pour qu'il comprenne précisément ce qui est vérifié) et le renvoie "tel
+// quel" dans sa réponse — on le fait correspondre ici à CONTROLS_DEF pour
+// l'afficher en version courte. Si l'IA n'a pas renvoyé le texte à
+// l'identique, on retombe simplement sur le texte reçu.
+function controlProblemLabelFromText(rawLabel) {
+  const match = CONTROLS_DEF.find((c) => c.label === rawLabel);
+  return match ? CONTROL_PROBLEM_LABEL[match.id] || rawLabel : rawLabel;
+}
+
 export function renderDiagnostic(result) {
   const content = document.getElementById('diagnosticContent');
   if (!result) {
@@ -497,7 +507,7 @@ export function renderDiagnostic(result) {
       (d) => `
     <div class="diag-card">
       <div class="diag-label">
-        ${escapeHtml(d.label)}
+        ${escapeHtml(controlProblemLabelFromText(d.label))}
         <span class="badge ${d.urgence}">${URGENCE_LABEL[d.urgence] || d.urgence}</span>
         ${d.escalade ? '<span class="badge immediat">Escalade</span>' : ''}
       </div>
@@ -818,7 +828,7 @@ function renderFicheConflictForm(conflict) {
         ${hasFieldDiffs ? fieldsHtml : `<p class="hint"><em>Aucun champ texte en conflit — seules les photos diffèrent peut-être.</em></p>`}
         ${
           newLocalPhotos.length > 0
-            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo(s) que tu as ajoutée(s) seront conservées en plus de celles de ${escapeHtml(serverFiche.tech || 'ton collègue')} — rien n'est perdu.</p></div>`
+            ? `<div class="conflict-field"><div class="conflict-field-label">Photos</div><p class="hint">${newLocalPhotos.length} photo${newLocalPhotos.length > 1 ? 's' : ''} que tu as ajoutée${newLocalPhotos.length > 1 ? 's' : ''} seront conservée${newLocalPhotos.length > 1 ? 's' : ''} en plus de celles de ${escapeHtml(serverFiche.tech || 'ton collègue')} — rien n'est perdu.</p></div>`
             : ''
         }
         <div class="btn-row">
@@ -1203,7 +1213,7 @@ export function renderMesHistory() {
         const nok = (m.checks || []).filter((c) => c.status === 'nok').length;
         return `<div class="item">
         <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
-        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
+        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point${nok > 1 ? 's' : ''} NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
         ${syncPendingMark('mes_session', m.id)}
         ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
       </div>`;
@@ -2340,9 +2350,13 @@ export function buildWeeklyReportHtml() {
     .map((a) => {
       const sevColor = a.severity === 'danger' ? c.danger : a.severity === 'warning' ? c.warning : c.muted;
       const sevBg = a.severity === 'danger' ? c.dangerSoft : a.severity === 'warning' ? c.warningSoft : c.neutralSoft;
+      // Étiquette claire ("Fuite") en tête quand on peut la retrouver —
+      // fonctionne même pour une action créée avant CONTROL_PROBLEM_LABEL,
+      // voir controlIdFromActionId().
+      const problem = a.source === 'ronde' ? CONTROL_PROBLEM_LABEL[controlIdFromActionId(a.id)] : null;
       return `<tr style="border-bottom:1px solid ${c.border};">
         <td style="padding:6px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:8.5px;font-weight:700;background:${sevBg};color:${sevColor};">${SEVERITY_LABEL[a.severity] || a.severity}</span></td>
-        <td style="padding:6px 8px;font-size:9.5px;color:${c.text};">${escapeHtml(a.text)}</td>
+        <td style="padding:6px 8px;font-size:9.5px;color:${c.text};">${problem ? `<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:8px;font-weight:800;background:${c.danger};color:#fff;margin-right:5px;">${escapeHtml(problem)}</span>` : ''}${escapeHtml(a.text)}</td>
         <td style="padding:6px 8px;font-size:9px;color:${c.muted};white-space:nowrap;">${escapeHtml(a.tech || '—')}</td>
       </tr>`;
     })
