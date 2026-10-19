@@ -317,6 +317,16 @@ export function renderRondeType() {
 }
 
 // ===== BILAN =====
+// Les libellés de CONTROLS_DEF décrivent le bon état attendu (ex. "Absence
+// de fuite (raccords, vannes, échangeur, purgeurs)") — bons pour la ronde
+// elle-même, mais longs et équivoques une fois affichés comme un problème
+// ailleurs (Bilan, Historique, Actions). CONTROL_PROBLEM_LABEL donne le
+// libellé court du problème réel ; on y retombe sur le libellé complet
+// seulement si l'id est inconnu (sécurité, ne devrait pas arriver).
+function controlProblemLabel(c) {
+  return CONTROL_PROBLEM_LABEL[c.id] || c.label;
+}
+
 export function renderBilan() {
   const content = document.getElementById('bilanContent');
   const total = state.controls.length;
@@ -334,7 +344,7 @@ export function renderBilan() {
         ? issues
             .map(
               (i) => `<div class="alert ${i.status === 'danger' ? 'danger' : 'warning'}">
-              <strong>${escapeHtml(i.label)}</strong>${i.comment ? `<br>${escapeHtml(i.comment)}` : ''}
+              <strong>${escapeHtml(controlProblemLabel(i))}</strong>${i.comment ? `<br>${escapeHtml(i.comment)}` : ''}
             </div>`
             )
             .join('')
@@ -1539,28 +1549,33 @@ export function renderSitesNonVisites(thresholdDays) {
   el.innerHTML = overdue
     .slice(0, 20)
     .map((x) => `<div class="alert warning">${escapeHtml(x.s.name)} — ${x.days === null ? 'jamais visitée' : `${x.days} j sans visite`}</div>`)
-    .join('') + (overdue.length > 20 ? `<p class="hint">+ ${overdue.length - 20} autre(s)</p>` : '');
+    .join('') + (overdue.length > 20 ? `<p class="hint">+ ${overdue.length - 20} autre${overdue.length - 20 > 1 ? 's' : ''}</p>` : '');
 }
 
 export function renderPointsRecurrents() {
   const el = document.getElementById('pointsRecurrents');
+  // Groupé par id de contrôle (pas par libellé) pour pouvoir afficher le
+  // libellé court du problème (controlProblemLabel) plutôt que la phrase
+  // complète du point de contrôle.
   const counts = {};
   state.rondes.forEach((r) => {
     (r.controls || []).forEach((c) => {
       if (c.status === 'warning' || c.status === 'danger') {
-        counts[c.label] = (counts[c.label] || 0) + 1;
+        const key = c.id || c.label;
+        counts[key] = counts[key] || { label: controlProblemLabel(c), n: 0 };
+        counts[key].n++;
       }
     });
   });
-  const recurrent = Object.entries(counts)
-    .filter(([, n]) => n >= 2)
-    .sort((a, b) => b[1] - a[1]);
+  const recurrent = Object.values(counts)
+    .filter((c) => c.n >= 2)
+    .sort((a, b) => b.n - a.n);
 
   if (recurrent.length === 0) {
     el.innerHTML = '<div class="alert success">✅ Aucun point récurrent</div>';
     return;
   }
-  el.innerHTML = recurrent.map(([label, n]) => `<div class="alert warning"><strong>${escapeHtml(label)}</strong> — ${n} rondes</div>`).join('');
+  el.innerHTML = recurrent.map((c) => `<div class="alert warning"><strong>${escapeHtml(c.label)}</strong> — ${c.n} ronde${c.n > 1 ? 's' : ''}</div>`).join('');
 }
 
 // ===== ALERTES PRÉDICTIVES (anomalies récurrentes par site) =====
@@ -1590,7 +1605,7 @@ export function computeSiteAlerts() {
       (r.controls || []).forEach((c) => {
         if (c.status !== 'warning' && c.status !== 'danger') return;
         const key = c.id || c.label;
-        const entry = (byControl[key] ||= { label: c.label, occurrences: [], maxSeverity: 'warning' });
+        const entry = (byControl[key] ||= { label: controlProblemLabel(c), occurrences: [], maxSeverity: 'warning' });
         entry.occurrences.push({ date: r.date, comment: c.comment });
         if (c.status === 'danger') entry.maxSeverity = 'danger';
       });
@@ -1680,7 +1695,7 @@ export function renderActionsRetardSite(thresholdDays = 7) {
 
   el.innerHTML = Object.entries(bySite)
     .sort((a, b) => b[1] - a[1])
-    .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action(s) en retard</div>`)
+    .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action${n > 1 ? 's' : ''} en retard</div>`)
     .join('');
 }
 
