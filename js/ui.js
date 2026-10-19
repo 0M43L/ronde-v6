@@ -385,7 +385,7 @@ function siteRowsDetail(ids, rondes) {
   return rows
     .map(
       (r) => `<div class="item" ${r.name ? `data-action="goto-site-alert" data-id="${r.id}" style="cursor:pointer;"` : ''}>
-        <div class="item-title">${escapeHtml(r.name || 'Site introuvable (supprimé ?)')}</div>
+        <div class="item-title">${escapeHtml(r.name || 'Site supprimé')}</div>
         <div class="item-meta">${r.count} ronde${r.count > 1 ? 's' : ''} · dernière le ${escapeHtml(r.lastDate || '?')}${r.lastHeure ? ` à ${escapeHtml(r.lastHeure)}` : ''}</div>
       </div>`
     )
@@ -402,7 +402,7 @@ function rondeRowsDetail(rondes) {
       return `<div class="item" ${substation ? `data-action="goto-site-alert" data-id="${substation.id}" style="cursor:pointer;"` : ''}>
         <div class="item-row" style="justify-content:space-between;align-items:center;">
           <div>
-            <div class="item-title">${escapeHtml(substation ? substation.name : 'Site introuvable (supprimé ?)')}</div>
+            <div class="item-title">${escapeHtml(substation ? substation.name : 'Site supprimé')}</div>
             <div class="item-meta">${escapeHtml(r.date || '')}${r.heure ? ` à ${escapeHtml(r.heure)}` : ''}${r.tech ? ` · ${escapeHtml(r.tech)}` : ''}</div>
           </div>
           ${SITE_STATUT_BADGE[statut] || ''}
@@ -439,9 +439,9 @@ export function renderBilanStats() {
   const urgentActionsList = openActionsList.filter((a) => a.severity === 'danger');
 
   const tiles = [
-    { key: 'sstWeek', value: sstWeekIds.size, label: 'Sous-stations vues cette semaine', icon: 'building', detail: () => siteRowsDetail(sstWeekIds, rondesWeek) },
+    { key: 'sstWeek', value: sstWeekIds.size, label: 'Sites vus cette semaine', icon: 'building', detail: () => siteRowsDetail(sstWeekIds, rondesWeek) },
     { key: 'rondesWeek', value: rondesWeek.length, label: 'Rondes cette semaine', icon: 'clipboard', detail: () => rondeRowsDetail(rondesWeek) },
-    { key: 'sstMonth', value: sstMonthIds.size, label: 'Sous-stations vues ce mois', icon: 'building', detail: () => siteRowsDetail(sstMonthIds, rondesMonth) },
+    { key: 'sstMonth', value: sstMonthIds.size, label: 'Sites vus ce mois', icon: 'building', detail: () => siteRowsDetail(sstMonthIds, rondesMonth) },
     { key: 'rondesMonth', value: rondesMonth.length, label: 'Rondes ce mois', icon: 'clipboard', detail: () => rondeRowsDetail(rondesMonth) },
     { key: 'openActions', value: openActionsList.length, label: 'Actions en attente', icon: 'wrench', detail: () => actionRowsDetail(openActionsList) },
     { key: 'urgentActions', value: urgentActionsList.length, label: 'Actions urgentes', icon: 'alertTriangle', danger: urgentActionsList.length > 0, detail: () => actionRowsDetail(urgentActionsList) },
@@ -1113,8 +1113,8 @@ export function renderMesHistory() {
         const substation = state.substations.find((s) => s.id === m.substation_id);
         const nok = (m.checks || []).filter((c) => c.status === 'nok').length;
         return `<div class="item">
-        <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
-        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point(s) NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
+        <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Site inconnu')}</div>
+        <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point${nok > 1 ? 's' : ''} NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
         ${syncPendingMark('mes_session', m.id)}
         ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
       </div>`;
@@ -1689,7 +1689,7 @@ export function renderActionsRetardSite(thresholdDays = 7) {
   const bySite = {};
   overdue.forEach((a) => {
     const substation = state.substations.find((s) => s.id === a.substation_id);
-    const name = substation ? substation.name : 'Sans sous-station';
+    const name = substation ? substation.name : 'Sans site';
     bySite[name] = (bySite[name] || 0) + 1;
   });
 
@@ -1785,7 +1785,7 @@ const SITE_STATUS_DOT_LABEL = {
 
 // Affiché à la toute première ouverture de l'appli sur un appareil (cache
 // local encore vide) le temps que les sous-stations arrivent du serveur —
-// remplace le "Aucune sous-station trouvée" trompeur qui donnait l'impression
+// remplace le "Aucun site trouvé" trompeur qui donnait l'impression
 // d'un résultat vide plutôt que d'un chargement en cours (voir loadAppData()
 // dans app.js).
 export function renderSiteListSkeleton() {
@@ -1822,7 +1822,7 @@ export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
     .filter((entry) => sectorFilter === 'tous' || entry.sector === sectorFilter);
 
   if (entries.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucune sous-station trouvée</p></div>`;
+    listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucun site trouvé</p></div>`;
     return;
   }
 
@@ -1955,7 +1955,7 @@ export function renderSiteDetail() {
         ${
           editingSiteInfo
             ? `<div class="form-group">
-                 <label>Nom de la sous-station</label>
+                 <label>Nom du site</label>
                  <input type="text" id="editSiteName" value="${escapeHtml(site.name)}">
                </div>
                <div class="form-group">
@@ -2175,9 +2175,9 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
 
   return `
     <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
-      ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sous-stations d'échange de chauffage urbain")}
+      ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sites d'échange de chauffage urbain")}
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Sous-station</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Site</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Date / heure</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${formatDateFr(date)}${heure ? ' — ' + heure : ''}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Intervenant</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(tech || '—')}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Statut à l'issue</td><td style="padding:4px 0;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td></tr>
@@ -2277,7 +2277,7 @@ export function buildWeeklyReportHtml() {
           ? `<table style="width:100%;border-collapse:collapse;">
         <tr style="background:${c.accent};color:#fff;">
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Date</th>
-          <th style="text-align:left;padding:7px 8px;font-size:9px;">Sous-station</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Site</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Intervenant</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Statut</th>
           <th style="text-align:center;padding:7px 8px;font-size:9px;">Anomalies</th>

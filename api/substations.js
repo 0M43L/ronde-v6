@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         args: [id],
       });
       const r = result.rows[0];
-      if (!r) return res.status(404).json({ error: 'Sous-station introuvable' });
+      if (!r) return res.status(404).json({ error: 'Site introuvable' });
       return res.json({
         ok: true,
         substation: {
