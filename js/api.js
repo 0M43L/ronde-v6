@@ -160,7 +160,7 @@ export async function fetchNetworkPlan() {
 
 // Agenda d'équipe (Google Calendar, via adresse secrète iCal côté serveur).
 export async function fetchTeamCalendar() {
-  const res = await authedFetch('/api/team-calendar');
+  const res = await authedFetch('/api/network-plan?resource=team-calendar');
   if (!res.ok) throw new Error("Impossible de récupérer l'agenda d'équipe");
   return res.json();
 }
