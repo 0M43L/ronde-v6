@@ -205,7 +205,7 @@ async function syncItem(item, userId, user) {
         // message clair dans ce 2e cas, jamais pour décider quoi écrire.
         if (result.rowsAffected === 0) {
           const exists = await db.execute({ sql: `SELECT 1 FROM substations WHERE id = ?`, args: [payload.substation_id] });
-          if (!exists.rows[0]) throw new Error('Sous-station introuvable');
+          if (!exists.rows[0]) throw new Error('Site introuvable');
         }
         return result;
       }
@@ -229,7 +229,7 @@ async function syncItem(item, userId, user) {
     // limité à ses propres commentaires (comme la suppression).
     case 'substation_comment': {
       const result = await db.execute({ sql: `SELECT comments_json FROM substations WHERE id = ?`, args: [payload.substation_id] });
-      if (!result.rows[0]) throw new Error('Sous-station introuvable');
+      if (!result.rows[0]) throw new Error('Site introuvable');
       const comments = JSON.parse(result.rows[0].comments_json || '[]');
       let next;
       if (action === 'add') {

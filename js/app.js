@@ -285,7 +285,9 @@ function returnFocusAfterOverlay(overlayId) {
 // on ferme le premier non masqué trouvé dans cet ordre.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!document.getElementById('photoLightbox').hidden) {
+  if (!document.getElementById('welcomeOverlay').hidden) {
+    closeWelcome();
+  } else if (!document.getElementById('photoLightbox').hidden) {
     ui.closePhotoLightbox();
   } else if (!document.getElementById('moreMenuOverlay').hidden) {
     closeMoreMenu();
@@ -745,10 +747,33 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   loginForm.reset();
 });
 
+// Montré une seule fois par appareil, à la toute première ouverture de
+// l'appli (rien n'orientait un nouveau technicien avant ça) — jamais
+// reproposé ensuite, même après une déconnexion/reconnexion ou une mise à
+// jour, pour ne pas gêner l'usage quotidien d'un technicien qui connaît
+// déjà l'appli.
+const WELCOME_SEEN_KEY = 'welcome_seen_v1';
+function showWelcomeIfFirstTime() {
+  if (localStorage.getItem(WELCOME_SEEN_KEY)) return;
+  overlayTriggers.welcomeOverlay = document.activeElement;
+  document.getElementById('welcomeOverlay').hidden = false;
+  document.getElementById('closeWelcomeBtn').focus();
+}
+function closeWelcome() {
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  document.getElementById('welcomeOverlay').hidden = true;
+  returnFocusAfterOverlay('welcomeOverlay');
+}
+document.getElementById('closeWelcomeBtn').addEventListener('click', closeWelcome);
+document.getElementById('welcomeOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'welcomeOverlay') closeWelcome();
+});
+
 async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
   document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
+  showWelcomeIfFirstTime();
   webauthnPlatformAvailable().then((available) => {
     document.getElementById('webauthnAccountCard').hidden = !available;
     if (available) renderWebauthnCredentialsList();
@@ -813,7 +838,7 @@ function refreshSiteList() {
 // squelette de chargement de la liste des sites même si le technicien
 // change d'onglet avant que les données ne soient arrivées, au lieu que le
 // gestionnaire de clic sur l'onglet n'écrase le squelette par la liste
-// (encore vide à ce moment-là) et son message "Aucune sous-station trouvée".
+// (encore vide à ce moment-là) et son message "Aucun site trouvé".
 let firstLoadInFlight = false;
 
 // Suppression différée avec "Annuler" (fiches/actions/MES/rondes) : l'élément
@@ -862,7 +887,7 @@ function checkOverdueReminders() {
   const lastNotif = Number(localStorage.getItem('reminders_last_notif_v6') || 0);
   if (overdueCount > 0 && now - lastNotif > 12 * 60 * 60 * 1000) {
     new Notification('Ronde V6 — Sites en retard', {
-      body: `${overdueCount} sous-station${overdueCount > 1 ? 's' : ''} non visitée${overdueCount > 1 ? 's' : ''} depuis plus de ${threshold} jours.`,
+      body: `${overdueCount} site${overdueCount > 1 ? 's' : ''} non visité${overdueCount > 1 ? 's' : ''} depuis plus de ${threshold} jours.`,
     });
     localStorage.setItem('reminders_last_notif_v6', String(now));
   }
@@ -1359,12 +1384,12 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     if (!site) return;
     const name = document.getElementById('editSiteName').value.trim();
     if (!name) {
-      ui.showToast('Le nom de la sous-station ne peut pas être vide');
+      ui.showToast('Le nom du site ne peut pas être vide');
       return;
     }
     const existing = ui.findSubstationByName(name);
     if (existing && existing.id !== site.id) {
-      ui.showToast('Une autre sous-station porte déjà ce nom');
+      ui.showToast('Un autre site porte déjà ce nom');
       return;
     }
     site.name = name;
@@ -1384,7 +1409,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.renderSubstationDatalist();
     refreshSiteList();
     ui.toggleSiteInfoEdit(false);
-    ui.showToast('Sous-station mise à jour');
+    ui.showToast('Site mis à jour');
     if (newGeo) {
       prefetchTilesAround(newGeo.lat, newGeo.lon).catch(() => {});
       renderMarkers(state.substations, (id) => {
@@ -1639,12 +1664,12 @@ document.getElementById('registerGeoBtn').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const current = document.getElementById('rondeSubstation').value.trim();
-      const name = window.prompt('Nom de la sous-station à enregistrer à cette position :', current);
+      const name = window.prompt('Nom du site à enregistrer à cette position :', current);
       if (!name || !name.trim()) return;
       const substation = await upsertSubstationWithCoords(name.trim(), pos.coords.latitude, pos.coords.longitude);
       document.getElementById('rondeSubstation').value = substation.name;
       onSubstationInput();
-      ui.showToast('Sous-station enregistrée avec sa position');
+      ui.showToast('Site enregistré avec sa position');
     },
     (err) => ui.showToast(`Position indisponible (${err.message})`),
     { enableHighAccuracy: true, timeout: 10000 }
@@ -1691,11 +1716,11 @@ document.getElementById('newSiteGeoBtn').addEventListener('click', () => {
 document.getElementById('saveNewSiteBtn').addEventListener('click', async () => {
   const name = document.getElementById('newSiteName').value.trim();
   if (!name) {
-    ui.showToast('Indique un nom de sous-station');
+    ui.showToast('Indique un nom de site');
     return;
   }
   if (ui.findSubstationByName(name)) {
-    ui.showToast('Une sous-station porte déjà ce nom');
+    ui.showToast('Un site porte déjà ce nom');
     return;
   }
   const substation = {
@@ -1722,7 +1747,7 @@ document.getElementById('saveNewSiteBtn').addEventListener('click', async () => 
       onSubstationInput();
     }
   });
-  ui.showToast('Sous-station créée');
+  ui.showToast('Site créé');
   ui.selectSite(substation.id);
 });
 
@@ -1876,7 +1901,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     if (c.actionCreated) return;
     const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
     if (!substation) {
-      ui.showToast('Indique une sous-station avant de créer une action');
+      ui.showToast('Indique un site avant de créer une action');
       return;
     }
     const action = {
@@ -1981,7 +2006,7 @@ document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) =
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
   if (!substation) {
-    ui.showToast('Indique une sous-station');
+    ui.showToast('Indique un site');
     return;
   }
 
@@ -2340,7 +2365,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   if (!text) return;
   // Le formulaire "Nouvelle action" n'a pas de champ de sélection de site :
   // cette action n'est donc rattachée à aucun site. Avant, elle récupérait
-  // silencieusement le nom tapé dans le champ "Sous-station" de l'onglet
+  // silencieusement le nom tapé dans le champ "Site" de l'onglet
   // Ronde — resté rempli d'une visite précédente, ou en cours de saisie
   // pour tout autre chose — attribuant l'action à un site qui n'avait
   // souvent aucun rapport avec elle.
@@ -2550,7 +2575,7 @@ document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('mesSubstation').value);
   if (!substation) {
-    ui.showToast('Indique une sous-station');
+    ui.showToast('Indique un site');
     return;
   }
   const session = {
@@ -2702,7 +2727,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   }
   const STATUT_LABEL = { operationnel: 'Opérationnel', reserve: 'Opérationnel avec réserve', arret: 'Arrêt / intervention requise' };
   const rondesSorted = state.rondes.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const rondeHeaders = ['Date', 'Heure', 'Sous-station', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
+  const rondeHeaders = ['Date', 'Heure', 'Site', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
   const rondeRows = rondesSorted.map((r) => {
     const substation = state.substations.find((s) => s.id === r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
@@ -2725,7 +2750,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   rondeSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
 
   const SEVERITY_LABEL = { danger: 'Urgent', warning: 'À surveiller', none: 'Info' };
-  const actionHeaders = ['Statut', 'Gravité', 'Sous-station', 'Description', 'Intervenant', 'Date', 'Origine'];
+  const actionHeaders = ['Statut', 'Gravité', 'Site', 'Description', 'Intervenant', 'Date', 'Origine'];
   const actionRows = state.actions.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((a) => {
     const substation = state.substations.find((s) => s.id === a.substation_id);
     return [
