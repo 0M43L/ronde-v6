@@ -186,13 +186,14 @@ export function renderSubstationDatalist() {
 export function renderAccessNotes(substation) {
   const group = document.getElementById('accessNotesGroup');
   const text = document.getElementById('accessNotesText');
-  if (!substation || (!substation.notes_acces && !substation.needs_review)) {
+  const needsPositionReview = substation && (substation.needs_review || substation.lat == null || substation.lon == null);
+  if (!substation || (!substation.notes_acces && !needsPositionReview)) {
     group.style.display = 'none';
     return;
   }
   group.style.display = 'block';
   const parts = [];
-  if (substation.needs_review) parts.push('<span class="badge review">Position à vérifier</span>');
+  if (needsPositionReview) parts.push('<span class="badge review">Position à vérifier</span>');
   if (substation.notes_acces) parts.push(escapeHtml(substation.notes_acces));
   text.innerHTML = parts.join('<br>');
 }
@@ -1938,11 +1939,12 @@ export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
   function renderRow({ site: s, statusKey, lastTs }) {
     const days = lastTs ? Math.floor((Date.now() - lastTs) / 86400000) : null;
     const sub = days === null ? 'Jamais visitée' : days === 0 ? "Vue aujourd'hui" : `Vue il y a ${days} j`;
+    const needsPositionReview = s.needs_review || s.lat == null || s.lon == null;
     return `<div class="site-list-item" data-action="select-site" data-id="${s.id}">
         <div style="display:flex;align-items:center;gap:9px;min-width:0;">
           <span class="site-status-dot" style="background:${SITE_STATUS_DOT_COLOR[statusKey]};" title="${SITE_STATUS_DOT_LABEL[statusKey]}"></span>
           <div style="min-width:0;">
-            <div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}</div>
+            <div class="name">${escapeHtml(s.name)}${alertedSiteIds.has(s.id) ? ` <span style="color:var(--warning);vertical-align:middle;" title="Anomalie récurrente détectée">${icon('alertTriangle', 13)}</span>` : ''}${needsPositionReview ? ` <span class="site-review-dot" title="Position à vérifier"></span>` : ''}</div>
             <div class="sub">${sub}</div>
           </div>
         </div>
@@ -2090,7 +2092,7 @@ export function renderSiteDetail() {
                  </div>
                </div>
                ${site.notes_acces ? `<div class="alert warning" style="margin-top:10px;">${escapeHtml(site.notes_acces)}</div>` : ''}
-               ${site.needs_review ? '<span class="badge review">Position à vérifier</span>' : ''}`
+               ${site.needs_review || site.lat == null || site.lon == null ? '<span class="badge review">Position à vérifier</span>' : ''}`
         }
       </div>
     </div>
