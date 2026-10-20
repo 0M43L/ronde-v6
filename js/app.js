@@ -1620,12 +1620,46 @@ function buildAnomalyActionText(substationName, control) {
   return `${substationName} — ${problem}${control.comment ? ' — ' + control.comment : ''}`;
 }
 
+// Best-effort, jamais bloquant au-delà de quelques secondes : si la
+// position échoue ou n'arrive pas à temps (zone sans réception, GPS
+// refusé...), on continue sans plutôt que de retarder l'enregistrement.
+function tryGetCurrentPosition(timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: timeoutMs }
+    );
+  });
+}
+
+// Un site créé juste en tapant son nom (sans passer par le bouton GPS dédié
+// de la carte) finissait toujours sans position — et avec le temps, ça
+// grossissait le groupe "Sans position GPS" de la liste des sites au point
+// de la rendre illisible. Le technicien est généralement encore sur place
+// au moment d'archiver la ronde/la session MES : on capture la position ici
+// en best-effort plutôt que de compter sur le bouton dédié à chaque fois.
 async function resolveOrCreateSubstation(name) {
   const trimmed = (name || '').trim();
   if (!trimmed) return null;
   let substation = ui.findSubstationByName(trimmed);
   if (substation) return substation;
-  substation = { id: `SUB_${Date.now()}`, name: trimmed, lat: null, lon: null, notes_acces: '', needs_review: false, photos: [], comments: [], detailLoaded: true };
+  const pos = await tryGetCurrentPosition();
+  substation = {
+    id: `SUB_${Date.now()}`,
+    name: trimmed,
+    lat: pos?.lat ?? null,
+    lon: pos?.lon ?? null,
+    notes_acces: '',
+    needs_review: false,
+    photos: [],
+    comments: [],
+    detailLoaded: true,
+  };
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);

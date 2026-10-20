@@ -1967,14 +1967,13 @@ export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
   ].filter(([, list]) => list.length > 0);
 
   listEl.innerHTML = groups
-    .map(
-      ([sector, list]) =>
-        `<div class="search-group-header">${sector ? `${sector} · ${list.length}` : `Sans position GPS · ${list.length}`}</div>${list
-          .slice()
-          .sort(byPriorityThenName)
-          .map(renderRow)
-          .join('')}`
-    )
+    .map(([sector, list]) => {
+      const header = sector
+        ? `<div class="search-group-header">${sector} · ${list.length}</div>`
+        : `<div class="search-group-header">Sans position GPS · ${list.length}</div>
+           <p class="hint" style="padding:0 14px 8px;">Créés en tapant juste un nom pendant une ronde. Ouvre la fiche du site, touche l'icône crayon pour lui ajouter sa position (bouton GPS) — il rejoindra alors son secteur.</p>`;
+      return header + list.slice().sort(byPriorityThenName).map(renderRow).join('');
+    })
     .join('');
 }
 
