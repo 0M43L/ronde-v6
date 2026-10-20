@@ -209,6 +209,15 @@ export async function pushSyncQueue(queue) {
   return res.json();
 }
 
+// Correction ponctuelle des positions GPS par corrélation de nom (réservée
+// à Axel, vérifié côté serveur — voir api/substations.js).
+export async function requestGpsBackfill() {
+  const res = await authedFetch('/api/substations?action=backfill-gps-correlation', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Correction impossible');
+  return data;
+}
+
 export async function requestDiagnostic(substation_name, anomalies) {
   const res = await authedFetch('/api/diagnostic', {
     method: 'POST',
