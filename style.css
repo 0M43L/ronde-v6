@@ -16,6 +16,8 @@
   --warning-soft: #FDF3E3;
   --danger: #C53030;
   --danger-soft: #FCEAEA;
+  --info: #2563EB;
+  --info-soft: #E8F0FE;
   --neutral-soft: #EEEEF0;
   --cat-hydraulique: #2563EB;
   --cat-hydraulique-soft: #E8F0FE;
@@ -61,6 +63,8 @@
     --warning-soft: rgba(240, 180, 41, 0.14);
     --danger: #FF6B6B;
     --danger-soft: rgba(255, 107, 107, 0.14);
+    --info: #6EA8FE;
+    --info-soft: rgba(110, 168, 254, 0.16);
     --neutral-soft: rgba(255, 255, 255, 0.07);
     --cat-hydraulique: #6EA8FE;
     --cat-hydraulique-soft: rgba(110, 168, 254, 0.14);
@@ -100,6 +104,8 @@
   --warning-soft: rgba(240, 180, 41, 0.14);
   --danger: #FF6B6B;
   --danger-soft: rgba(255, 107, 107, 0.14);
+  --info: #6EA8FE;
+  --info-soft: rgba(110, 168, 254, 0.16);
   --neutral-soft: rgba(255, 255, 255, 0.07);
   --cat-hydraulique: #6EA8FE;
   --cat-hydraulique-soft: rgba(110, 168, 254, 0.14);
@@ -539,7 +545,11 @@ body.keyboard-open .fab {
 .badge.immediat { background: var(--danger-soft); color: var(--danger); }
 .badge.a_planifier { background: var(--warning-soft); color: var(--warning); }
 .badge.a_surveiller { background: var(--neutral-soft); color: var(--text-muted); }
-.badge.review { background: var(--warning-soft); color: var(--warning); }
+.badge.review { background: var(--info-soft); color: var(--info); }
+.site-review-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--info); vertical-align: middle;
+}
 
 /* Étiquette "ce qui a été relevé" (ex: Fuite) pour une action créée depuis
    une anomalie de ronde — pleine couleur (pas juste teintée comme .badge)
