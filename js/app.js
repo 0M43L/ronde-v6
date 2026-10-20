@@ -754,6 +754,7 @@ async function enterApp() {
     if (available) renderWebauthnCredentialsList();
   });
   document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
+  document.getElementById('gpsBackfillBtn').hidden = !ui.isAxel() || !!localStorage.getItem('gps_backfill_done_v1');
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()
@@ -1677,6 +1678,29 @@ document.getElementById('addSiteBtn').addEventListener('click', () => {
   document.getElementById('newSiteGeoStatus').textContent = 'Position GPS non renseignée — tu pourras la préciser plus tard.';
   document.getElementById('siteListCard').style.display = 'none';
   document.getElementById('addSiteForm').hidden = false;
+});
+
+// Correction ponctuelle des sites "sans position GPS" créés avant le
+// correctif de capture automatique — bouton réservé à Axel, masqué une
+// fois appliqué (voir runGpsBackfill() côté serveur pour la logique).
+document.getElementById('gpsBackfillBtn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Correction en cours...';
+  try {
+    const result = await api.requestGpsBackfill();
+    localStorage.setItem('gps_backfill_done_v1', '1');
+    btn.hidden = true;
+    ui.showToast(
+      `${result.backfilled} site${result.backfilled > 1 ? 's' : ''} repositionné${result.backfilled > 1 ? 's' : ''}, ${result.flaggedTargets + result.flaggedUnmatched} marqué${result.flaggedTargets + result.flaggedUnmatched > 1 ? 's' : ''} à vérifier.`
+    );
+    await loadAppData();
+    ui.renderSiteList(document.getElementById('siteSearch').value);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Corriger les positions GPS (une fois)';
+    ui.showToast(err.message || 'Correction impossible');
+  }
 });
 
 document.getElementById('cancelNewSiteBtn').addEventListener('click', () => {
