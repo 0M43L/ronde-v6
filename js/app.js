@@ -2460,7 +2460,63 @@ document.getElementById('actionsSummary').addEventListener('click', (e) => {
   ui.setActionsFilter(chip.dataset.filter);
 });
 
+// Permet de prévenir un collègue ou un sous-traitant sans ressaisir le texte
+// à la main : partage natif (SMS/WhatsApp/mail, selon ce que le téléphone
+// propose) avec la photo jointe quand il y en a une et que le navigateur le
+// permet. Si le partage natif n'existe pas (ou que la tentative échoue
+// autrement qu'en annulant), on retombe sur une copie dans le presse-papiers.
+async function dataUrlToFile(dataUrl, filename) {
+  const blob = await (await fetch(dataUrl)).blob();
+  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+}
+
+async function shareAction(actionId) {
+  const a = state.actions.find((x) => x.id === actionId);
+  if (!a) return;
+  const substation = state.substations.find((s) => s.id === a.substation_id);
+  const problem = a.source === 'ronde' ? CONTROL_PROBLEM_LABEL[ui.controlIdFromActionId(a.id)] : null;
+  const text = [
+    problem ? `Anomalie : ${problem}` : 'Action Ronde V6',
+    substation ? `Site : ${substation.name}` : null,
+    a.text,
+    a.severity === 'danger' ? 'Urgent' : a.severity === 'warning' ? 'À surveiller' : null,
+    a.date || null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const shareData = { title: 'Ronde V6', text };
+  if (a.photo && navigator.canShare) {
+    try {
+      const file = await dataUrlToFile(a.photo, 'photo.jpg');
+      if (navigator.canShare({ files: [file] })) shareData.files = [file];
+    } catch {
+      /* tant pis, on partage sans la photo plutôt que de bloquer */
+    }
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // annulé par le technicien, pas une erreur
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    ui.showToast('Partage non disponible ici — texte copié dans le presse-papiers');
+  } catch {
+    ui.showToast('Partage indisponible sur cet appareil');
+  }
+}
+
 document.getElementById('actionsList').addEventListener('click', async (e) => {
+  const share = e.target.closest('[data-action="share-action"]');
+  if (share) {
+    shareAction(share.dataset.id);
+    return;
+  }
   const del = e.target.closest('[data-action="delete-action"]');
   if (del) {
     const id = del.dataset.id;
