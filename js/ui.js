@@ -889,7 +889,7 @@ export function renderActions() {
 // fonctionne même pour des actions déjà créées avant ce dictionnaire
 // puisque l'id, lui, n'a pas changé. Une action ajoutée à la main
 // (`ACTION_${Date.now()}`, sans 3e segment) ne matche jamais.
-function controlIdFromActionId(actionId) {
+export function controlIdFromActionId(actionId) {
   if (typeof actionId !== 'string') return null;
   const parts = actionId.split('_');
   return parts.length >= 3 ? parts[parts.length - 1] : null;
@@ -918,6 +918,7 @@ function renderActionItem(a) {
                   <div class="item-meta">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
                   ${a.photo ? `<img src="${a.photo}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
                   ${substation ? `<button class="btn-secondary" data-action="goto-action-site" data-site-id="${substation.id}" style="width:100%;margin-top:10px;">Voir la fiche du site</button>` : ''}
+                  <button class="btn-secondary" data-action="share-action" data-id="${a.id}" style="width:100%;margin-top:8px;" type="button">${icon('upload', 14)} Partager</button>
                 </div>`
               : a.photo
                 ? `<div class="photo-row"><div class="photo-thumb"><img src="${a.photo}"></div></div>`
