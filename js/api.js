@@ -158,6 +158,13 @@ export async function fetchNetworkPlan() {
   return data.networkPlan;
 }
 
+// Agenda d'équipe (Google Calendar, via adresse secrète iCal côté serveur).
+export async function fetchTeamCalendar() {
+  const res = await authedFetch('/api/network-plan?resource=team-calendar');
+  if (!res.ok) throw new Error("Impossible de récupérer l'agenda d'équipe");
+  return res.json();
+}
+
 export async function fetchFiches() {
   const res = await authedFetch('/api/fiches');
   if (!res.ok) throw new Error('Impossible de récupérer les fiches');
@@ -215,6 +222,17 @@ export async function requestGpsBackfill() {
   const res = await authedFetch('/api/substations?action=backfill-gps-correlation', { method: 'POST' });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Correction impossible');
+  return data;
+}
+
+// Ajoute les colonnes compteur_volume/compteur_energie à la table rondes si
+// elles n'existent pas encore (réservé à Axel, vérifié côté serveur — voir
+// api/rondes.js). Appelé automatiquement et silencieusement à la connexion
+// d'Axel (voir enterApp() dans app.js), jamais par les autres techniciens.
+export async function requestAddMeterValueColumns() {
+  const res = await authedFetch('/api/rondes?action=add-meter-value-columns', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Migration impossible');
   return data;
 }
 

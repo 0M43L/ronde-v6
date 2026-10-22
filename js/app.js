@@ -285,7 +285,9 @@ function returnFocusAfterOverlay(overlayId) {
 // on ferme le premier non masqué trouvé dans cet ordre.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!document.getElementById('photoLightbox').hidden) {
+  if (!document.getElementById('welcomeOverlay').hidden) {
+    closeWelcome();
+  } else if (!document.getElementById('photoLightbox').hidden) {
     ui.closePhotoLightbox();
   } else if (!document.getElementById('moreMenuOverlay').hidden) {
     closeMoreMenu();
@@ -745,16 +747,49 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   loginForm.reset();
 });
 
+// Montré une seule fois par appareil, à la toute première ouverture de
+// l'appli (rien n'orientait un nouveau technicien avant ça) — jamais
+// reproposé ensuite, même après une déconnexion/reconnexion ou une mise à
+// jour, pour ne pas gêner l'usage quotidien d'un technicien qui connaît
+// déjà l'appli.
+const WELCOME_SEEN_KEY = 'welcome_seen_v1';
+function showWelcomeIfFirstTime() {
+  if (localStorage.getItem(WELCOME_SEEN_KEY)) return;
+  overlayTriggers.welcomeOverlay = document.activeElement;
+  document.getElementById('welcomeOverlay').hidden = false;
+  document.getElementById('closeWelcomeBtn').focus();
+}
+function closeWelcome() {
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  document.getElementById('welcomeOverlay').hidden = true;
+  returnFocusAfterOverlay('welcomeOverlay');
+}
+document.getElementById('closeWelcomeBtn').addEventListener('click', closeWelcome);
+document.getElementById('welcomeOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'welcomeOverlay') closeWelcome();
+});
+
 async function enterApp() {
   loginScreen.style.display = 'none';
   appEl.classList.add('visible');
   document.getElementById('userLabel').textContent = `${state.user.prenom} ${state.user.nom}`.trim();
+  showWelcomeIfFirstTime();
   webauthnPlatformAvailable().then((available) => {
     document.getElementById('webauthnAccountCard').hidden = !available;
     if (available) renderWebauthnCredentialsList();
   });
   document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
   document.getElementById('gpsBackfillBtn').hidden = !ui.isAxel() || !!localStorage.getItem('gps_backfill_done_v1');
+  // Silencieux (pas de bouton ni de toast) : juste une migration de schéma,
+  // sans rien à décider ni à montrer. Protégé par un flag local pour ne pas
+  // réessayer à chaque connexion une fois fait ; en cas d'échec (hors-ligne,
+  // etc.) le flag n'est pas posé et on retentera à la prochaine connexion.
+  if (ui.isAxel() && !localStorage.getItem('meter_columns_migrated_v1')) {
+    api
+      .requestAddMeterValueColumns()
+      .then(() => localStorage.setItem('meter_columns_migrated_v1', '1'))
+      .catch(() => {});
+  }
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()
@@ -814,7 +849,7 @@ function refreshSiteList() {
 // squelette de chargement de la liste des sites même si le technicien
 // change d'onglet avant que les données ne soient arrivées, au lieu que le
 // gestionnaire de clic sur l'onglet n'écrase le squelette par la liste
-// (encore vide à ce moment-là) et son message "Aucune sous-station trouvée".
+// (encore vide à ce moment-là) et son message "Aucun site trouvé".
 let firstLoadInFlight = false;
 
 // Suppression différée avec "Annuler" (fiches/actions/MES/rondes) : l'élément
@@ -863,7 +898,7 @@ function checkOverdueReminders() {
   const lastNotif = Number(localStorage.getItem('reminders_last_notif_v6') || 0);
   if (overdueCount > 0 && now - lastNotif > 12 * 60 * 60 * 1000) {
     new Notification('Ronde V6 — Sites en retard', {
-      body: `${overdueCount} sous-station${overdueCount > 1 ? 's' : ''} non visitée${overdueCount > 1 ? 's' : ''} depuis plus de ${threshold} jours.`,
+      body: `${overdueCount} site${overdueCount > 1 ? 's' : ''} non visité${overdueCount > 1 ? 's' : ''} depuis plus de ${threshold} jours.`,
     });
     localStorage.setItem('reminders_last_notif_v6', String(now));
   }
@@ -1111,6 +1146,29 @@ function goToTab(tabName) {
     else refreshSiteList();
   }
   if (tabName === 'reseau') refreshReseauMap();
+  if (tabName === 'actions') refreshTeamCalendar();
+}
+
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+// Pas de cache IndexedDB : c'est un enrichissement en lecture pure, inutile
+// hors-ligne — on se contente de limiter les re-fetchs à chaque passage sur
+// l'onglet (le planning d'équipe ne change pas d'une minute à l'autre).
+let teamCalendarLastFetch = 0;
+const TEAM_CALENDAR_REFRESH_MS = 5 * 60 * 1000;
+
+async function refreshTeamCalendar() {
+  if (state.teamCalendar && Date.now() - teamCalendarLastFetch < TEAM_CALENDAR_REFRESH_MS) {
+    ui.renderTeamCalendar();
+    return;
+  }
+  try {
+    state.teamCalendar = await api.fetchTeamCalendar();
+    teamCalendarLastFetch = Date.now();
+  } catch {
+    // Hors-ligne ou flux indisponible : on garde l'état précédent (y
+    // compris null) plutôt que de faire planter la page Actions.
+  }
+  ui.renderTeamCalendar();
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -1337,12 +1395,12 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     if (!site) return;
     const name = document.getElementById('editSiteName').value.trim();
     if (!name) {
-      ui.showToast('Le nom de la sous-station ne peut pas être vide');
+      ui.showToast('Le nom du site ne peut pas être vide');
       return;
     }
     const existing = ui.findSubstationByName(name);
     if (existing && existing.id !== site.id) {
-      ui.showToast('Une autre sous-station porte déjà ce nom');
+      ui.showToast('Un autre site porte déjà ce nom');
       return;
     }
     site.name = name;
@@ -1362,7 +1420,7 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.renderSubstationDatalist();
     refreshSiteList();
     ui.toggleSiteInfoEdit(false);
-    ui.showToast('Sous-station mise à jour');
+    ui.showToast('Site mis à jour');
     if (newGeo) {
       prefetchTilesAround(newGeo.lat, newGeo.lon).catch(() => {});
       renderMarkers(state.substations, (id) => {
@@ -1651,12 +1709,12 @@ document.getElementById('registerGeoBtn').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const current = document.getElementById('rondeSubstation').value.trim();
-      const name = window.prompt('Nom de la sous-station à enregistrer à cette position :', current);
+      const name = window.prompt('Nom du site à enregistrer à cette position :', current);
       if (!name || !name.trim()) return;
       const substation = await upsertSubstationWithCoords(name.trim(), pos.coords.latitude, pos.coords.longitude);
       document.getElementById('rondeSubstation').value = substation.name;
       onSubstationInput();
-      ui.showToast('Sous-station enregistrée avec sa position');
+      ui.showToast('Site enregistré avec sa position');
     },
     (err) => ui.showToast(`Position indisponible (${err.message})`),
     { enableHighAccuracy: true, timeout: 10000 }
@@ -1726,11 +1784,11 @@ document.getElementById('newSiteGeoBtn').addEventListener('click', () => {
 document.getElementById('saveNewSiteBtn').addEventListener('click', async () => {
   const name = document.getElementById('newSiteName').value.trim();
   if (!name) {
-    ui.showToast('Indique un nom de sous-station');
+    ui.showToast('Indique un nom de site');
     return;
   }
   if (ui.findSubstationByName(name)) {
-    ui.showToast('Une sous-station porte déjà ce nom');
+    ui.showToast('Un site porte déjà ce nom');
     return;
   }
   const substation = {
@@ -1757,7 +1815,7 @@ document.getElementById('saveNewSiteBtn').addEventListener('click', async () => 
       onSubstationInput();
     }
   });
-  ui.showToast('Sous-station créée');
+  ui.showToast('Site créé');
   ui.selectSite(substation.id);
 });
 
@@ -1831,6 +1889,10 @@ function saveRondeDraft() {
         controls: state.controls,
         rondeStatut: state.rondeStatut,
         rondeType: state.rondeType,
+        rondeMeterPuissance: state.rondeMeterPuissance,
+        rondeMeterEnergie: state.rondeMeterEnergie,
+        rondeMeterVolumeValue: state.rondeMeterVolumeValue,
+        rondeMeterEnergieValue: state.rondeMeterEnergieValue,
       })
     );
   } catch {
@@ -1859,6 +1921,10 @@ function restoreRondeDraft() {
   }
   if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
   if (draft.rondeType) state.rondeType = draft.rondeType;
+  state.rondeMeterPuissance = draft.rondeMeterPuissance || null;
+  state.rondeMeterEnergie = draft.rondeMeterEnergie || null;
+  state.rondeMeterVolumeValue = draft.rondeMeterVolumeValue || '';
+  state.rondeMeterEnergieValue = draft.rondeMeterEnergieValue || '';
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -1907,7 +1973,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     if (c.actionCreated) return;
     const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
     if (!substation) {
-      ui.showToast('Indique une sous-station avant de créer une action');
+      ui.showToast('Indique un site avant de créer une action');
       return;
     }
     const action = {
@@ -1977,11 +2043,60 @@ document.getElementById('rondeTypeChoices').addEventListener('click', (e) => {
   saveRondeDraft();
 });
 
+// ===== PHOTOS COMPTEUR (puissance / énergie) =====
+document.getElementById('rondeMeterPhotosGroup').addEventListener('change', async (e) => {
+  const puissanceInput = e.target.closest('[data-action="set-meter-photo-puissance"]');
+  if (puissanceInput && puissanceInput.files[0]) {
+    state.rondeMeterPuissance = await fileToDataUrl(puissanceInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  const energieInput = e.target.closest('[data-action="set-meter-photo-energie"]');
+  if (energieInput && energieInput.files[0]) {
+    state.rondeMeterEnergie = await fileToDataUrl(energieInput.files[0]);
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
+document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="remove-meter-photo-puissance"]')) {
+    state.rondeMeterPuissance = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+    return;
+  }
+  if (e.target.closest('[data-action="remove-meter-photo-energie"]')) {
+    state.rondeMeterEnergie = null;
+    ui.renderRondeMeterPhotos();
+    saveRondeDraft();
+  }
+});
+
+// Pas de ré-affichage sur chaque frappe (contrairement aux photos ci-dessus) :
+// ça couperait le curseur en plein milieu de la saisie. L'état sert juste à
+// pré-remplir la valeur si le groupe est ré-affiché pour une autre raison
+// (changement de type de ronde, restauration d'un brouillon...).
+document.getElementById('rondeMeterPhotosGroup').addEventListener('input', (e) => {
+  const volumeInput = e.target.closest('[data-action="set-meter-volume-valeur"]');
+  if (volumeInput) {
+    state.rondeMeterVolumeValue = volumeInput.value;
+    saveRondeDraft();
+    return;
+  }
+  const energieInput = e.target.closest('[data-action="set-meter-energie-valeur"]');
+  if (energieInput) {
+    state.rondeMeterEnergieValue = energieInput.value;
+    saveRondeDraft();
+  }
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
   if (!substation) {
-    ui.showToast('Indique une sous-station');
+    ui.showToast('Indique un site');
     return;
   }
 
@@ -1995,6 +2110,10 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     observations: document.getElementById('rondeObservations').value,
     statut: state.rondeStatut,
     type: state.rondeType,
+    compteurPuissancePhoto: state.rondeMeterPuissance || null,
+    compteurEnergiePhoto: state.rondeMeterEnergie || null,
+    compteurVolume: state.rondeMeterVolumeValue !== '' ? Number(state.rondeMeterVolumeValue) : null,
+    compteurEnergie: state.rondeMeterEnergieValue !== '' ? Number(state.rondeMeterEnergieValue) : null,
     ts: Date.now(),
   };
 
@@ -2338,7 +2457,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   if (!text) return;
   // Le formulaire "Nouvelle action" n'a pas de champ de sélection de site :
   // cette action n'est donc rattachée à aucun site. Avant, elle récupérait
-  // silencieusement le nom tapé dans le champ "Sous-station" de l'onglet
+  // silencieusement le nom tapé dans le champ "Site" de l'onglet
   // Ronde — resté rempli d'une visite précédente, ou en cours de saisie
   // pour tout autre chose — attribuant l'action à un site qui n'avait
   // souvent aucun rapport avec elle.
@@ -2426,7 +2545,6 @@ async function shareAction(actionId) {
   }
 }
 
->>>>>>> 1964941 (Ajoute un bouton "Partager" sur les actions)
 document.getElementById('actionsList').addEventListener('click', async (e) => {
   const share = e.target.closest('[data-action="share-action"]');
   if (share) {
@@ -2605,7 +2723,7 @@ document.getElementById('mesEchangeursList').addEventListener('change', (e) => {
 document.getElementById('saveMesBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('mesSubstation').value);
   if (!substation) {
-    ui.showToast('Indique une sous-station');
+    ui.showToast('Indique un site');
     return;
   }
   const session = {
@@ -2757,7 +2875,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   }
   const STATUT_LABEL = { operationnel: 'Opérationnel', reserve: 'Opérationnel avec réserve', arret: 'Arrêt / intervention requise' };
   const rondesSorted = state.rondes.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const rondeHeaders = ['Date', 'Heure', 'Sous-station', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
+  const rondeHeaders = ['Date', 'Heure', 'Site', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
   const rondeRows = rondesSorted.map((r) => {
     const substation = state.substations.find((s) => s.id === r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
@@ -2780,7 +2898,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   rondeSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
 
   const SEVERITY_LABEL = { danger: 'Urgent', warning: 'À surveiller', none: 'Info' };
-  const actionHeaders = ['Statut', 'Gravité', 'Sous-station', 'Description', 'Intervenant', 'Date', 'Origine'];
+  const actionHeaders = ['Statut', 'Gravité', 'Site', 'Description', 'Intervenant', 'Date', 'Origine'];
   const actionRows = state.actions.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((a) => {
     const substation = state.substations.find((s) => s.id === a.substation_id);
     return [

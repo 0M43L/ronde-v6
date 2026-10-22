@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, CONTROL_PROBLEM_LABEL, CONTROLS_DEF } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, CONTROL_PROBLEM_LABEL, CONTROLS_DEF } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -309,12 +309,40 @@ export function renderRondeStatut() {
   ).join('');
 }
 
-// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure) =====
+// ===== TYPE D'INTERVENTION (ronde simple / MES chaud/froid / coupure chaud/froid) =====
 export function renderRondeType() {
   const el = document.getElementById('rondeTypeChoices');
   el.innerHTML = RONDE_TYPES.map(
     (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
+  renderRondeMeterPhotos();
+}
+
+// Photos du compteur (puissance + énergie), demandées uniquement pour les
+// mises en service et coupures — pas pour une simple ronde d'inspection.
+export function renderRondeMeterPhotos() {
+  const group = document.getElementById('rondeMeterPhotosGroup');
+  const show = RONDE_TYPES_WITH_METER_PHOTOS.includes(state.rondeType);
+  group.hidden = !show;
+  if (!show) return;
+  const field = (label, value, action) => `
+    <label class="photo-btn">${icon('camera', 14)} ${label}<input type="file" accept="image/*" capture="environment" data-action="set-${action}"></label>
+    ${value ? `<div class="photo-thumb"><img src="${value}"><button class="remove-photo" data-action="remove-${action}">${icon('xCircle', 11)}</button></div>` : ''}`;
+  document.getElementById('rondeMeterPhotos').innerHTML = `
+    <div class="photo-row">
+      ${field('Puissance', state.rondeMeterPuissance, 'meter-photo-puissance')}
+      ${field('Énergie', state.rondeMeterEnergie, 'meter-photo-energie')}
+    </div>
+    <div class="form-row" style="margin-top:10px;">
+      <div class="form-group">
+        <label>Volume du compteur (m³)</label>
+        <input type="number" inputmode="decimal" step="any" placeholder="0" value="${state.rondeMeterVolumeValue || ''}" data-action="set-meter-volume-valeur">
+      </div>
+      <div class="form-group">
+        <label>Énergie (MWh)</label>
+        <input type="number" inputmode="decimal" step="any" placeholder="0" value="${state.rondeMeterEnergieValue || ''}" data-action="set-meter-energie-valeur">
+      </div>
+    </div>`;
 }
 
 // ===== BILAN =====
@@ -386,7 +414,7 @@ function siteRowsDetail(ids, rondes) {
   return rows
     .map(
       (r) => `<div class="item" ${r.name ? `data-action="goto-site-alert" data-id="${r.id}" style="cursor:pointer;"` : ''}>
-        <div class="item-title">${escapeHtml(r.name || 'Site introuvable (supprimé ?)')}</div>
+        <div class="item-title">${escapeHtml(r.name || 'Site supprimé')}</div>
         <div class="item-meta">${r.count} ronde${r.count > 1 ? 's' : ''} · dernière le ${escapeHtml(r.lastDate || '?')}${r.lastHeure ? ` à ${escapeHtml(r.lastHeure)}` : ''}</div>
       </div>`
     )
@@ -403,7 +431,7 @@ function rondeRowsDetail(rondes) {
       return `<div class="item" ${substation ? `data-action="goto-site-alert" data-id="${substation.id}" style="cursor:pointer;"` : ''}>
         <div class="item-row" style="justify-content:space-between;align-items:center;">
           <div>
-            <div class="item-title">${escapeHtml(substation ? substation.name : 'Site introuvable (supprimé ?)')}</div>
+            <div class="item-title">${escapeHtml(substation ? substation.name : 'Site supprimé')}</div>
             <div class="item-meta">${escapeHtml(r.date || '')}${r.heure ? ` à ${escapeHtml(r.heure)}` : ''}${r.tech ? ` · ${escapeHtml(r.tech)}` : ''}</div>
           </div>
           ${SITE_STATUT_BADGE[statut] || ''}
@@ -440,9 +468,9 @@ export function renderBilanStats() {
   const urgentActionsList = openActionsList.filter((a) => a.severity === 'danger');
 
   const tiles = [
-    { key: 'sstWeek', value: sstWeekIds.size, label: 'Sous-stations vues cette semaine', icon: 'building', detail: () => siteRowsDetail(sstWeekIds, rondesWeek) },
+    { key: 'sstWeek', value: sstWeekIds.size, label: 'Sites vus cette semaine', icon: 'building', detail: () => siteRowsDetail(sstWeekIds, rondesWeek) },
     { key: 'rondesWeek', value: rondesWeek.length, label: 'Rondes cette semaine', icon: 'clipboard', detail: () => rondeRowsDetail(rondesWeek) },
-    { key: 'sstMonth', value: sstMonthIds.size, label: 'Sous-stations vues ce mois', icon: 'building', detail: () => siteRowsDetail(sstMonthIds, rondesMonth) },
+    { key: 'sstMonth', value: sstMonthIds.size, label: 'Sites vus ce mois', icon: 'building', detail: () => siteRowsDetail(sstMonthIds, rondesMonth) },
     { key: 'rondesMonth', value: rondesMonth.length, label: 'Rondes ce mois', icon: 'clipboard', detail: () => rondeRowsDetail(rondesMonth) },
     { key: 'openActions', value: openActionsList.length, label: 'Actions en attente', icon: 'wrench', detail: () => actionRowsDetail(openActionsList) },
     { key: 'urgentActions', value: urgentActionsList.length, label: 'Actions urgentes', icon: 'alertTriangle', danger: urgentActionsList.length > 0, detail: () => actionRowsDetail(urgentActionsList) },
@@ -822,9 +850,53 @@ function renderFicheConflictForm(conflict) {
     </div>`;
 }
 
+// ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
+export function renderTeamCalendar() {
+  const el = document.getElementById('teamCalendar');
+  if (!el) return;
+  const data = state.teamCalendar;
+  if (!data) {
+    el.innerHTML = '';
+    return;
+  }
+  const header = `<div class="card-header">${icon('calendar', 15)} Agenda de l'équipe</div>`;
+  if (!data.configured) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Pas encore activé — il faut configurer le lien de l'agenda partagé côté serveur.</div></div></div>`;
+    return;
+  }
+  if (!data.events || data.events.length === 0) {
+    el.innerHTML = `<div class="card">${header}<div class="card-body"><div class="item-meta">Aucun événement à venir</div></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card">${header}<div class="card-body">${data.events.slice(0, 10).map(renderTeamCalendarEvent).join('')}</div></div>`;
+}
+
+function renderTeamCalendarEvent(ev) {
+  const start = new Date(ev.start);
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeLabel = ev.allDay ? 'Toute la journée' : start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `
+    <div class="item" style="margin-bottom:6px;">
+      <div class="item-title">${escapeHtml(ev.title)}</div>
+      <div class="item-meta">${dateLabel} · ${timeLabel}${ev.location ? ` · ${escapeHtml(ev.location)}` : ''}</div>
+    </div>`;
+}
+
 // ===== ACTIONS =====
 const SEVERITY_ORDER = { danger: 0, warning: 1, none: 2 };
 let expandedActionId = null;
+// 'ouvertes' (défaut : tout ce qui reste à traiter) | 'danger' | 'warning' | 'done'.
+// Avant cette refonte, les actions traitées restaient mélangées en bas de la
+// liste des actions à faire — ce qui rendait la page difficile à lire d'un
+// coup d'œil. Les tuiles de résumé (Urgentes/À surveiller/Traitées) servent
+// maintenant aussi de filtres cliquables : la vue par défaut ne montre que ce
+// qui reste à faire, et retaper une tuile déjà active y revient.
+let actionsFilter = 'ouvertes';
+
+export function setActionsFilter(filter) {
+  actionsFilter = actionsFilter === filter ? 'ouvertes' : filter;
+  renderActions();
+}
 
 export function toggleActionDetail(id) {
   expandedActionId = expandedActionId === id ? null : id;
@@ -858,9 +930,9 @@ export function renderActionsSummary() {
 
   el.innerHTML = `
     <div class="action-stats">
-      <div class="action-stat-chip danger"><span class="count">${danger}</span><span class="label">Urgentes</span></div>
-      <div class="action-stat-chip warning"><span class="count">${warning}</span><span class="label">À surveiller</span></div>
-      <div class="action-stat-chip done"><span class="count">${done}</span><span class="label">Traitées</span></div>
+      <button type="button" class="action-stat-chip danger ${actionsFilter === 'danger' ? 'active' : ''}" data-action="filter-actions" data-filter="danger"><span class="count">${danger}</span><span class="label">Urgentes</span></button>
+      <button type="button" class="action-stat-chip warning ${actionsFilter === 'warning' ? 'active' : ''}" data-action="filter-actions" data-filter="warning"><span class="count">${warning}</span><span class="label">À surveiller</span></button>
+      <button type="button" class="action-stat-chip done ${actionsFilter === 'done' ? 'active' : ''}" data-action="filter-actions" data-filter="done"><span class="count">${done}</span><span class="label">Traitées</span></button>
     </div>`;
   el.querySelectorAll('.action-stat-chip .count').forEach(animateCountUp);
 }
@@ -872,8 +944,35 @@ export function renderActions() {
     list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>Aucune action</p></div>`;
     return;
   }
-  const sorted = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id)).sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
+
+  let filtered = state.actions.filter((a) => !state.pendingDeleteIds.has(a.id));
+  if (actionsFilter === 'done') filtered = filtered.filter((a) => a.done);
+  else if (actionsFilter === 'danger' || actionsFilter === 'warning') filtered = filtered.filter((a) => !a.done && a.severity === actionsFilter);
+  else filtered = filtered.filter((a) => !a.done);
+
+  const needle = (document.getElementById('actionsSearch')?.value || '').trim().toLowerCase();
+  if (needle) {
+    filtered = filtered.filter((a) => {
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      return a.text.toLowerCase().includes(needle) || (substation?.name || '').toLowerCase().includes(needle) || (a.tech || '').toLowerCase().includes(needle);
+    });
+  }
+
+  if (filtered.length === 0) {
+    const msg = needle
+      ? 'Aucune action ne correspond à la recherche'
+      : actionsFilter === 'done'
+        ? 'Aucune action traitée'
+        : actionsFilter === 'danger'
+          ? 'Aucune action urgente'
+          : actionsFilter === 'warning'
+            ? 'Aucune action à surveiller'
+            : 'Aucune action à traiter — tout est à jour';
+    list.innerHTML = `<div class="empty-state">${icon('check', 32)}<p>${msg}</p></div>`;
+    return;
+  }
+
+  const sorted = filtered.sort((a, b) => {
     const sevDiff = (SEVERITY_ORDER[a.severity] ?? 2) - (SEVERITY_ORDER[b.severity] ?? 2);
     if (sevDiff !== 0) return sevDiff;
     return (b.ts || 0) - (a.ts || 0);
@@ -1125,7 +1224,7 @@ export function renderMesHistory() {
         const substation = state.substations.find((s) => s.id === m.substation_id);
         const nok = (m.checks || []).filter((c) => c.status === 'nok').length;
         return `<div class="item">
-        <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Sous-station inconnue')}</div>
+        <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Site inconnu')}</div>
         <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point${nok > 1 ? 's' : ''} NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
         ${syncPendingMark('mes_session', m.id)}
         ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
@@ -1161,6 +1260,10 @@ export function buildHistoriqueItems() {
       substation_id: r.substation_id || null,
       owned: isOwned(r),
       tech: r.tech || null,
+      meterPuissance: r.compteurPuissancePhoto || null,
+      meterEnergie: r.compteurEnergiePhoto || null,
+      meterVolumeValue: r.compteurVolume ?? null,
+      meterEnergieValue: r.compteurEnergie ?? null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
@@ -1273,6 +1376,11 @@ function renderHistoriqueItem(it) {
             ? `<div class="hist-row-detail">
                  ${problem ? `<div class="item-title">${escapeHtml(it.title)}</div>` : ''}
                  ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+                 ${
+                   it.meterVolumeValue != null || it.meterEnergieValue != null
+                     ? `<div class="item-meta">${it.meterVolumeValue != null ? `Volume : ${it.meterVolumeValue} m³` : ''}${it.meterVolumeValue != null && it.meterEnergieValue != null ? ' · ' : ''}${it.meterEnergieValue != null ? `Énergie : ${it.meterEnergieValue} MWh` : ''}</div>`
+                     : ''
+                 }
                  ${
                    it.meterPuissance || it.meterEnergie
                      ? `<div class="photo-row">
@@ -1701,7 +1809,7 @@ export function renderActionsRetardSite(thresholdDays = 7) {
   const bySite = {};
   overdue.forEach((a) => {
     const substation = state.substations.find((s) => s.id === a.substation_id);
-    const name = substation ? substation.name : 'Sans sous-station';
+    const name = substation ? substation.name : 'Sans site';
     bySite[name] = (bySite[name] || 0) + 1;
   });
 
@@ -1797,7 +1905,7 @@ const SITE_STATUS_DOT_LABEL = {
 
 // Affiché à la toute première ouverture de l'appli sur un appareil (cache
 // local encore vide) le temps que les sous-stations arrivent du serveur —
-// remplace le "Aucune sous-station trouvée" trompeur qui donnait l'impression
+// remplace le "Aucun site trouvé" trompeur qui donnait l'impression
 // d'un résultat vide plutôt que d'un chargement en cours (voir loadAppData()
 // dans app.js).
 export function renderSiteListSkeleton() {
@@ -1834,7 +1942,7 @@ export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
     .filter((entry) => sectorFilter === 'tous' || entry.sector === sectorFilter);
 
   if (entries.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucune sous-station trouvée</p></div>`;
+    listEl.innerHTML = `<div class="empty-state">${icon('building', 32)}<p>Aucun site trouvé</p></div>`;
     return;
   }
 
@@ -1967,7 +2075,7 @@ export function renderSiteDetail() {
         ${
           editingSiteInfo
             ? `<div class="form-group">
-                 <label>Nom de la sous-station</label>
+                 <label>Nom du site</label>
                  <input type="text" id="editSiteName" value="${escapeHtml(site.name)}">
                </div>
                <div class="form-group">
@@ -2187,9 +2295,9 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
 
   return `
     <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
-      ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sous-stations d'échange de chauffage urbain")}
+      ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sites d'échange de chauffage urbain")}
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Sous-station</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Site</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Date / heure</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${formatDateFr(date)}${heure ? ' — ' + heure : ''}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Intervenant</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(tech || '—')}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Statut à l'issue</td><td style="padding:4px 0;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td></tr>
@@ -2293,7 +2401,7 @@ export function buildWeeklyReportHtml() {
           ? `<table style="width:100%;border-collapse:collapse;">
         <tr style="background:${c.accent};color:#fff;">
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Date</th>
-          <th style="text-align:left;padding:7px 8px;font-size:9px;">Sous-station</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Site</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Intervenant</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Statut</th>
           <th style="text-align:center;padding:7px 8px;font-size:9px;">Anomalies</th>

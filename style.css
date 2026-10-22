@@ -553,12 +553,17 @@ body.keyboard-open .fab {
 
 /* Étiquette "ce qui a été relevé" (ex: Fuite) pour une action créée depuis
    une anomalie de ronde — pleine couleur (pas juste teintée comme .badge)
-   pour être la toute première chose lue sur la ligne, avant même le texte. */
+   pour être la toute première chose lue sur la ligne, avant même le texte.
+   --danger est accordé par thème pour rester lisible EN TEXTE sur --bg
+   (clair : rouge foncé ; sombre : rouge clair) — un blanc fixe par-dessus
+   en fond plein cassait ce calibrage et tombait sous 3:1 de contraste en
+   sombre. --bg (quasi blanc en clair, quasi noir en sombre) comme couleur
+   de texte inverse proprement la paire et reste lisible dans les deux. */
 .action-headline { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .problem-tag {
   display: inline-flex; align-items: center;
   padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
-  background: var(--danger); color: #fff;
+  background: var(--danger); color: var(--bg);
 }
 
 /* ===== LISTS / ITEMS ===== */
@@ -591,12 +596,16 @@ body.keyboard-open .fab {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 10px 6px; border-radius: var(--radius); border: 1px solid var(--border);
   background: var(--bg-elevated);
+  font: inherit; appearance: none; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .action-stat-chip .count { font-size: 18px; font-weight: 700; line-height: 1.1; }
 .action-stat-chip .label { font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .action-stat-chip.danger .count { color: var(--danger); }
 .action-stat-chip.warning .count { color: var(--warning); }
 .action-stat-chip.done .count { color: var(--success); }
+.action-stat-chip.danger.active { border-color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--danger); }
+.action-stat-chip.warning.active { border-color: var(--warning); box-shadow: inset 0 0 0 1.5px var(--warning); }
+.action-stat-chip.done.active { border-color: var(--success); box-shadow: inset 0 0 0 1.5px var(--success); }
 
 .item.action-item { border-left: 4px solid var(--border); padding-left: 11px; }
 .item.action-item.sev-danger { border-left-color: var(--danger); }
@@ -727,6 +736,14 @@ body.keyboard-open .fab {
 }
 .modal-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .modal-card-header h2 { font-size: 15px; font-weight: 700; }
+
+.welcome-tabs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.welcome-tab-row {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 10px 12px; border-radius: var(--radius-sm); background: var(--neutral-soft);
+}
+.welcome-tab-row strong { font-size: 13px; }
+.welcome-tab-row span { font-size: 12px; color: var(--text-muted); }
 
 .more-menu-item {
   display: flex; align-items: center; gap: 12px;
