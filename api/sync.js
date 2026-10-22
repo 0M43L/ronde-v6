@@ -134,30 +134,52 @@ async function syncItem(item, userId, user) {
     // pour qu'elle ne soit pas le seul chemin resté ouvert à tous.
     case 'ronde': {
       await assertOwnerOrNew('rondes', payload.id, userId);
-      return db.execute({
-        sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                date = excluded.date, heure = excluded.heure, tech = excluded.tech,
-                controls_json = excluded.controls_json, observations = excluded.observations,
-                statut = excluded.statut, type = excluded.type,
-                compteur_puissance_photo = excluded.compteur_puissance_photo,
-                compteur_energie_photo = excluded.compteur_energie_photo`,
-        args: [
-          payload.id,
-          payload.substation_id,
-          userId,
-          payload.date || null,
-          payload.heure || null,
-          payload.tech || null,
-          JSON.stringify(payload.controls || []),
-          payload.observations || '',
-          payload.statut || 'operationnel',
-          payload.type || 'ronde',
-          payload.compteurPuissancePhoto || null,
-          payload.compteurEnergiePhoto || null,
-        ],
-      });
+      const baseArgs = [
+        payload.id,
+        payload.substation_id,
+        userId,
+        payload.date || null,
+        payload.heure || null,
+        payload.tech || null,
+        JSON.stringify(payload.controls || []),
+        payload.observations || '',
+        payload.statut || 'operationnel',
+        payload.type || 'ronde',
+        payload.compteurPuissancePhoto || null,
+        payload.compteurEnergiePhoto || null,
+      ];
+      try {
+        return await db.execute({
+          sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo, compteur_volume, compteur_energie)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  date = excluded.date, heure = excluded.heure, tech = excluded.tech,
+                  controls_json = excluded.controls_json, observations = excluded.observations,
+                  statut = excluded.statut, type = excluded.type,
+                  compteur_puissance_photo = excluded.compteur_puissance_photo,
+                  compteur_energie_photo = excluded.compteur_energie_photo,
+                  compteur_volume = excluded.compteur_volume,
+                  compteur_energie = excluded.compteur_energie`,
+          args: [...baseArgs, payload.compteurVolume ?? null, payload.compteurEnergie ?? null],
+        });
+      } catch (error) {
+        // compteur_volume/compteur_energie pas encore migrées en prod (voir
+        // addMeterValueColumns() dans api/rondes.js, pas encore lancée) : on
+        // retombe sur l'ancienne liste de colonnes plutôt que de casser la
+        // synchro de TOUTES les rondes en attendant qu'Axel se connecte.
+        if (!/no such column/i.test(error?.message || '')) throw error;
+        return db.execute({
+          sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  date = excluded.date, heure = excluded.heure, tech = excluded.tech,
+                  controls_json = excluded.controls_json, observations = excluded.observations,
+                  statut = excluded.statut, type = excluded.type,
+                  compteur_puissance_photo = excluded.compteur_puissance_photo,
+                  compteur_energie_photo = excluded.compteur_energie_photo`,
+          args: baseArgs,
+        });
+      }
     }
 
     // Les photos ne passent plus par ce chemin (voir 'substation_photo' plus

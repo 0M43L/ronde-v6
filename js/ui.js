@@ -332,6 +332,16 @@ export function renderRondeMeterPhotos() {
     <div class="photo-row">
       ${field('Puissance', state.rondeMeterPuissance, 'meter-photo-puissance')}
       ${field('Énergie', state.rondeMeterEnergie, 'meter-photo-energie')}
+    </div>
+    <div class="form-row" style="margin-top:10px;">
+      <div class="form-group">
+        <label>Volume du compteur (m³)</label>
+        <input type="number" inputmode="decimal" step="any" placeholder="0" value="${state.rondeMeterVolumeValue || ''}" data-action="set-meter-volume-valeur">
+      </div>
+      <div class="form-group">
+        <label>Énergie (MWh)</label>
+        <input type="number" inputmode="decimal" step="any" placeholder="0" value="${state.rondeMeterEnergieValue || ''}" data-action="set-meter-energie-valeur">
+      </div>
     </div>`;
 }
 
@@ -1252,6 +1262,8 @@ export function buildHistoriqueItems() {
       tech: r.tech || null,
       meterPuissance: r.compteurPuissancePhoto || null,
       meterEnergie: r.compteurEnergiePhoto || null,
+      meterVolumeValue: r.compteurVolume ?? null,
+      meterEnergieValue: r.compteurEnergie ?? null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
@@ -1364,6 +1376,11 @@ function renderHistoriqueItem(it) {
             ? `<div class="hist-row-detail">
                  ${problem ? `<div class="item-title">${escapeHtml(it.title)}</div>` : ''}
                  ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
+                 ${
+                   it.meterVolumeValue != null || it.meterEnergieValue != null
+                     ? `<div class="item-meta">${it.meterVolumeValue != null ? `Volume : ${it.meterVolumeValue} m³` : ''}${it.meterVolumeValue != null && it.meterEnergieValue != null ? ' · ' : ''}${it.meterEnergieValue != null ? `Énergie : ${it.meterEnergieValue} MWh` : ''}</div>`
+                     : ''
+                 }
                  ${
                    it.meterPuissance || it.meterEnergie
                      ? `<div class="photo-row">

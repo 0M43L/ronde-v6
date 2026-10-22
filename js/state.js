@@ -169,6 +169,8 @@ export const state = {
   rondeType: 'ronde',
   rondeMeterPuissance: null,
   rondeMeterEnergie: null,
+  rondeMeterVolumeValue: '',
+  rondeMeterEnergieValue: '',
   fiches: [],
   actions: [],
   mesSessions: [],
@@ -199,6 +201,8 @@ export function resetControls() {
   state.rondeType = 'ronde';
   state.rondeMeterPuissance = null;
   state.rondeMeterEnergie = null;
+  state.rondeMeterVolumeValue = '';
+  state.rondeMeterEnergieValue = '';
 }
 
 export function resetMesChecks() {

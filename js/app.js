@@ -780,6 +780,16 @@ async function enterApp() {
   });
   document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
   document.getElementById('gpsBackfillBtn').hidden = !ui.isAxel() || !!localStorage.getItem('gps_backfill_done_v1');
+  // Silencieux (pas de bouton ni de toast) : juste une migration de schéma,
+  // sans rien à décider ni à montrer. Protégé par un flag local pour ne pas
+  // réessayer à chaque connexion une fois fait ; en cas d'échec (hors-ligne,
+  // etc.) le flag n'est pas posé et on retentera à la prochaine connexion.
+  if (ui.isAxel() && !localStorage.getItem('meter_columns_migrated_v1')) {
+    api
+      .requestAddMeterValueColumns()
+      .then(() => localStorage.setItem('meter_columns_migrated_v1', '1'))
+      .catch(() => {});
+  }
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
   // apparaîtra dès que Leaflet est prêt, sans retarder le reste de l'appli.
   ensureLeaflet()
@@ -1881,6 +1891,8 @@ function saveRondeDraft() {
         rondeType: state.rondeType,
         rondeMeterPuissance: state.rondeMeterPuissance,
         rondeMeterEnergie: state.rondeMeterEnergie,
+        rondeMeterVolumeValue: state.rondeMeterVolumeValue,
+        rondeMeterEnergieValue: state.rondeMeterEnergieValue,
       })
     );
   } catch {
@@ -1911,6 +1923,8 @@ function restoreRondeDraft() {
   if (draft.rondeType) state.rondeType = draft.rondeType;
   state.rondeMeterPuissance = draft.rondeMeterPuissance || null;
   state.rondeMeterEnergie = draft.rondeMeterEnergie || null;
+  state.rondeMeterVolumeValue = draft.rondeMeterVolumeValue || '';
+  state.rondeMeterEnergieValue = draft.rondeMeterEnergieValue || '';
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -2060,6 +2074,24 @@ document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) =
   }
 });
 
+// Pas de ré-affichage sur chaque frappe (contrairement aux photos ci-dessus) :
+// ça couperait le curseur en plein milieu de la saisie. L'état sert juste à
+// pré-remplir la valeur si le groupe est ré-affiché pour une autre raison
+// (changement de type de ronde, restauration d'un brouillon...).
+document.getElementById('rondeMeterPhotosGroup').addEventListener('input', (e) => {
+  const volumeInput = e.target.closest('[data-action="set-meter-volume-valeur"]');
+  if (volumeInput) {
+    state.rondeMeterVolumeValue = volumeInput.value;
+    saveRondeDraft();
+    return;
+  }
+  const energieInput = e.target.closest('[data-action="set-meter-energie-valeur"]');
+  if (energieInput) {
+    state.rondeMeterEnergieValue = energieInput.value;
+    saveRondeDraft();
+  }
+});
+
 // ===== ENREGISTRER LA RONDE =====
 document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   const substation = await resolveOrCreateSubstation(document.getElementById('rondeSubstation').value);
@@ -2080,6 +2112,8 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     type: state.rondeType,
     compteurPuissancePhoto: state.rondeMeterPuissance || null,
     compteurEnergiePhoto: state.rondeMeterEnergie || null,
+    compteurVolume: state.rondeMeterVolumeValue !== '' ? Number(state.rondeMeterVolumeValue) : null,
+    compteurEnergie: state.rondeMeterEnergieValue !== '' ? Number(state.rondeMeterEnergieValue) : null,
     ts: Date.now(),
   };
 

@@ -225,6 +225,17 @@ export async function requestGpsBackfill() {
   return data;
 }
 
+// Ajoute les colonnes compteur_volume/compteur_energie à la table rondes si
+// elles n'existent pas encore (réservé à Axel, vérifié côté serveur — voir
+// api/rondes.js). Appelé automatiquement et silencieusement à la connexion
+// d'Axel (voir enterApp() dans app.js), jamais par les autres techniciens.
+export async function requestAddMeterValueColumns() {
+  const res = await authedFetch('/api/rondes?action=add-meter-value-columns', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Migration impossible');
+  return data;
+}
+
 export async function requestDiagnostic(substation_name, anomalies) {
   const res = await authedFetch('/api/diagnostic', {
     method: 'POST',
