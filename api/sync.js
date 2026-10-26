@@ -150,8 +150,8 @@ async function syncItem(item, userId, user) {
       ];
       try {
         return await db.execute({
-          sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo, compteur_volume, compteur_energie)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo, compteur_volume, compteur_energie, armoire_notes, armoire_photo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   date = excluded.date, heure = excluded.heure, tech = excluded.tech,
                   controls_json = excluded.controls_json, observations = excluded.observations,
@@ -159,14 +159,17 @@ async function syncItem(item, userId, user) {
                   compteur_puissance_photo = excluded.compteur_puissance_photo,
                   compteur_energie_photo = excluded.compteur_energie_photo,
                   compteur_volume = excluded.compteur_volume,
-                  compteur_energie = excluded.compteur_energie`,
-          args: [...baseArgs, payload.compteurVolume ?? null, payload.compteurEnergie ?? null],
+                  compteur_energie = excluded.compteur_energie,
+                  armoire_notes = excluded.armoire_notes,
+                  armoire_photo = excluded.armoire_photo`,
+          args: [...baseArgs, payload.compteurVolume ?? null, payload.compteurEnergie ?? null, payload.armoireNotes || null, payload.armoirePhoto || null],
         });
       } catch (error) {
-        // compteur_volume/compteur_energie pas encore migrées en prod (voir
-        // addMeterValueColumns() dans api/rondes.js, pas encore lancée) : on
-        // retombe sur l'ancienne liste de colonnes plutôt que de casser la
-        // synchro de TOUTES les rondes en attendant qu'Axel se connecte.
+        // compteur_volume/compteur_energie/armoire_notes/armoire_photo pas
+        // encore migrées en prod (voir addMeterValueColumns() dans
+        // api/rondes.js, pas encore lancée) : on retombe sur l'ancienne liste
+        // de colonnes plutôt que de casser la synchro de TOUTES les rondes
+        // en attendant qu'Axel se connecte.
         if (!/no such column/i.test(error?.message || '')) throw error;
         return db.execute({
           sql: `INSERT INTO rondes (id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo)
