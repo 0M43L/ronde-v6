@@ -94,8 +94,6 @@ CREATE TABLE IF NOT EXISTS rondes (
   compteur_energie_photo   TEXT,
   compteur_volume          REAL,
   compteur_energie         REAL,
-  armoire_notes            TEXT,
-  armoire_photo            TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

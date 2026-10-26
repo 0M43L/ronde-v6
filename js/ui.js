@@ -316,17 +316,6 @@ export function renderRondeType() {
     (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
   renderRondeMeterPhotos();
-  renderRondeArmoirePhoto();
-}
-
-// Photo de l'armoire électrique — section dédiée, distincte des photos de
-// compteur (demandées seulement pour certains types de ronde) : celle-ci est
-// toujours visible, quel que soit le type d'intervention.
-export function renderRondeArmoirePhoto() {
-  const value = state.rondeArmoirePhoto;
-  document.getElementById('rondeArmoirePhoto').innerHTML = `
-    <label class="photo-btn">${icon('camera', 14)} Photo armoire<input type="file" accept="image/*" capture="environment" data-action="set-armoire-photo"></label>
-    ${value ? `<div class="photo-thumb"><img src="${value}"><button class="remove-photo" data-action="remove-armoire-photo">${icon('xCircle', 11)}</button></div>` : ''}`;
 }
 
 // Photos du compteur (puissance + énergie), demandées uniquement pour les
@@ -560,7 +549,7 @@ const FICHE_CATEGORIES = [
   { key: 'vannes', label: 'Vannes', icon: 'wrench', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['vanne', 'grippee', 'grippe', 'manoeuvre', 'graissage', 'actionneur', 'servomoteur'] },
   { key: 'echangeurs', label: 'Échangeurs', icon: 'refresh', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['echangeur', 'entartrage', 'performance', 'plaques', 'encrassement'] },
   { key: 'reseau', label: 'Réseau', icon: 'thermometer', colorVar: '--cat-hydraulique', softVar: '--cat-hydraulique-soft', keywords: ['reseau', 'corrosion', 'calorifuge', 'isolation', 'isolant', 'circuit', 'tuyauterie', 'air', 'debit', 'delta', 'purge'] },
-  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur', 'micrologix', 'chargement', 'parametrage', 'cas_poste', 'ccw'] },
+  { key: 'electrique', label: 'Électrique / Automate', icon: 'zap', colorVar: '--cat-electrique', softVar: '--cat-electrique-soft', keywords: ['tableau', 'armoire', 'electrique', '24vcc', 'porte', 'automate', 'disjoncteur', 'micrologix', 'chargement', 'parametrage', 'cas_poste', 'ccw', 'surchauffe'] },
   { key: 'instrumentation', label: 'Instrumentation / Compteurs', icon: 'barChart', colorVar: '--cat-instrumentation', softVar: '--cat-instrumentation-soft', keywords: ['sonde', 'capteur', 'compteur', 'modbus', 'jbus', 'communication', 'pression', 'index', 'kamstrup', 'itron'] },
   { key: 'regulation', label: 'Régulation / GTC', icon: 'monitor', colorVar: '--cat-regulation', softVar: '--cat-regulation-soft', keywords: ['regulation', 'pid', 'consigne', 'oscillation', 'instable', 'gtc', 'temperature', 'loi d\'eau'] },
   { key: 'securite', label: 'Sécurité', icon: 'alertTriangle', colorVar: '--danger', softVar: '--danger-soft', keywords: ['securite', 'pressostat', 'thermostat', 'alarme', 'repli', 'epi', 'consignation'] },
@@ -1275,8 +1264,6 @@ export function buildHistoriqueItems() {
       meterEnergie: r.compteurEnergiePhoto || null,
       meterVolumeValue: r.compteurVolume ?? null,
       meterEnergieValue: r.compteurEnergie ?? null,
-      armoireNotes: r.armoireNotes || null,
-      armoirePhoto: r.armoirePhoto || null,
       searchable: `${substation ? substation.name : ''} ${r.tech || ''} ${r.observations || ''}`.toLowerCase(),
     });
   });
@@ -1400,12 +1387,6 @@ function renderHistoriqueItem(it) {
                           ${it.meterPuissance ? `<div class="photo-thumb"><img src="${it.meterPuissance}"></div>` : ''}
                           ${it.meterEnergie ? `<div class="photo-thumb"><img src="${it.meterEnergie}"></div>` : ''}
                         </div>`
-                     : ''
-                 }
-                 ${
-                   it.armoireNotes || it.armoirePhoto
-                     ? `<div class="item-meta" style="margin-top:6px;"><strong>Armoire électrique</strong>${it.armoireNotes ? ` — ${escapeHtml(it.armoireNotes)}` : ''}</div>
-                        ${it.armoirePhoto ? `<div class="photo-row"><div class="photo-thumb"><img src="${it.armoirePhoto}"></div></div>` : ''}`
                      : ''
                  }
                  ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
