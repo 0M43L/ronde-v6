@@ -67,6 +67,35 @@ function chunk(arr, size) {
   return out;
 }
 
+// getSyncQueue() renvoie les entrées dans l'ordre de leur clé IndexedDB (id),
+// PAS dans l'ordre où elles ont été ajoutées : un id ressemble à
+// "action_..._<timestamp>_<suffixe>", donc un simple tri alphabétique place
+// TOUTES les actions avant TOUTES les rondes (et les sous-stations en
+// dernier) — l'inverse de l'ordre de dépendance. Avec le découpage en lots
+// de SYNC_BATCH_SIZE ci-dessous (chaque lot = une requête /api/sync séparée,
+// envoyée après que la précédente soit terminée), ça pouvait faire partir
+// l'action d'une ronde fraîchement créée dans un lot envoyé AVANT celui
+// contenant la ronde elle-même — FOREIGN KEY constraint failed côté serveur
+// à chaque tentative, puisque la ronde n'existe pas encore (voir le même
+// TIER côté serveur dans api/sync.js, qui ordonne correctement DANS un même
+// envoi mais ne peut rien pour des entrées réparties sur deux envois
+// différents). Un tri stable par palier avant de découper en lots garantit
+// qu'une dépendance (sous-station, puis ronde) est toujours envoyée avant ce
+// qui en dépend, même à cheval sur plusieurs lots.
+const SYNC_TIER = {
+  substation: 0,
+  ronde: 1,
+  mes_session: 1,
+  substation_photo: 1,
+  substation_comment: 1,
+  action: 2,
+  fiche: 2,
+};
+
+function sortByDependencyTier(queue) {
+  return queue.slice().sort((a, b) => (SYNC_TIER[a.entity_type] ?? 0) - (SYNC_TIER[b.entity_type] ?? 0));
+}
+
 async function syncBatch(batch, ctx) {
   try {
     const result = await pushSyncQueue(batch);
@@ -126,7 +155,7 @@ async function runSync() {
     return { synced: 0, skipped: true };
   }
 
-  const queue = await getSyncQueue();
+  const queue = sortByDependencyTier(await getSyncQueue());
   if (queue.length === 0) {
     consecutiveFailures = 0;
     lastError = null;
