@@ -75,7 +75,14 @@ export async function queueSync(entity_type, action, payload) {
   // La plupart des payloads ont un .id, mais les opérations ciblées (ex :
   // ajout/retrait d'une photo de site) portent plutôt un .substation_id.
   const key = payload.id ?? payload.substation_id ?? 'x';
-  await put('sync_queue', { id: `${entity_type}_${key}_${Date.now()}`, entity_type, action, payload });
+  // Date.now() seul (résolution à la milliseconde) peut produire deux fois
+  // le même id pour la même entité (deux opérations très rapprochées, ex.
+  // deux photos ajoutées au même site) : le second put() dans ce store
+  // (keyPath 'id') écraserait alors silencieusement le premier, qui
+  // disparaîtrait de la file sans jamais partir vers le serveur. Un suffixe
+  // aléatoire élimine la collision sans dépendre de la précision du timer.
+  const suffix = Math.random().toString(36).slice(2, 8);
+  await put('sync_queue', { id: `${entity_type}_${key}_${Date.now()}_${suffix}`, entity_type, action, payload });
 }
 
 export async function getSyncQueue() {

@@ -49,7 +49,11 @@ export default async function handler(req, res) {
         photo: r.photo,
         done: !!r.done,
         date: formatDateFr(r.created_at),
-        ts: Date.parse(`${r.created_at}Z`) || 0,
+        // SQLite stocke created_at au format "YYYY-MM-DD HH:MM:SS" (espace,
+        // pas de 'T') : ajouter juste un 'Z' n'est pas de l'ISO 8601 strict
+        // et certains moteurs (WebKit/Safari) peuvent le refuser et renvoyer
+        // une date invalide. replace(' ', 'T') le rend conforme partout.
+        ts: Date.parse(`${r.created_at.replace(' ', 'T')}Z`) || 0,
       })),
     });
   } catch (error) {
@@ -59,7 +63,7 @@ export default async function handler(req, res) {
 }
 
 function formatDateFr(sqliteDatetime) {
-  const ms = Date.parse(`${sqliteDatetime}Z`);
+  const ms = Date.parse(`${sqliteDatetime.replace(' ', 'T')}Z`);
   if (!ms) return '';
   return new Date(ms).toLocaleString('fr-FR');
 }

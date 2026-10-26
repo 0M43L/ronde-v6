@@ -41,7 +41,10 @@ export default async function handler(req, res) {
         poste: JSON.parse(r.poste_json || '{}'),
         notes: r.notes,
         date: formatDateFr(r.created_at),
-        ts: Date.parse(`${r.created_at}Z`) || 0,
+        // Voir api/actions.js : SQLite stocke "YYYY-MM-DD HH:MM:SS" (espace,
+        // pas de 'T') — replace(' ', 'T') garantit de l'ISO 8601 strict,
+        // parsé de façon fiable sur tous les moteurs (y compris WebKit/Safari).
+        ts: Date.parse(`${r.created_at.replace(' ', 'T')}Z`) || 0,
       })),
     });
   } catch (error) {
@@ -51,7 +54,7 @@ export default async function handler(req, res) {
 }
 
 function formatDateFr(sqliteDatetime) {
-  const ms = Date.parse(`${sqliteDatetime}Z`);
+  const ms = Date.parse(`${sqliteDatetime.replace(' ', 'T')}Z`);
   if (!ms) return '';
   return new Date(ms).toLocaleString('fr-FR');
 }
