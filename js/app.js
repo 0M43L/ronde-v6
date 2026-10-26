@@ -3084,9 +3084,10 @@ document.getElementById('clearHistoryBtn').addEventListener('click', async () =>
   const ownRondeIds = new Set(ownRondes.map((r) => r.id));
   const ownActionIds = new Set(ownActions.map((a) => a.id));
   const ownMesIds = new Set(ownMes.map((m) => m.id));
+  const ownFicheIds = new Set(ownFiches.map((f) => f.id));
   state.rondes = state.rondes.filter((r) => !ownRondeIds.has(r.id));
   state.actions = state.actions.filter((a) => !ownActionIds.has(a.id));
-  state.fiches = state.fiches.filter((f) => f.is_reference);
+  state.fiches = state.fiches.filter((f) => !ownFicheIds.has(f.id));
   state.mesSessions = state.mesSessions.filter((m) => !ownMesIds.has(m.id));
 
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
