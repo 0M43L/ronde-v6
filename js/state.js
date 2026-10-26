@@ -171,6 +171,7 @@ export const state = {
   rondeMeterEnergie: null,
   rondeMeterVolumeValue: '',
   rondeMeterEnergieValue: '',
+  rondeArmoirePhoto: null,
   fiches: [],
   actions: [],
   mesSessions: [],
@@ -203,6 +204,7 @@ export function resetControls() {
   state.rondeMeterEnergie = null;
   state.rondeMeterVolumeValue = '';
   state.rondeMeterEnergieValue = '';
+  state.rondeArmoirePhoto = null;
 }
 
 export function resetMesChecks() {
