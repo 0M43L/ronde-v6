@@ -95,7 +95,10 @@ export default async function handler(req, res) {
         compteurEnergiePhoto: r.compteur_energie_photo || null,
         compteurVolume: r.compteur_volume ?? null,
         compteurEnergie: r.compteur_energie ?? null,
-        ts: Date.parse(`${r.created_at}Z`) || 0,
+        // Voir api/actions.js : SQLite stocke "YYYY-MM-DD HH:MM:SS" (espace,
+        // pas de 'T') — replace(' ', 'T') garantit de l'ISO 8601 strict,
+        // parsé de façon fiable sur tous les moteurs (y compris WebKit/Safari).
+        ts: Date.parse(`${r.created_at.replace(' ', 'T')}Z`) || 0,
       })),
     });
   } catch (error) {
