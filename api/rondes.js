@@ -1,23 +1,20 @@
 import { db } from './_db.js';
 import { requireAuth } from './_auth.js';
 
-// Ajoute les colonnes manquantes à `rondes` (idempotent — vérifie avant
-// d'altérer). Déclenché automatiquement et silencieusement à la connexion
-// d'Axel (voir enterApp() côté client), réservé à lui comme les autres
-// actions de ce genre dans l'appli.
+// Ajoute compteur_volume/compteur_energie à `rondes` si elles n'existent pas
+// encore (idempotent — vérifie avant d'altérer). Déclenché automatiquement
+// et silencieusement à la connexion d'Axel (voir enterApp() côté client),
+// réservé à lui comme les autres actions de ce genre dans l'appli.
 async function addMeterValueColumns() {
   const existing = await db.execute(`PRAGMA table_info(rondes)`);
   const existingNames = new Set(existing.rows.map((r) => String(r.name).toLowerCase()));
-  const toAdd = [
-    ['compteur_volume', 'REAL'],
-    ['compteur_energie', 'REAL'],
-    ['armoire_notes', 'TEXT'],
-    ['armoire_photo', 'TEXT'],
-  ];
   let added = 0;
-  for (const [name, type] of toAdd) {
-    if (existingNames.has(name)) continue;
-    await db.execute(`ALTER TABLE rondes ADD COLUMN ${name} ${type}`);
+  if (!existingNames.has('compteur_volume')) {
+    await db.execute(`ALTER TABLE rondes ADD COLUMN compteur_volume REAL`);
+    added++;
+  }
+  if (!existingNames.has('compteur_energie')) {
+    await db.execute(`ALTER TABLE rondes ADD COLUMN compteur_energie REAL`);
     added++;
   }
   return added;
@@ -56,21 +53,20 @@ export default async function handler(req, res) {
     // (ISO 8601 avec 'T'/'Z') vers celui stocké en base avant comparaison.
     const { since } = req.query;
     const baseColumns = `id, substation_id, user_id, date, heure, tech, controls_json, observations, statut, type, compteur_puissance_photo, compteur_energie_photo`;
-    // compteur_volume/compteur_energie/armoire_notes/armoire_photo peuvent ne
-    // pas encore exister (voir addMeterValueColumns() ci-dessus, pas encore
-    // lancée) : on retombe sur l'ancienne liste de colonnes plutôt que de
-    // casser le chargement des rondes pour tout le monde en attendant que ça
-    // arrive.
+    // compteur_volume/compteur_energie peuvent ne pas encore exister (voir
+    // addMeterValueColumns() ci-dessus, pas encore lancée) : on retombe sur
+    // l'ancienne liste de colonnes plutôt que de casser le chargement des
+    // rondes pour tout le monde en attendant que ça arrive.
     let result;
     try {
       result = await db.execute(
         since
           ? {
-              sql: `SELECT ${baseColumns}, compteur_volume, compteur_energie, armoire_notes, armoire_photo, created_at
+              sql: `SELECT ${baseColumns}, compteur_volume, compteur_energie, created_at
                     FROM rondes WHERE created_at >= datetime(?) ORDER BY created_at DESC`,
               args: [since],
             }
-          : `SELECT ${baseColumns}, compteur_volume, compteur_energie, armoire_notes, armoire_photo, created_at
+          : `SELECT ${baseColumns}, compteur_volume, compteur_energie, created_at
              FROM rondes ORDER BY created_at DESC`
       );
     } catch (error) {
@@ -99,8 +95,6 @@ export default async function handler(req, res) {
         compteurEnergiePhoto: r.compteur_energie_photo || null,
         compteurVolume: r.compteur_volume ?? null,
         compteurEnergie: r.compteur_energie ?? null,
-        armoireNotes: r.armoire_notes || null,
-        armoirePhoto: r.armoire_photo || null,
         // Voir api/actions.js : SQLite stocke "YYYY-MM-DD HH:MM:SS" (espace,
         // pas de 'T') — replace(' ', 'T') garantit de l'ISO 8601 strict,
         // parsé de façon fiable sur tous les moteurs (y compris WebKit/Safari).

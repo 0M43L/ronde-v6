@@ -1893,8 +1893,6 @@ function saveRondeDraft() {
         rondeMeterEnergie: state.rondeMeterEnergie,
         rondeMeterVolumeValue: state.rondeMeterVolumeValue,
         rondeMeterEnergieValue: state.rondeMeterEnergieValue,
-        rondeArmoireNotes: document.getElementById('rondeArmoireNotes').value,
-        rondeArmoirePhoto: state.rondeArmoirePhoto,
       })
     );
   } catch {
@@ -1927,8 +1925,6 @@ function restoreRondeDraft() {
   state.rondeMeterEnergie = draft.rondeMeterEnergie || null;
   state.rondeMeterVolumeValue = draft.rondeMeterVolumeValue || '';
   state.rondeMeterEnergieValue = draft.rondeMeterEnergieValue || '';
-  state.rondeArmoirePhoto = draft.rondeArmoirePhoto || null;
-  if (draft.rondeArmoireNotes) document.getElementById('rondeArmoireNotes').value = draft.rondeArmoireNotes;
   onSubstationInput();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -1938,7 +1934,6 @@ function restoreRondeDraft() {
 
 document.getElementById('rondeObservations').addEventListener('input', saveRondeDraft);
 document.getElementById('rondeTech').addEventListener('input', saveRondeDraft);
-document.getElementById('rondeArmoireNotes').addEventListener('input', saveRondeDraft);
 
 document.getElementById('controlsList').addEventListener('click', async (e) => {
   const statusBtn = e.target.closest('[data-action="set-status"]');
@@ -2079,24 +2074,6 @@ document.getElementById('rondeMeterPhotosGroup').addEventListener('click', (e) =
   }
 });
 
-// ===== PHOTO ARMOIRE ÉLECTRIQUE =====
-document.getElementById('rondeArmoirePhoto').addEventListener('change', async (e) => {
-  const input = e.target.closest('[data-action="set-armoire-photo"]');
-  if (input && input.files[0]) {
-    state.rondeArmoirePhoto = await fileToDataUrl(input.files[0]);
-    ui.renderRondeArmoirePhoto();
-    saveRondeDraft();
-  }
-});
-
-document.getElementById('rondeArmoirePhoto').addEventListener('click', (e) => {
-  if (e.target.closest('[data-action="remove-armoire-photo"]')) {
-    state.rondeArmoirePhoto = null;
-    ui.renderRondeArmoirePhoto();
-    saveRondeDraft();
-  }
-});
-
 // Pas de ré-affichage sur chaque frappe (contrairement aux photos ci-dessus) :
 // ça couperait le curseur en plein milieu de la saisie. L'état sert juste à
 // pré-remplir la valeur si le groupe est ré-affiché pour une autre raison
@@ -2137,8 +2114,6 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
     compteurEnergiePhoto: state.rondeMeterEnergie || null,
     compteurVolume: state.rondeMeterVolumeValue !== '' ? Number(state.rondeMeterVolumeValue) : null,
     compteurEnergie: state.rondeMeterEnergieValue !== '' ? Number(state.rondeMeterEnergieValue) : null,
-    armoireNotes: document.getElementById('rondeArmoireNotes').value || null,
-    armoirePhoto: state.rondeArmoirePhoto || null,
     ts: Date.now(),
   };
 
@@ -2171,7 +2146,6 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   }
 
   document.getElementById('rondeObservations').value = '';
-  document.getElementById('rondeArmoireNotes').value = '';
   resetControls();
   clearRondeDraft();
   // Prépare la prochaine ronde entièrement à zéro : horodatage remis à
