@@ -8,6 +8,7 @@ export const CONTROLS_DEF = [
   { id: 'plombs', label: 'Plombs de sécurité présents sur les intégrateurs (non arrachés)' },
   { id: 'proprete', label: "Propreté du local (sol, armoire, pas d'encombrement)" },
   { id: 'graissage', label: 'Graissage des vannes à jour (pas de grippage constaté)' },
+  { id: 'armoire', label: 'Armoire électrique en bon état (fermée, propre, étiquetée, pas de trace de surchauffe)' },
 ];
 
 // Les libellés de CONTROLS_DEF décrivent le BON état (ce qu'on vérifie) —
@@ -28,6 +29,7 @@ export const CONTROL_PROBLEM_LABEL = {
   plombs: 'Plomb de sécurité arraché',
   proprete: 'Local sale ou encombré',
   graissage: 'Vanne grippée',
+  armoire: 'Armoire électrique défectueuse',
 };
 
 // Les 41 points de mise en service IDEX, en 8 phases.
@@ -171,7 +173,6 @@ export const state = {
   rondeMeterEnergie: null,
   rondeMeterVolumeValue: '',
   rondeMeterEnergieValue: '',
-  rondeArmoirePhoto: null,
   fiches: [],
   actions: [],
   mesSessions: [],
@@ -204,7 +205,6 @@ export function resetControls() {
   state.rondeMeterEnergie = null;
   state.rondeMeterVolumeValue = '';
   state.rondeMeterEnergieValue = '';
-  state.rondeArmoirePhoto = null;
 }
 
 export function resetMesChecks() {
