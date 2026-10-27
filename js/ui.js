@@ -149,7 +149,7 @@ export function escapeHtml(str) {
 // barre, donc quand l'un d'eux est actif c'est le bouton "Plus" lui-même
 // qui doit apparaître sélectionné, sinon la barre du bas semble ne rien
 // indiquer du tout une fois sur Fiches/Bilan/Diagnostic/MES.
-const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes', 'reseau'];
+const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes', 'reseau', 'historique'];
 
 export function switchTab(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach((t) => {
@@ -1993,6 +1993,96 @@ export function renderSiteList(searchTerm = '', sectorFilter = 'tous') {
         : `<div class="search-group-header">Sans position GPS · ${list.length}</div>
            <p class="hint" style="padding:0 14px 8px;">Créés en tapant juste un nom pendant une ronde. Ouvre la fiche du site, touche l'icône crayon pour lui ajouter sa position (bouton GPS) — il rejoindra alors son secteur.</p>`;
       return header + list.slice().sort(byPriorityThenName).map(renderRow).join('');
+    })
+    .join('');
+}
+
+// ===== AUJOURD'HUI (écran d'accueil) =====
+// Vue unique à l'ouverture de l'appli : ce qu'il y a à faire aujourd'hui,
+// sans avoir à recouper soi-même Bilan + Actions + Sites. Résumé seulement —
+// chaque ligne renvoie vers la page complète pour agir (voir goto-site /
+// goto-aujourdhui-action côté app.js). Alimentée par renderAllData() comme
+// le reste de l'appli, donc toujours à jour sans logique à part.
+const AUJOURDHUI_SITES_LIMIT = 6;
+const AUJOURDHUI_ACTIONS_LIMIT = 5;
+
+export function renderAujourdhui() {
+  renderAujourdhuiTournee();
+  renderAujourdhuiActions();
+}
+
+function renderAujourdhuiTournee() {
+  const el = document.getElementById('aujourdhuiTournee');
+  if (!el) return;
+  if (state.substations.length === 0) {
+    el.innerHTML = `<p class="hint">Aucun site enregistré.</p>`;
+    return;
+  }
+  const lastRondeInfo = {};
+  state.rondes.forEach((r) => {
+    if (!r.date) return;
+    const t = new Date(r.date).getTime();
+    if (!lastRondeInfo[r.substation_id] || t > lastRondeInfo[r.substation_id].t) {
+      lastRondeInfo[r.substation_id] = { t, statut: r.statut || 'operationnel' };
+    }
+  });
+  const entries = state.substations.map((s) => {
+    const info = lastRondeInfo[s.id];
+    return { site: s, statusKey: info ? info.statut : 'jamais', lastTs: info ? info.t : null };
+  });
+  // Même priorité que la liste des sites (arrêt > réserve > jamais visité >
+  // opérationnel) ; à égalité, le moins visité récemment remonte en premier
+  // — jamais visité (lastTs null) toujours avant un site déjà vu.
+  const top = entries
+    .sort((a, b) => {
+      const diff = (SITE_STATUS_PRIORITY[a.statusKey] ?? 2) - (SITE_STATUS_PRIORITY[b.statusKey] ?? 2);
+      if (diff !== 0) return diff;
+      return (a.lastTs ?? -1) - (b.lastTs ?? -1);
+    })
+    .slice(0, AUJOURDHUI_SITES_LIMIT);
+
+  el.innerHTML = top
+    .map((e) => {
+      const days = e.lastTs ? Math.floor((Date.now() - e.lastTs) / 86400000) : null;
+      const sub = days === null ? 'Jamais visitée' : days === 0 ? "Vue aujourd'hui" : `Vue il y a ${days} j`;
+      return `<div class="site-list-item" data-action="select-site" data-id="${e.site.id}">
+          <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+            <span class="site-status-dot" style="background:${SITE_STATUS_DOT_COLOR[e.statusKey]};" title="${SITE_STATUS_DOT_LABEL[e.statusKey]}"></span>
+            <div style="min-width:0;">
+              <div class="name">${escapeHtml(e.site.name)}</div>
+              <div class="sub">${sub}</div>
+            </div>
+          </div>
+          ${icon('chevronRight', 16)}
+        </div>`;
+    })
+    .join('');
+}
+
+function renderAujourdhuiActions() {
+  const el = document.getElementById('aujourdhuiActions');
+  if (!el) return;
+  const open = state.actions
+    .filter((a) => !a.done && a.severity !== 'none')
+    .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 2) - (SEVERITY_ORDER[b.severity] ?? 2) || (b.ts || 0) - (a.ts || 0));
+  const top = open.slice(0, AUJOURDHUI_ACTIONS_LIMIT);
+
+  if (top.length === 0) {
+    el.innerHTML = `<p class="hint">${icon('check', 13)} Aucune action urgente</p>`;
+    return;
+  }
+  el.innerHTML = top
+    .map((a) => {
+      const substation = state.substations.find((s) => s.id === a.substation_id);
+      const problem = a.source === 'ronde' ? CONTROL_PROBLEM_LABEL[controlIdFromActionId(a.id)] : null;
+      return `<div class="item" data-action="goto-aujourdhui-action" data-id="${a.id}" style="cursor:pointer;">
+        <div class="action-headline">
+          <span class="badge ${a.severity === 'danger' ? 'immediat' : 'a_planifier'}">${a.severity === 'danger' ? icon('alertTriangle', 10) : ''}${a.severity === 'danger' ? 'Urgent' : 'À surveiller'}</span>
+          ${problem ? `<span class="problem-tag">${escapeHtml(problem)}</span>` : ''}
+        </div>
+        <div class="item-title">${escapeHtml(a.text)}</div>
+        ${substation ? `<div class="item-meta">${icon('mapPin', 11)} ${escapeHtml(substation.name)}</div>` : ''}
+      </div>`;
     })
     .join('');
 }
