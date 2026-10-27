@@ -1642,6 +1642,16 @@ export function renderBilanStatusChart() {
     </div>`;
 }
 
+// Affiche un petit compteur dans l'en-tête d'une carte Bilan repliable, pour
+// savoir s'il y a quelque chose à regarder dedans sans avoir à la déplier —
+// l'intérêt même de les avoir repliées par défaut.
+function setCardHeaderCount(elId, n) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.hidden = n === 0;
+  el.textContent = n;
+}
+
 export function renderSitesNonVisites(thresholdDays) {
   const el = document.getElementById('sitesNonVisites');
   const lastVisit = {};
@@ -1661,6 +1671,7 @@ export function renderSitesNonVisites(thresholdDays) {
     .filter((x) => x.days === null || x.days > thresholdDays)
     .sort((a, b) => (b.days ?? 99999) - (a.days ?? 99999));
 
+  setCardHeaderCount('sitesNonVisitesCount', overdue.length);
   if (overdue.length === 0) {
     el.innerHTML = '<div class="alert success">✅ Tout est à jour</div>';
     return;
@@ -1691,6 +1702,7 @@ export function renderPointsRecurrents() {
     .filter((c) => c.n >= 2)
     .sort((a, b) => b.n - a.n);
 
+  setCardHeaderCount('pointsRecurrentsCount', recurrent.length);
   if (recurrent.length === 0) {
     el.innerHTML = '<div class="alert success">✅ Aucun point récurrent</div>';
     return;
@@ -1757,6 +1769,7 @@ export function renderSitesASurveiller() {
   const el = document.getElementById('sitesASurveiller');
   if (!el) return;
   const alerts = computeSiteAlerts();
+  setCardHeaderCount('sitesASurveillerCount', alerts.length);
   if (alerts.length === 0) {
     el.innerHTML = '<div class="alert success">✅ Aucune anomalie récurrente détectée</div>';
     return;
@@ -1801,6 +1814,7 @@ export function renderActionsRetardSite(thresholdDays = 7) {
   const now = Date.now();
   const overdue = state.actions.filter((a) => !a.done && a.ts && (now - a.ts) / 86400000 > thresholdDays);
 
+  setCardHeaderCount('actionsRetardSiteCount', overdue.length);
   if (overdue.length === 0) {
     el.innerHTML = '<div class="alert success">✅ Aucune action en retard</div>';
     return;
