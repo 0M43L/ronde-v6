@@ -118,16 +118,6 @@
             <label>Photos compteur</label>
             <div id="rondeMeterPhotos"></div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="rondeDate">
-            </div>
-            <div class="form-group">
-              <label>Heure</label>
-              <input type="time" id="rondeHeure">
-            </div>
-          </div>
           <div class="form-group">
             <label>Site</label>
             <input type="text" id="rondeSubstation" list="substationsDatalist" placeholder="Nom du site..." autocomplete="off">
@@ -139,20 +129,33 @@
             <div class="alert warning" id="accessNotesText" style="margin:0;"></div>
           </div>
           <div id="rondeSiteAlert"></div>
-          <div class="form-group">
-            <label>Intervenant</label>
-            <input type="text" id="rondeTech">
-          </div>
+          <details>
+            <summary class="hint" style="cursor:pointer;">Date, heure et intervenant</summary>
+            <div class="form-row" style="margin-top:10px;">
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="rondeDate">
+              </div>
+              <div class="form-group">
+                <label>Heure</label>
+                <input type="time" id="rondeHeure">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Intervenant</label>
+              <input type="text" id="rondeTech">
+            </div>
+          </details>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">Localisation</div>
+      <details class="card" id="rondeLocalisationDetails">
+        <summary class="card-header">Localisation</summary>
         <div class="card-body">
           <div id="map"></div>
           <button class="btn btn-secondary" id="registerGeoBtn" style="width:100%; margin-top:10px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6.5-9 12.5-9 12.5S3 16.5 3 10a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg> Enregistrer cette position comme nouveau site</button>
         </div>
-      </div>
+      </details>
 
       <div class="card">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
@@ -198,9 +201,12 @@
             <button class="chip" data-sector="Hanriot">Hanriot</button>
           </div>
           <button class="btn-secondary" id="addSiteBtn" style="width:100%;margin-top:10px;">+ Ajouter un site</button>
-          <button class="btn-secondary" id="downloadOfflineMapBtn" style="width:100%;margin-top:8px;" type="button">Télécharger la carte hors-ligne</button>
-          <p class="hint" id="offlineMapStatus" style="margin:4px 0 0;"></p>
-          <button class="btn-secondary" id="gpsBackfillBtn" style="width:100%;margin-top:8px;" hidden>Corriger les positions GPS (une fois)</button>
+          <details style="margin-top:8px;">
+            <summary class="hint" style="cursor:pointer;">Outils</summary>
+            <button class="btn-secondary" id="downloadOfflineMapBtn" style="width:100%;margin-top:10px;" type="button">Télécharger la carte hors-ligne</button>
+            <p class="hint" id="offlineMapStatus" style="margin:4px 0 0;"></p>
+            <button class="btn-secondary" id="gpsBackfillBtn" style="width:100%;margin-top:8px;" hidden>Corriger les positions GPS (une fois)</button>
+          </details>
         </div>
         <div id="siteList"></div>
       </div>

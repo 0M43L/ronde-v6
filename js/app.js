@@ -1153,6 +1153,15 @@ async function loadAppData() {
 // donné : un tap direct sur la barre du bas, ou un choix dans la feuille
 // "Plus" (voir plus bas) pour les 4 onglets secondaires qui n'ont plus leur
 // propre place dans la barre.
+// Repliée par défaut (voir index.html) : Leaflet calcule sa taille au
+// moment où son conteneur devient réellement visible, pas avant — tant que
+// la carte reste repliée, invalidateMapSize() au changement d'onglet (plus
+// bas) la trouve toujours cachée et ne peut rien faire. Ce listener prend
+// le relais exactement au moment où elle se déplie pour de vrai.
+document.getElementById('rondeLocalisationDetails').addEventListener('toggle', (e) => {
+  if (e.target.open) invalidateMapSize();
+});
+
 function goToTab(tabName) {
   ui.switchTab(tabName);
   if (tabName === 'ronde') {
