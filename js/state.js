@@ -159,7 +159,7 @@ export function emptyPoste() {
 
 export const state = {
   user: null,
-  currentTab: 'ronde',
+  currentTab: 'aujourdhui',
   substations: [],
   networkPlan: null,
   // Agenda d'équipe (Google Calendar), chargé à la demande en ouvrant la
