@@ -752,7 +752,11 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 // reproposé ensuite, même après une déconnexion/reconnexion ou une mise à
 // jour, pour ne pas gêner l'usage quotidien d'un technicien qui connaît
 // déjà l'appli.
-const WELCOME_SEEN_KEY = 'welcome_seen_v1';
+// v2 : re-déclenché volontairement une fois pour tout le monde suite au
+// changement de barre d'onglets (ajout d'Aujourd'hui, Historique déplacé
+// dans Plus) — ceux qui avaient déjà vu la v1 ont besoin de l'explication
+// mise à jour, pas seulement les nouveaux arrivants.
+const WELCOME_SEEN_KEY = 'welcome_seen_v2';
 function showWelcomeIfFirstTime() {
   if (localStorage.getItem(WELCOME_SEEN_KEY)) return;
   overlayTriggers.welcomeOverlay = document.activeElement;
@@ -922,6 +926,7 @@ function refreshRondeDateTime() {
 // effet de bord cumulatif : ce sont les mêmes fonctions déjà utilisées
 // partout ailleurs dans l'appli après chaque sauvegarde.
 function renderAllData() {
+  ui.renderAujourdhui();
   ui.renderSubstationDatalist();
   refreshSiteList();
   ui.renderControls();
@@ -1002,6 +1007,11 @@ async function loadAppData() {
   document.getElementById('rondeTech').value = `${state.user.prenom} ${state.user.nom}`.trim();
   document.getElementById('mesIntervenant').value = `${state.user.prenom} ${state.user.nom}`.trim();
   document.getElementById('siteThresholdDays').value = getSiteThreshold();
+  // "Aujourd'hui" est l'onglet affiché à l'ouverture (voir index.html) : son
+  // agenda d'équipe a besoin du même coup d'envoi explicite que
+  // refreshRondeDateTime() juste au-dessus, puisque goToTab() — qui s'en
+  // charge normalement — n'est pas appelé pour l'onglet déjà actif par défaut.
+  refreshTeamCalendar();
 
   restoreRondeDraft();
   restoreMesDraft();
@@ -1146,7 +1156,7 @@ function goToTab(tabName) {
     else refreshSiteList();
   }
   if (tabName === 'reseau') refreshReseauMap();
-  if (tabName === 'actions') refreshTeamCalendar();
+  if (tabName === 'aujourdhui') refreshTeamCalendar();
 }
 
 // ===== AGENDA D'ÉQUIPE (Google Calendar, page Actions) =====
@@ -1244,6 +1254,23 @@ document.getElementById('sitesASurveiller').addEventListener('click', (e) => {
   refreshSiteList();
   ui.selectSite(item.dataset.id);
   loadSiteDetailIfNeeded(item.dataset.id);
+});
+
+// ===== AUJOURD'HUI (écran d'accueil) =====
+document.getElementById('aujourdhuiTournee').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="select-site"]');
+  if (!item) return;
+  ui.switchTab('sites');
+  refreshSiteList();
+  ui.selectSite(item.dataset.id);
+  loadSiteDetailIfNeeded(item.dataset.id);
+});
+
+document.getElementById('aujourdhuiActions').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-action="goto-aujourdhui-action"]');
+  if (!item) return;
+  ui.switchTab('actions');
+  ui.expandAction(item.dataset.id);
 });
 
 // Les photos et commentaires ne sont pas inclus dans la liste globale des
