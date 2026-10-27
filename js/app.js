@@ -13,7 +13,7 @@ import {
   renderReseauMarkers,
   invalidateReseauMapSize,
 } from './map.js';
-import { prefetchTilesAround } from './tiles.js';
+import { prefetchTilesAround, downloadOfflineMap } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener, setSyncProgressListener } from './sync.js';
 
 // ===== CHARGEMENT PARESSEUX DES LIBRAIRIES EXTERNES =====
@@ -1736,6 +1736,50 @@ document.getElementById('addSiteBtn').addEventListener('click', () => {
   document.getElementById('newSiteGeoStatus').textContent = 'Position GPS non renseignée — tu pourras la préciser plus tard.';
   document.getElementById('siteListCard').style.display = 'none';
   document.getElementById('addSiteForm').hidden = false;
+});
+
+// Téléchargement groupé des tuiles de carte sur toute la zone d'intervention
+// (voir downloadOfflineMap() dans tiles.js) — pour que la carte (Ronde,
+// Sites, trajet) reste utilisable même entre deux sites dans un secteur à
+// mauvaise réception, pas seulement pile sur un pin déjà consulté.
+const OFFLINE_MAP_STATUS_KEY = 'offline_map_downloaded_at_v1';
+
+function renderOfflineMapStatus() {
+  const el = document.getElementById('offlineMapStatus');
+  const at = localStorage.getItem(OFFLINE_MAP_STATUS_KEY);
+  el.textContent = at ? `Dernier téléchargement : ${new Date(Number(at)).toLocaleString('fr-FR')}` : 'Jamais téléchargée — utile avant d\'aller dans un secteur à mauvaise réception.';
+}
+renderOfflineMapStatus();
+
+document.getElementById('downloadOfflineMapBtn').addEventListener('click', async () => {
+  if (!navigator.onLine) {
+    ui.showToast('Besoin de réseau pour télécharger la carte');
+    return;
+  }
+  const btn = document.getElementById('downloadOfflineMapBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  try {
+    const result = await downloadOfflineMap(state.substations, (done, total) => {
+      btn.textContent = `Téléchargement... ${done}/${total}`;
+    });
+    if (result.total === 0) {
+      ui.showToast('Aucun site positionné à couvrir');
+    } else {
+      localStorage.setItem(OFFLINE_MAP_STATUS_KEY, String(Date.now()));
+      renderOfflineMapStatus();
+      ui.showToast(
+        result.failed > 0
+          ? `Carte téléchargée (${result.downloaded}/${result.total}, ${result.failed} indisponible${result.failed > 1 ? 's' : ''})`
+          : 'Carte hors-ligne téléchargée'
+      );
+    }
+  } catch {
+    ui.showToast('Échec du téléchargement de la carte');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 });
 
 // Correction ponctuelle des sites "sans position GPS" créés avant le

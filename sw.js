@@ -1,6 +1,6 @@
 // Service worker — met en cache la coquille applicative pour un fonctionnement hors-ligne.
 // Les appels /api/* ne sont jamais mis en cache (auth, données sensibles, toujours frais).
-const CACHE_NAME = 'ronde-v6-shell-v70';
+const CACHE_NAME = 'ronde-v6-shell-v71';
 // Cache séparée et non-versionnée pour les tuiles de carte préchargées
 // (js/tiles.js) : ne doit jamais être purgée lors d'une mise à jour du
 // service worker, contrairement à CACHE_NAME qui change à chaque version.
@@ -9,8 +9,10 @@ const TILES_CACHE = 'ronde-v6-tiles';
 // grossirait sinon indéfiniment au fil des mois à mesure que le technicien
 // visite de nouveaux sites. Un plafond simple (les plus anciennes tuiles sont
 // retirées en premier) suffit à la garder raisonnable sans jamais bloquer
-// l'affichage d'une tuile pour autant.
-const TILES_CACHE_MAX = 800;
+// l'affichage d'une tuile pour autant. Même valeur que js/tiles.js, assez
+// grand pour tenir une couverture complète de toute la zone (voir
+// downloadOfflineMap()) en plus du remplissage progressif habituel.
+const TILES_CACHE_MAX = 2500;
 
 async function trimTilesCache() {
   const cache = await caches.open(TILES_CACHE);
