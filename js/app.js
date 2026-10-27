@@ -322,6 +322,29 @@ document.addEventListener('focusout', (e) => {
 document.addEventListener('click', (e) => {
   if (!e.target.matches?.(KEYBOARD_INPUT_SELECTOR)) document.body.classList.remove('keyboard-open');
 }, true);
+// 2e filet de sécurité, indépendant du précédent : fermer le clavier avec le
+// bouton dédié du clavier iOS (chevron "masquer le clavier") ne déclenche
+// pas toujours focusout/click sur l'appli (bug connu de WebKit — rapporté en
+// usage réel : la barre du bas restait invisible, aucun tap n'étant reçu là
+// où elle devrait être puisqu'elle a pointer-events:none tant que
+// keyboard-open est posée). L'événement resize de visualViewport, lui, se
+// déclenche de façon fiable à chaque ouverture/fermeture du clavier virtuel,
+// quel que soit le geste qui l'a fermé — on s'en sert pour resynchroniser la
+// classe sur l'état réel du focus plutôt que de deviner depuis un événement
+// de clic qui a pu ne jamais arriver.
+window.visualViewport?.addEventListener('resize', () => {
+  if (!document.activeElement?.matches?.(KEYBOARD_INPUT_SELECTOR)) {
+    document.body.classList.remove('keyboard-open');
+  }
+});
+// 3e filet : revenir sur l'appli (changement d'app, verrouillage de l'écran
+// pendant une saisie...) ferme forcément le clavier entre-temps, même si
+// aucun des événements ci-dessus n'a pu se déclencher pendant l'absence.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !document.activeElement?.matches?.(KEYBOARD_INPUT_SELECTOR)) {
+    document.body.classList.remove('keyboard-open');
+  }
+});
 
 // ===== TIRER POUR ACTUALISER =====
 // Geste standard : tirer vers le bas tout en haut de l'écran relance un
