@@ -417,6 +417,41 @@ body.keyboard-open .fab {
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
+/* Carte repliable (Bilan, Historique) : trop de cartes toujours dépliées en
+   même temps rendait ces onglets écrasants d'un coup d'œil ("galère",
+   "t'as peur" — retour direct d'Axel). <summary> réutilise le style de
+   .card-header tel quel, avec juste un chevron ajouté qui indique l'état. */
+details.card > summary.card-header {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+details.card > summary.card-header::-webkit-details-marker { display: none; }
+details.card > summary.card-header::marker { content: ''; }
+details.card > summary.card-header::after {
+  content: '';
+  width: 7px; height: 7px;
+  flex-shrink: 0;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+details.card[open] > summary.card-header::after { transform: rotate(45deg); }
+details.card:not([open]) > summary.card-header { border-bottom: none; }
+.card-header-count {
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
 .card-body { padding: 13px; }
 
 /* ===== ICONS ===== */
