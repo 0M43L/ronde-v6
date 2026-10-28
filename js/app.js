@@ -1972,7 +1972,7 @@ function fileToDataUrl(file) {
 // archivée.
 const RONDE_DRAFT_KEY = 'ronde_draft_v6';
 
-function saveRondeDraft() {
+function writeRondeDraftNow() {
   try {
     localStorage.setItem(
       RONDE_DRAFT_KEY,
@@ -1995,9 +1995,38 @@ function saveRondeDraft() {
   }
 }
 
+// La sauvegarde sérialise aussi les photos déjà attachées aux AUTRES points
+// (base64, potentiellement plusieurs centaines de Ko chacune) — appelée en
+// écriture synchrone sur CHAQUE tap/frappe, ça bloquait perceptiblement le
+// fil principal, de pire en pire au fil d'une ronde à mesure que des photos
+// s'accumulent. Au point qu'un appui sur "OK" semblait ne pas réagir et
+// donnait l'impression qu'il fallait appuyer deux fois (remonté par Axel).
+// Un court délai avant d'écrire pour de vrai regroupe les appels rapprochés
+// (plusieurs taps, ou chaque caractère tapé dans un commentaire) en une
+// seule écriture au lieu d'une par appel — le rendu visuel, lui, reste
+// immédiat (ui.renderControls() tourne toujours en synchrone avant).
+let rondeDraftSaveTimer = null;
+function saveRondeDraft() {
+  clearTimeout(rondeDraftSaveTimer);
+  rondeDraftSaveTimer = setTimeout(writeRondeDraftNow, 400);
+}
+
 function clearRondeDraft() {
+  clearTimeout(rondeDraftSaveTimer);
   localStorage.removeItem(RONDE_DRAFT_KEY);
 }
+
+// Le délai ci-dessus ne doit jamais affaiblir la garantie "anti-perte" du
+// brouillon : si l'appli passe en arrière-plan (changement d'app, verrouillage
+// de l'écran, OS qui la tue) pendant qu'une écriture est encore en attente,
+// on l'écrit tout de suite au lieu d'attendre les 400ms qui n'arriveront
+// peut-être jamais.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && rondeDraftSaveTimer) {
+    clearTimeout(rondeDraftSaveTimer);
+    writeRondeDraftNow();
+  }
+});
 
 function restoreRondeDraft() {
   let draft;
@@ -2028,6 +2057,24 @@ function restoreRondeDraft() {
 
 document.getElementById('rondeObservations').addEventListener('input', saveRondeDraft);
 document.getElementById('rondeTech').addEventListener('input', saveRondeDraft);
+
+// "Tout OK" : ne touche jamais un point déjà renseigné (OK, dégradé,
+// défaillant ou N/A), donc jamais destructeur — qu'on l'utilise en premier
+// (avant même d'avoir touché quoi que ce soit, tout passe OK d'un coup) ou
+// en dernier, une fois les 1-2 vraies anomalies déjà pointées à la main (le
+// reste se remplit d'un coup au lieu d'être tapé un par un).
+document.getElementById('markAllOkBtn').addEventListener('click', () => {
+  let filled = 0;
+  state.controls.forEach((c) => {
+    if (c.status) return;
+    c.status = 'ok';
+    filled++;
+  });
+  if (filled === 0) return;
+  ui.renderControls();
+  ui.renderBilan();
+  saveRondeDraft();
+});
 
 document.getElementById('controlsList').addEventListener('click', async (e) => {
   const statusBtn = e.target.closest('[data-action="set-status"]');
