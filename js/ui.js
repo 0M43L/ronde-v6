@@ -264,11 +264,8 @@ function renderFicheSuggestions(fiches) {
   </div>`;
 }
 
-export function renderControls() {
-  const list = document.getElementById('controlsList');
-  list.innerHTML = state.controls
-    .map(
-      (ctrl, i) => `
+function buildControlItemHtml(ctrl, i) {
+  return `
     <div class="check-item">
       <div class="check-header">${escapeHtml(ctrl.label)}</div>
       <div class="check-buttons">
@@ -292,9 +289,33 @@ export function renderControls() {
              </button>`
           : ''
       }
-    </div>`
-    )
-    .join('');
+    </div>`;
+}
+
+export function renderControls() {
+  const list = document.getElementById('controlsList');
+  list.innerHTML = state.controls.map((ctrl, i) => buildControlItemHtml(ctrl, i)).join('');
+}
+
+// Remonté par Axel : un tap sur OK/Dégradé/Défaillant/N/A "prenait 1-2
+// secondes". renderControls() reconstruit TOUTE la liste à chaque tap —
+// avec 9-10 points, chacun pouvant embarquer jusqu'à 2 photos en base64,
+// cette chaîne HTML peut peser plusieurs Mo à reparser/repeindre en entier
+// pour un seul bouton qui change. Remplacer seulement le point concerné
+// rend le coût d'un tap indépendant du nombre de photos déjà prises
+// ailleurs dans la liste — toujours aussi rapide en fin de ronde qu'au
+// premier point.
+export function renderControlItem(index) {
+  const list = document.getElementById('controlsList');
+  const node = list.children[index];
+  const ctrl = state.controls[index];
+  if (!node || !ctrl) {
+    renderControls();
+    return;
+  }
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = buildControlItemHtml(ctrl, index);
+  list.replaceChild(wrapper.firstElementChild, node);
 }
 
 // ===== STATUT À L'ISSUE =====
