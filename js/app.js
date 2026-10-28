@@ -333,9 +333,20 @@ document.addEventListener('click', (e) => {
 // classe sur l'état réel du focus plutôt que de deviner depuis un événement
 // de clic qui a pu ne jamais arriver.
 window.visualViewport?.addEventListener('resize', () => {
-  if (!document.activeElement?.matches?.(KEYBOARD_INPUT_SELECTOR)) {
+  const active = document.activeElement;
+  if (!active?.matches?.(KEYBOARD_INPUT_SELECTOR)) {
     document.body.classList.remove('keyboard-open');
+    return;
   }
+  // Bug connu de Safari iOS en PWA "standalone" (voir manifest.json) : au lieu
+  // de simplement faire apparaître le clavier au-dessus du champ, la page
+  // entière se retrouve parfois scrollée jusqu'à son maximum, laissant le
+  // champ en cours de saisie caché en haut de l'écran ou sous le clavier.
+  // L'événement resize de visualViewport se déclenche une fois le clavier
+  // stabilisé (ouverture comme fermeture) : on recadre nous-même le champ
+  // actif sur ce qu'a réellement décidé Safari, plutôt que de lui faire
+  // confiance.
+  active.scrollIntoView({ block: 'center', behavior: 'smooth' });
 });
 // 3e filet : revenir sur l'appli (changement d'app, verrouillage de l'écran
 // pendant une saisie...) ferme forcément le clavier entre-temps, même si
