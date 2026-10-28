@@ -2097,22 +2097,24 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
       state.controls[index].photoApres = null;
       state.controls[index].actionCreated = false;
     }
-    ui.renderControls();
+    ui.renderControlItem(index);
     ui.renderBilan();
     saveRondeDraft();
     return;
   }
   const removePhotoBtn = e.target.closest('[data-action="remove-photo"]');
   if (removePhotoBtn) {
-    state.controls[Number(removePhotoBtn.dataset.index)].photo = null;
-    ui.renderControls();
+    const index = Number(removePhotoBtn.dataset.index);
+    state.controls[index].photo = null;
+    ui.renderControlItem(index);
     saveRondeDraft();
     return;
   }
   const removePhotoApresBtn = e.target.closest('[data-action="remove-photo-apres"]');
   if (removePhotoApresBtn) {
-    state.controls[Number(removePhotoApresBtn.dataset.index)].photoApres = null;
-    ui.renderControls();
+    const index = Number(removePhotoApresBtn.dataset.index);
+    state.controls[index].photoApres = null;
+    ui.renderControlItem(index);
     saveRondeDraft();
     return;
   }
@@ -2142,7 +2144,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
     await queueSyncTracked('action', 'upsert', action);
     state.actions.push(action);
     c.actionCreated = true;
-    ui.renderControls();
+    ui.renderControlItem(index);
     ui.renderActions();
     ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
     ui.showToast('Action corrective créée');
@@ -2161,17 +2163,19 @@ document.getElementById('controlsList').addEventListener('input', (e) => {
 document.getElementById('controlsList').addEventListener('change', async (e) => {
   const fileInput = e.target.closest('[data-action="set-photo"]');
   if (fileInput && fileInput.files[0]) {
+    const index = Number(fileInput.dataset.index);
     const dataUrl = await fileToDataUrl(fileInput.files[0]);
-    state.controls[Number(fileInput.dataset.index)].photo = dataUrl;
-    ui.renderControls();
+    state.controls[index].photo = dataUrl;
+    ui.renderControlItem(index);
     saveRondeDraft();
     return;
   }
   const fileInputApres = e.target.closest('[data-action="set-photo-apres"]');
   if (fileInputApres && fileInputApres.files[0]) {
+    const index = Number(fileInputApres.dataset.index);
     const dataUrl = await fileToDataUrl(fileInputApres.files[0]);
-    state.controls[Number(fileInputApres.dataset.index)].photoApres = dataUrl;
-    ui.renderControls();
+    state.controls[index].photoApres = dataUrl;
+    ui.renderControlItem(index);
     saveRondeDraft();
   }
 });
