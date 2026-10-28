@@ -158,7 +158,10 @@
       </details>
 
       <div class="card">
-        <div class="card-header">Contrôles</div>
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Contrôles</span>
+          <button type="button" id="markAllOkBtn" style="background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:0;cursor:pointer;">Tout OK</button>
+        </div>
         <div class="card-body" id="controlsList"></div>
       </div>
 
@@ -343,19 +346,19 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">Actions en retard par site</div>
+      <details class="card">
+        <summary class="card-header">Actions en retard par site<span class="card-header-count" id="actionsRetardSiteCount" hidden></span></summary>
         <div class="card-body" id="actionsRetardSite"></div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">Sites à surveiller</div>
+      <details class="card">
+        <summary class="card-header">Sites à surveiller<span class="card-header-count" id="sitesASurveillerCount" hidden></span></summary>
         <p class="hint" style="padding:0 14px;">Un même point dégradé plusieurs fois de suite sur un site — à traiter avant que ça ne devienne une vraie panne.</p>
         <div class="card-body" id="sitesASurveiller"></div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">Sites non visités</div>
+      <details class="card">
+        <summary class="card-header">Sites non visités<span class="card-header-count" id="sitesNonVisitesCount" hidden></span></summary>
         <div class="card-body">
           <div class="form-row" style="align-items:flex-end;">
             <div class="form-group" style="margin:0;">
@@ -366,29 +369,29 @@
           </div>
           <div id="sitesNonVisites" style="margin-top:12px;"></div>
         </div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">Points récurrents dégradés</div>
+      <details class="card">
+        <summary class="card-header">Points récurrents dégradés<span class="card-header-count" id="pointsRecurrentsCount" hidden></span></summary>
         <div class="card-body" id="pointsRecurrents"></div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">Suivi d'activité (30 jours)</div>
+      <details class="card">
+        <summary class="card-header">Suivi d'activité (30 jours)</summary>
         <div class="card-body">
           <div class="stat-grid" id="bilanStats"></div>
         </div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">Tendance hebdomadaire (rondes)</div>
+      <details class="card">
+        <summary class="card-header">Tendance hebdomadaire (rondes)</summary>
         <div class="card-body" id="bilanTrend"></div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">État du parc — 30 derniers jours</div>
+      <details class="card">
+        <summary class="card-header">État du parc — 30 derniers jours</summary>
         <div class="card-body" id="bilanStatusChart"></div>
-      </div>
+      </details>
     </div>
 
     <!-- DIAGNOSTIC -->
@@ -496,27 +499,11 @@
 
     <!-- HISTORIQUE -->
     <div class="page" id="page-historique">
-      <div class="card" id="webauthnAccountCard" hidden>
-        <div class="card-header">Compte</div>
-        <div class="card-body">
-          <p class="hint" style="margin:0 0 10px;">Face ID / Touch ID te permet de te reconnecter sans retaper ton mot de passe à chaque fois, sur cet appareil.</p>
-          <button class="btn btn-secondary" id="webauthnRegisterBtn" style="width:100%;">Activer Face ID / Touch ID sur cet appareil</button>
-          <div id="webauthnCredentialsList"></div>
-        </div>
-      </div>
       <div class="card">
         <div class="card-body">
           <div class="form-group" style="margin-bottom:10px;">
             <input type="text" id="histSearch" placeholder="Rechercher site, intervenant, anomalie...">
           </div>
-          <button class="btn btn-secondary" id="exportExcelBtn" style="width:100%; margin-bottom:10px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="11"/><line x1="12" y1="21" x2="12" y2="6"/><line x1="19" y1="21" x2="19" y2="15"/></svg> Exporter Excel (.xlsx)</button>
-          <p class="hint" id="storageUsage" style="margin-bottom:10px;"></p>
-          <div class="btn-row" style="margin-top:0;">
-            <button class="btn btn-secondary" id="exportBackupBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sauvegarder toutes les données</button>
-            <button class="btn btn-secondary" id="importBackupBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer une sauvegarde</button>
-          </div>
-          <input type="file" id="importBackupFile" accept="application/json" style="display:none;">
-          <button class="btn-ghost" id="clearHistoryBtn" style="width:100%; text-align:center; margin-top:10px;"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Effacer tout l'historique</button>
           <div class="filter-chips" id="histFilterChips">
             <button class="chip active" data-filter="tous">Tous</button>
             <button class="chip" data-filter="operationnel">OK</button>
@@ -546,6 +533,25 @@
           </details>
         </div>
       </div>
+
+      <details class="card">
+        <summary class="card-header">Outils</summary>
+        <div class="card-body">
+          <div id="webauthnAccountCard" hidden>
+            <p class="hint" style="margin:0 0 10px;">Face ID / Touch ID te permet de te reconnecter sans retaper ton mot de passe à chaque fois, sur cet appareil.</p>
+            <button class="btn btn-secondary" id="webauthnRegisterBtn" style="width:100%;">Activer Face ID / Touch ID sur cet appareil</button>
+            <div id="webauthnCredentialsList"></div>
+          </div>
+          <button class="btn btn-secondary" id="exportExcelBtn" style="width:100%; margin-bottom:10px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="11"/><line x1="12" y1="21" x2="12" y2="6"/><line x1="19" y1="21" x2="19" y2="15"/></svg> Exporter Excel (.xlsx)</button>
+          <p class="hint" id="storageUsage" style="margin-bottom:10px;"></p>
+          <div class="btn-row" style="margin-top:0;">
+            <button class="btn btn-secondary" id="exportBackupBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sauvegarder toutes les données</button>
+            <button class="btn btn-secondary" id="importBackupBtn"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer une sauvegarde</button>
+          </div>
+          <input type="file" id="importBackupFile" accept="application/json" style="display:none;">
+          <button class="btn-ghost" id="clearHistoryBtn" style="width:100%; text-align:center; margin-top:10px;"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Effacer tout l'historique</button>
+        </div>
+      </details>
       <div id="historiqueContent"></div>
     </div>
 
