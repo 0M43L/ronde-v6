@@ -134,6 +134,12 @@ export const RONDE_TYPES = [
 // l'intervention.
 export const RONDE_TYPES_WITH_METER_PHOTOS = ['mes_chaud', 'mes_froid', 'coupure_chaud', 'coupure_froid', 'releve_compteur'];
 
+// "Relevé de compteur" n'est qu'un passage pour lire le compteur : les 10
+// points d'inspection (fuites, vannes, échangeur...) n'ont pas de sens pour
+// ce type, contrairement aux autres (y compris MES/coupure, qui restent une
+// vraie intervention sur site).
+export const RONDE_TYPES_WITHOUT_CONTROLS = ['releve_compteur'];
+
 export function emptyEchangeur() {
   return {
     type_boucle: 'chaude',
@@ -198,8 +204,21 @@ export const state = {
   syncQueueKeys: new Set(),
 };
 
+function blankControls() {
+  return CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
+}
+
+// Change de type en cours de ronde (ex. un technicien passe de "Ronde" à
+// "Relevé de compteur" après avoir déjà répondu à des points de contrôle) :
+// pour un type sans points de contrôle, on repart d'une liste vierge plutôt
+// que d'enregistrer silencieusement des réponses données pour un autre type
+// et devenues invisibles (carte masquée).
+export function clearControlsForType(type) {
+  if (RONDE_TYPES_WITHOUT_CONTROLS.includes(type)) state.controls = blankControls();
+}
+
 export function resetControls() {
-  state.controls = CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
+  state.controls = blankControls();
   state.rondeStatut = 'operationnel';
   state.rondeType = 'ronde';
   state.rondeMeterPuissance = null;
