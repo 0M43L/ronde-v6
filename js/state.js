@@ -30,7 +30,37 @@ export const CONTROL_PROBLEM_LABEL = {
   proprete: 'Local sale ou encombré',
   graissage: 'Vanne grippée',
   armoire: 'Armoire électrique défectueuse',
+  vannes_fermees: 'Vanne aller/retour non fermée',
+  mes_coupee: 'Mise en service non coupée sur l\'armoire',
+  debit_nul: 'Débit résiduel sur le compteur',
 };
+
+// Fiche propre au type "Coupure" (chaud et froid partagent la même
+// procédure) : fermer les vannes aller/retour, couper la mise en service
+// sur l'armoire électrique, puis vérifier qu'il n'y a plus de débit sur le
+// compteur — rien à voir avec les 10 points d'inspection d'une ronde
+// classique (CONTROLS_DEF).
+export const COUPURE_CONTROLS_DEF = [
+  { id: 'vannes_fermees', label: 'Vannes aller/retour fermées' },
+  { id: 'mes_coupee', label: "Mise en service coupée sur l'armoire électrique" },
+  { id: 'debit_nul', label: 'Plus aucun débit sur le compteur' },
+];
+
+// Liste de contrôle propre à chaque type d'intervention — les types absents
+// de cette table utilisent la fiche générique CONTROLS_DEF (c'est le cas de
+// "ronde", et pour l'instant de "mes_chaud"/"mes_froid" en attendant leur
+// contenu spécifique).
+export const CONTROLS_DEF_BY_TYPE = {
+  coupure_chaud: COUPURE_CONTROLS_DEF,
+  coupure_froid: COUPURE_CONTROLS_DEF,
+  // "Relevé de compteur" n'est qu'un passage pour lire le compteur : les
+  // points d'inspection n'ont pas de sens pour ce type.
+  releve_compteur: [],
+};
+
+export function controlsDefForType(type) {
+  return CONTROLS_DEF_BY_TYPE[type] || CONTROLS_DEF;
+}
 
 // Les 41 points de mise en service IDEX, en 8 phases.
 export const MES_POINTS_DEF = [
@@ -134,12 +164,6 @@ export const RONDE_TYPES = [
 // l'intervention.
 export const RONDE_TYPES_WITH_METER_PHOTOS = ['mes_chaud', 'mes_froid', 'coupure_chaud', 'coupure_froid', 'releve_compteur'];
 
-// "Relevé de compteur" n'est qu'un passage pour lire le compteur : les 10
-// points d'inspection (fuites, vannes, échangeur...) n'ont pas de sens pour
-// ce type, contrairement aux autres (y compris MES/coupure, qui restent une
-// vraie intervention sur site).
-export const RONDE_TYPES_WITHOUT_CONTROLS = ['releve_compteur'];
-
 export function emptyEchangeur() {
   return {
     type_boucle: 'chaude',
@@ -204,21 +228,26 @@ export const state = {
   syncQueueKeys: new Set(),
 };
 
-function blankControls() {
-  return CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
+function blankControlsForType(type) {
+  return controlsDefForType(type).map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false }));
 }
 
 // Change de type en cours de ronde (ex. un technicien passe de "Ronde" à
-// "Relevé de compteur" après avoir déjà répondu à des points de contrôle) :
-// pour un type sans points de contrôle, on repart d'une liste vierge plutôt
-// que d'enregistrer silencieusement des réponses données pour un autre type
-// et devenues invisibles (carte masquée).
+// "Coupure chaud", qui a sa propre fiche) : si la nouvelle fiche n'est pas
+// la même que celle en cours (ids différents), on repart d'une liste vierge
+// plutôt que d'enregistrer silencieusement des réponses données pour une
+// autre fiche et devenues invisibles. Entre deux types qui partagent la
+// même fiche générique (ex. "Ronde" <-> "MES chaud" pour l'instant), les
+// réponses déjà saisies sont conservées.
 export function clearControlsForType(type) {
-  if (RONDE_TYPES_WITHOUT_CONTROLS.includes(type)) state.controls = blankControls();
+  const def = controlsDefForType(type);
+  const currentIds = state.controls.map((c) => c.id).join(',');
+  const newIds = def.map((c) => c.id).join(',');
+  if (currentIds !== newIds) state.controls = blankControlsForType(type);
 }
 
 export function resetControls() {
-  state.controls = blankControls();
+  state.controls = blankControlsForType('ronde');
   state.rondeStatut = 'operationnel';
   state.rondeType = 'ronde';
   state.rondeMeterPuissance = null;
