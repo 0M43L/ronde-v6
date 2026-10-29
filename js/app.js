@@ -1,4 +1,4 @@
-import { state, resetControls, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL } from './state.js';
+import { state, resetControls, clearControlsForType, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL } from './state.js';
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
@@ -2204,6 +2204,8 @@ document.getElementById('rondeTypeChoices').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action="set-ronde-type"]');
   if (!btn) return;
   state.rondeType = btn.dataset.type;
+  clearControlsForType(state.rondeType);
+  ui.renderControls();
   ui.renderRondeType();
   saveRondeDraft();
 });

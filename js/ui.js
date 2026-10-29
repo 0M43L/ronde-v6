@@ -1,4 +1,4 @@
-import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, CONTROL_PROBLEM_LABEL, CONTROLS_DEF } from './state.js';
+import { state, URGENCE_LABEL, CAS_POSTE_TYPES, RONDE_STATUTS, RONDE_TYPES, RONDE_TYPES_WITH_METER_PHOTOS, RONDE_TYPES_WITHOUT_CONTROLS, CONTROL_PROBLEM_LABEL, CONTROLS_DEF } from './state.js';
 import { icon } from './icons.js';
 
 // Rondes/actions/MES sont partagées entre techniciens (visibilité d'équipe) ;
@@ -337,6 +337,7 @@ export function renderRondeType() {
     (t) => `<button type="button" class="chip ${state.rondeType === t.id ? 'active' : ''}" data-action="set-ronde-type" data-type="${t.id}">${escapeHtml(t.label)}</button>`
   ).join('');
   renderRondeMeterPhotos();
+  document.getElementById('controlsCard').hidden = RONDE_TYPES_WITHOUT_CONTROLS.includes(state.rondeType);
 }
 
 // Photos du compteur (puissance + énergie), demandées uniquement pour les
@@ -379,6 +380,10 @@ function controlProblemLabel(c) {
 
 export function renderBilan() {
   const content = document.getElementById('bilanContent');
+  if (RONDE_TYPES_WITHOUT_CONTROLS.includes(state.rondeType)) {
+    content.innerHTML = `<div class="alert neutral">Relevé de compteur : pas de points de contrôle pour ce type d'intervention.</div>`;
+    return;
+  }
   const total = state.controls.length;
   const completed = state.controls.filter((c) => c.status).length;
   const ok = state.controls.filter((c) => c.status === 'ok').length;
