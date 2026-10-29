@@ -2397,17 +2397,31 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
   const c = REPORT_COLORS;
   const statutMeta = RONDE_STATUTS.find((s) => s.id === state.rondeStatut) || RONDE_STATUTS[0];
   const [statutColor, statutBg] = statutColors(state.rondeStatut);
+  const typeMeta = RONDE_TYPES.find((t) => t.id === state.rondeType) || RONDE_TYPES[0];
 
-  const controlsRows = state.controls
-    .map(
-      (ctrl) => `
-    <tr style="border-bottom:1px solid ${c.border};">
-      <td style="padding:7px 8px;font-size:10px;color:${c.text};">${escapeHtml(ctrl.label)}</td>
-      <td style="padding:7px 8px;">${reportStatusBadge(ctrl.status)}</td>
-      <td style="padding:7px 8px;font-size:9.5px;color:${c.muted};">${escapeHtml(ctrl.comment || '—')}</td>
-    </tr>`
-    )
-    .join('');
+  // "Relevé de compteur" n'a aucun point de contrôle (voir
+  // controlsDefForType() dans state.js) : pas de tableau vide et inutile
+  // dans ce cas, la section disparaît simplement.
+  const controlsSection = state.controls.length
+    ? `${reportSectionTitle('Contrôles réalisés')}
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="background:${c.accent};color:#fff;">
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Point de contrôle</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;width:80px;">Statut</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Commentaire</th>
+        </tr>
+        ${state.controls
+          .map(
+            (ctrl) => `
+          <tr style="border-bottom:1px solid ${c.border};">
+            <td style="padding:7px 8px;font-size:10px;color:${c.text};">${escapeHtml(ctrl.label)}</td>
+            <td style="padding:7px 8px;">${reportStatusBadge(ctrl.status)}</td>
+            <td style="padding:7px 8px;font-size:9.5px;color:${c.muted};">${escapeHtml(ctrl.comment || '—')}</td>
+          </tr>`
+          )
+          .join('')}
+      </table>`
+    : '';
 
   const withPhotos = state.controls.filter((ctrl) => ctrl.photo || ctrl.photoApres);
   const photosHtml = withPhotos.length
@@ -2423,25 +2437,44 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
       </div>`
     : '';
 
+  // Compteur (photos puissance/énergie + volume/énergie) : existait déjà
+  // dans l'appli (sa propre carte "Compteur" sur l'onglet Ronde) mais
+  // n'avait jamais été ajouté au compte-rendu — demandé par et pour MES
+  // chaud/froid, Coupure chaud/froid et Relevé de compteur.
+  const meterValueRow = (label, value, unit) =>
+    value != null && value !== ''
+      ? `<tr><td style="padding:3px 10px 3px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:140px;">${label}</td><td style="padding:3px 0;font-size:10.5px;color:${c.text};">${escapeHtml(String(value))} ${unit}</td></tr>`
+      : '';
+  const meterPhotos = [
+    state.rondeMeterPuissance ? { url: state.rondeMeterPuissance, label: 'Puissance' } : null,
+    state.rondeMeterEnergie ? { url: state.rondeMeterEnergie, label: 'Énergie' } : null,
+  ].filter(Boolean);
+  const meterValuesHtml = `${meterValueRow('Volume du compteur', state.rondeMeterVolumeValue, 'm³')}${meterValueRow('Énergie', state.rondeMeterEnergieValue, 'MWh')}`;
+  const meterSection = RONDE_TYPES_WITH_METER_PHOTOS.includes(state.rondeType)
+    ? `${reportSectionTitle('Compteur')}
+      ${
+        meterPhotos.length
+          ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+              ${meterPhotos.map((p) => `<div style="width:120px;"><img src="${p.url}" style="width:100%;border-radius:6px;border:1px solid ${c.border};display:block;"><div style="font-size:7.5px;color:${c.muted};text-align:center;margin-top:2px;">${p.label}</div></div>`).join('')}
+            </div>`
+          : ''
+      }
+      ${meterValuesHtml ? `<table style="width:100%;border-collapse:collapse;">${meterValuesHtml}</table>` : ''}`
+    : '';
+
   return `
     <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
       ${reportHeader('Compte-rendu de ronde', "Ronde V6 — IDEX · Sites d'échange de chauffage urbain")}
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:120px;">Site</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Type d'intervention</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(typeMeta.label)}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Date / heure</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${formatDateFr(date)}${heure ? ' — ' + heure : ''}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Intervenant</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(tech || '—')}</td></tr>
         <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Statut à l'issue</td><td style="padding:4px 0;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td></tr>
       </table>
 
-      ${reportSectionTitle('Contrôles réalisés')}
-      <table style="width:100%;border-collapse:collapse;">
-        <tr style="background:${c.accent};color:#fff;">
-          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Point de contrôle</th>
-          <th style="text-align:left;padding:7px 8px;font-size:9.5px;width:80px;">Statut</th>
-          <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Commentaire</th>
-        </tr>
-        ${controlsRows}
-      </table>
+      ${controlsSection}
+      ${meterSection}
 
       ${reportSectionTitle('Observations')}
       <div style="font-size:10px;background:${c.bgAlt};border:1px solid ${c.border};border-radius:8px;padding:10px 12px;min-height:20px;color:${c.text};white-space:pre-wrap;">${escapeHtml(observations) || '—'}</div>
@@ -2484,9 +2517,11 @@ export function buildWeeklyReportHtml() {
       const anomalies = (r.controls || []).filter((ct) => ct.status === 'warning' || ct.status === 'danger').length;
       const statutMeta = RONDE_STATUTS.find((st) => st.id === (r.statut || 'operationnel')) || RONDE_STATUTS[0];
       const [statutColor, statutBg] = statutColors(r.statut);
+      const typeMeta = RONDE_TYPES.find((t) => t.id === (r.type || 'ronde')) || RONDE_TYPES[0];
       return `<tr style="border-bottom:1px solid ${c.border};">
         <td style="padding:6px 8px;font-size:9.5px;color:${c.muted};white-space:nowrap;">${formatDateFr(r.date)}</td>
         <td style="padding:6px 8px;font-size:10px;color:${c.text};">${escapeHtml(s ? s.name : r.substation_id)}</td>
+        <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(typeMeta.label)}</td>
         <td style="padding:6px 8px;font-size:9.5px;color:${c.muted};">${escapeHtml(r.tech || '—')}</td>
         <td style="padding:6px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:8.5px;font-weight:700;background:${statutBg};color:${statutColor};">${statutMeta.label}</span></td>
         <td style="padding:6px 8px;font-size:9.5px;text-align:center;color:${anomalies ? c.danger : c.muted};font-weight:${anomalies ? '700' : '400'};">${anomalies || '—'}</td>
@@ -2532,6 +2567,7 @@ export function buildWeeklyReportHtml() {
         <tr style="background:${c.accent};color:#fff;">
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Date</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Site</th>
+          <th style="text-align:left;padding:7px 8px;font-size:9px;">Type</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Intervenant</th>
           <th style="text-align:left;padding:7px 8px;font-size:9px;">Statut</th>
           <th style="text-align:center;padding:7px 8px;font-size:9px;">Anomalies</th>
