@@ -125,13 +125,14 @@ export const RONDE_TYPES = [
   { id: 'mes_froid', label: 'MES froid' },
   { id: 'coupure_chaud', label: 'Coupure chaud' },
   { id: 'coupure_froid', label: 'Coupure froid' },
+  { id: 'releve_compteur', label: 'Relevé de compteur' },
 ];
 
 // Types qui correspondent à une intervention sur un compteur (pas une simple
 // ronde d'inspection) : on y demande en plus une photo du compteur côté
 // puissance et côté énergie, pour tracer l'état du compteur au moment de
 // l'intervention.
-export const RONDE_TYPES_WITH_METER_PHOTOS = ['mes_chaud', 'mes_froid', 'coupure_chaud', 'coupure_froid'];
+export const RONDE_TYPES_WITH_METER_PHOTOS = ['mes_chaud', 'mes_froid', 'coupure_chaud', 'coupure_froid', 'releve_compteur'];
 
 export function emptyEchangeur() {
   return {
