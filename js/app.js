@@ -1,4 +1,4 @@
-import { state, resetControls, clearControlsForType, controlsDefForType, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL } from './state.js';
+import { state, resetControls, clearControlsForType, controlsDefForType, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL, RONDE_TYPES } from './state.js';
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
@@ -295,6 +295,8 @@ document.addEventListener('keydown', (e) => {
     closeNewActionModal();
   } else if (!document.getElementById('globalSearchOverlay').hidden) {
     closeGlobalSearch();
+  } else if (!document.getElementById('reportPreviewOverlay').hidden) {
+    document.getElementById('reportPreviewOverlay').hidden = true;
   } else if (networkDrawActive) {
     stopNetworkDraw();
   }
@@ -2352,34 +2354,76 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
   syncNow().catch(() => {});
 });
 
-document.getElementById('exportPdfBtn').addEventListener('click', async () => {
+// ===== APERÇU + EXPORT PDF DES RAPPORTS (ronde / hebdomadaire) =====
+// L'aperçu (HTML affiché directement) est toujours fiable ; la conversion en
+// PDF (html2canvas) peut échouer en silence sur certains téléphones avec
+// beaucoup de photos — on affiche donc d'abord le rendu réel du rapport,
+// et le téléchargement PDF n'est qu'une action secondaire depuis cet aperçu.
+let pendingReportHtml = '';
+let pendingReportFilename = '';
+
+function showReportPreview(html, filename) {
+  pendingReportHtml = html;
+  pendingReportFilename = filename;
+  document.getElementById('reportPreviewContent').innerHTML = html;
+  document.getElementById('reportPreviewOverlay').hidden = false;
+}
+
+document.getElementById('closeReportPreviewBtn').addEventListener('click', () => {
+  document.getElementById('reportPreviewOverlay').hidden = true;
+});
+document.getElementById('reportPreviewOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'reportPreviewOverlay') document.getElementById('reportPreviewOverlay').hidden = true;
+});
+
+document.getElementById('downloadReportPdfBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('downloadReportPdfBtn');
   await ensureHtml2pdf().catch(() => {});
   if (typeof html2pdf === 'undefined') {
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;
   }
-  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
   const container = document.createElement('div');
   container.style.cssText = 'position:fixed; left:-9999px; top:0; width:780px;';
-  container.innerHTML = ui.buildRondeReportHtml({
-    substation,
-    tech: document.getElementById('rondeTech').value,
-    date: document.getElementById('rondeDate').value,
-    heure: document.getElementById('rondeHeure').value,
-    observations: document.getElementById('rondeObservations').value,
-  });
+  container.innerHTML = pendingReportHtml;
   document.body.appendChild(container);
+  btn.disabled = true;
+  btn.textContent = 'Génération en cours...';
   html2pdf()
     .set({
       margin: 10,
-      filename: `Ronde_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`,
+      filename: pendingReportFilename,
       image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2 },
       jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
     })
     .from(container)
     .save()
-    .then(() => container.remove());
+    .catch(() => {
+      // Échec silencieux connu d'html2canvas sur certains téléphones (trop de
+      // photos, mémoire insuffisante) : sans ce catch, rien ne se passait et
+      // le conteneur hors-écran restait indéfiniment dans le DOM. L'aperçu
+      // (déjà visible) reste la garantie de secours — une capture d'écran
+      // fonctionne toujours quand le PDF échoue.
+      ui.showToast('Échec de la génération du PDF — tu peux faire une capture d\'écran de l\'aperçu en attendant');
+    })
+    .finally(() => {
+      container.remove();
+      btn.disabled = false;
+      btn.textContent = 'Télécharger en PDF';
+    });
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  const substation = ui.findSubstationByName(document.getElementById('rondeSubstation').value);
+  const html = ui.buildRondeReportHtml({
+    substation,
+    tech: document.getElementById('rondeTech').value,
+    date: document.getElementById('rondeDate').value,
+    heure: document.getElementById('rondeHeure').value,
+    observations: document.getElementById('rondeObservations').value,
+  });
+  showReportPreview(html, `Ronde_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
 });
 
 // ===== FICHES =====
@@ -3049,12 +3093,13 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   }
   const STATUT_LABEL = { operationnel: 'Opérationnel', reserve: 'Opérationnel avec réserve', arret: 'Arrêt / intervention requise' };
   const rondesSorted = state.rondes.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const rondeHeaders = ['Date', 'Heure', 'Site', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
+  const rondeHeaders = ['Date', 'Heure', 'Site', 'Type', 'Intervenant', 'Statut', "Nb d'anomalies", 'Anomalies', 'Observations'];
   const rondeRows = rondesSorted.map((r) => {
     const substation = state.substations.find((s) => s.id === r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
+    const typeLabel = (RONDE_TYPES.find((t) => t.id === (r.type || 'ronde')) || RONDE_TYPES[0]).label;
     return [
-      r.date || '', r.heure || '', substation ? substation.name : r.substation_id, r.tech || '',
+      r.date || '', r.heure || '', substation ? substation.name : r.substation_id, typeLabel, r.tech || '',
       STATUT_LABEL[r.statut] || r.statut || '', anomalies.length,
       anomalies.map((a) => CONTROL_PROBLEM_LABEL[a.id] || a.label).join(', '), r.observations || '',
     ];
@@ -3066,7 +3111,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     rondeHeaders,
     ...rondeRows,
   ]);
-  rondeSheet['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 45 }];
+  rondeSheet['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 45 }];
   rondeSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: rondeHeaders.length - 1 } }];
   rondeSheet['!autofilter'] = { ref: `A4:${String.fromCharCode(65 + rondeHeaders.length - 1)}${4 + rondeRows.length}` };
   rondeSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
@@ -3247,27 +3292,8 @@ document.getElementById('clearHistoryBtn').addEventListener('click', async () =>
 });
 
 // ===== BILAN AVANCÉ =====
-document.getElementById('weeklyReportBtn').addEventListener('click', async () => {
-  await ensureHtml2pdf().catch(() => {});
-  if (typeof html2pdf === 'undefined') {
-    ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
-    return;
-  }
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed; left:-9999px; top:0; width:780px;';
-  container.innerHTML = ui.buildWeeklyReportHtml();
-  document.body.appendChild(container);
-  html2pdf()
-    .set({
-      margin: 10,
-      filename: `Rapport_hebdo_${Date.now()}.pdf`,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-    })
-    .from(container)
-    .save()
-    .then(() => container.remove());
+document.getElementById('weeklyReportBtn').addEventListener('click', () => {
+  showReportPreview(ui.buildWeeklyReportHtml(), `Rapport_hebdo_${Date.now()}.pdf`);
 });
 
 document.getElementById('siteThresholdDays').addEventListener('change', (e) => {
