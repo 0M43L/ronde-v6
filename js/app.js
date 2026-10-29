@@ -1,4 +1,4 @@
-import { state, resetControls, clearControlsForType, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL } from './state.js';
+import { state, resetControls, clearControlsForType, controlsDefForType, resetMesChecks, emptyEchangeur, CONTROL_PROBLEM_LABEL } from './state.js';
 import * as api from './api.js';
 import * as dbLayer from './db.js';
 import * as ui from './ui.js';
@@ -2059,8 +2059,15 @@ function restoreRondeDraft() {
   document.getElementById('rondeSubstation').value = draft.substation || '';
   if (draft.tech) document.getElementById('rondeTech').value = draft.tech;
   document.getElementById('rondeObservations').value = draft.observations || '';
-  if (Array.isArray(draft.controls) && draft.controls.length === state.controls.length) {
-    state.controls = draft.controls;
+  // Comparer les ids plutôt que la seule longueur : chaque type d'intervention
+  // a maintenant sa propre fiche (10 points pour une ronde classique, 3 pour
+  // une coupure, aucun pour un relevé de compteur) — un brouillon enregistré
+  // sur une fiche "coupure" (3 éléments) ne doit pas être rejeté juste parce
+  // que la fiche par défaut en a 10.
+  if (Array.isArray(draft.controls)) {
+    const expectedIds = controlsDefForType(draft.rondeType || 'ronde').map((c) => c.id).join(',');
+    const draftIds = draft.controls.map((c) => c.id).join(',');
+    if (draftIds === expectedIds) state.controls = draft.controls;
   }
   if (draft.rondeStatut) state.rondeStatut = draft.rondeStatut;
   if (draft.rondeType) state.rondeType = draft.rondeType;
