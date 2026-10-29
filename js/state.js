@@ -33,6 +33,11 @@ export const CONTROL_PROBLEM_LABEL = {
   vannes_fermees: 'Vanne aller/retour non fermée',
   mes_coupee: 'Mise en service non coupée sur l\'armoire',
   debit_nul: 'Débit résiduel sur le compteur',
+  vannes_ouvertes: 'Vanne aller/retour non ouverte',
+  mes_activee: 'Mise en service non activée sur l\'armoire',
+  debit_present: 'Absence de débit sur le compteur',
+  chauffe_ok: 'Pas de chauffage constaté',
+  refroidissement_ok: 'Pas de refroidissement constaté',
 };
 
 // Fiche propre au type "Coupure" (chaud et froid partagent la même
@@ -46,11 +51,30 @@ export const COUPURE_CONTROLS_DEF = [
   { id: 'debit_nul', label: 'Plus aucun débit sur le compteur' },
 ];
 
+// Fiche "MES" (mise en service) : l'inverse de la coupure (vannes ouvertes,
+// mise en service activée, débit présent), plus un point propre au circuit
+// remis en service — que ça chauffe pour le chaud, que ça refroidisse pour
+// le froid.
+export const MES_CHAUD_CONTROLS_DEF = [
+  { id: 'vannes_ouvertes', label: 'Vannes aller/retour ouvertes' },
+  { id: 'mes_activee', label: "Mise en service activée sur l'armoire électrique" },
+  { id: 'debit_present', label: 'Débit présent sur le compteur' },
+  { id: 'chauffe_ok', label: 'Chauffage effectif (la sous-station chauffe bien)' },
+];
+
+export const MES_FROID_CONTROLS_DEF = [
+  { id: 'vannes_ouvertes', label: 'Vannes aller/retour ouvertes' },
+  { id: 'mes_activee', label: "Mise en service activée sur l'armoire électrique" },
+  { id: 'debit_present', label: 'Débit présent sur le compteur' },
+  { id: 'refroidissement_ok', label: 'Refroidissement effectif (la sous-station refroidit bien)' },
+];
+
 // Liste de contrôle propre à chaque type d'intervention — les types absents
 // de cette table utilisent la fiche générique CONTROLS_DEF (c'est le cas de
-// "ronde", et pour l'instant de "mes_chaud"/"mes_froid" en attendant leur
-// contenu spécifique).
+// "ronde").
 export const CONTROLS_DEF_BY_TYPE = {
+  mes_chaud: MES_CHAUD_CONTROLS_DEF,
+  mes_froid: MES_FROID_CONTROLS_DEF,
   coupure_chaud: COUPURE_CONTROLS_DEF,
   coupure_froid: COUPURE_CONTROLS_DEF,
   // "Relevé de compteur" n'est qu'un passage pour lire le compteur : les
