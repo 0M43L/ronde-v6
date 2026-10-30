@@ -168,19 +168,63 @@ export function switchTab(tab) {
 }
 
 // ===== SOUS-STATIONS =====
-export function findSubstationByName(name) {
-  const needle = (name || '').trim().toLowerCase();
-  if (!needle) return null;
-  return state.substations.find((s) => s.name.trim().toLowerCase() === needle) || null;
+// Comparaison tolérante aux espaces, accents et casse : remonté par Axel,
+// taper un nom sans un espace ("ladefense15" au lieu de "La Défense 15") ne
+// proposait rien — et pire, à l'enregistrement, resolveOrCreateSubstation()
+// ne retrouvait pas le site existant et en créait un doublon. On normalise
+// en ne gardant que les lettres/chiffres avant de comparer, des deux côtés.
+function normalizeSiteName(str) {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
-export function renderSubstationDatalist() {
-  const datalist = document.getElementById('substationsDatalist');
-  datalist.innerHTML = state.substations
-    .slice()
+export function findSubstationByName(name) {
+  const needle = normalizeSiteName(name);
+  if (!needle) return null;
+  return state.substations.find((s) => normalizeSiteName(s.name) === needle) || null;
+}
+
+// Jusqu'à `limit` sites dont le nom normalisé contient la saisie normalisée
+// — utilisé par les suggestions de saisie du champ Site (ronde et MES).
+export function matchSubstations(query, limit = 6) {
+  const needle = normalizeSiteName(query);
+  if (!needle) return [];
+  return state.substations
+    .filter((s) => normalizeSiteName(s.name).includes(needle))
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-    .map((s) => `<option value="${escapeHtml(s.name)}">`)
+    .slice(0, limit);
+}
+
+// Liste de suggestions personnalisée (plutôt qu'un <datalist> natif) : le
+// filtrage d'un <datalist> est entièrement décidé par le navigateur, sur une
+// simple inclusion de texte brut — impossible à rendre tolérant aux espaces
+// depuis le code de l'appli. listEl doit être un élément positionné en
+// `absolute` sous un parent en `position:relative` (voir .autocomplete-wrap
+// dans style.css).
+export function renderSubstationSuggestions(listEl, query, onPick) {
+  const matches = matchSubstations(query);
+  if (!matches.length) {
+    listEl.hidden = true;
+    listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = matches
+    .map((s, i) => `<div class="autocomplete-item" data-index="${i}">${escapeHtml(s.name)}</div>`)
     .join('');
+  listEl.hidden = false;
+  listEl.querySelectorAll('.autocomplete-item').forEach((el, i) => {
+    el.addEventListener('mousedown', (e) => {
+      // mousedown (pas click) : se déclenche avant le blur de l'input, sinon
+      // la liste se masque avant que le choix soit pris en compte.
+      e.preventDefault();
+      onPick(matches[i]);
+      listEl.hidden = true;
+      listEl.innerHTML = '';
+    });
+  });
 }
 
 export function renderAccessNotes(substation) {
