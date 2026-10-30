@@ -482,6 +482,25 @@ details.card:not([open]) > summary.card-header { border-bottom: none; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
+/* Suggestions de saisie du champ Site (ronde/MES) : liste perso plutôt
+   qu'un <datalist> natif, dont le filtrage (décidé par le navigateur) ne
+   peut pas être rendu tolérant aux espaces/accents. */
+.autocomplete-wrap { position: relative; }
+.autocomplete-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  max-height: 220px; overflow-y: auto;
+}
+.autocomplete-item {
+  padding: 10px 12px; font-size: 14px; color: var(--text);
+  cursor: pointer; border-bottom: 1px solid var(--border);
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover, .autocomplete-item:active { background: var(--neutral-soft); }
+
 /* ===== BUTTONS ===== */
 .btn {
   width: 100%; padding: 13px;

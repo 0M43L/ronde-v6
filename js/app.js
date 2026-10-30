@@ -963,7 +963,6 @@ function refreshRondeDateTime() {
 // partout ailleurs dans l'appli après chaque sauvegarde.
 function renderAllData() {
   ui.renderAujourdhui();
-  ui.renderSubstationDatalist();
   refreshSiteList();
   ui.renderControls();
   ui.renderRondeStatut();
@@ -1489,7 +1488,6 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     // champs de base via l'upsert 'substation' habituel — jamais les
     // photos/commentaires, gérés à part (voir substation_photo/comment).
     await dbLayer.queueSync('substation', 'upsert', site);
-    ui.renderSubstationDatalist();
     refreshSiteList();
     ui.toggleSiteInfoEdit(false);
     ui.showToast('Site mis à jour');
@@ -1686,9 +1684,22 @@ function onSubstationInput() {
     prefetchTilesAround(substation.lat, substation.lon).catch(() => {});
   }
 }
-document.getElementById('rondeSubstation').addEventListener('input', () => {
+function pickRondeSubstation(s) {
+  document.getElementById('rondeSubstation').value = s.name;
   onSubstationInput();
   saveRondeDraft();
+}
+const rondeSubstationSuggest = document.getElementById('rondeSubstationSuggest');
+document.getElementById('rondeSubstation').addEventListener('input', (e) => {
+  onSubstationInput();
+  saveRondeDraft();
+  ui.renderSubstationSuggestions(rondeSubstationSuggest, e.target.value, pickRondeSubstation);
+});
+document.getElementById('rondeSubstation').addEventListener('focus', (e) => {
+  if (e.target.value.trim()) ui.renderSubstationSuggestions(rondeSubstationSuggest, e.target.value, pickRondeSubstation);
+});
+document.getElementById('rondeSubstation').addEventListener('blur', () => {
+  rondeSubstationSuggest.hidden = true;
 });
 
 // Le libellé d'un contrôle ("Absence de fuite", "Propreté du local"...) nomme
@@ -1746,7 +1757,6 @@ async function resolveOrCreateSubstation(name) {
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
-  ui.renderSubstationDatalist();
   return substation;
 }
 
@@ -1761,7 +1771,6 @@ async function upsertSubstationWithCoords(name, lat, lon) {
   }
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
-  ui.renderSubstationDatalist();
   prefetchTilesAround(lat, lon).catch(() => {});
   renderMarkers(state.substations, (id) => {
     const s = state.substations.find((x) => x.id === id);
@@ -1921,7 +1930,6 @@ document.getElementById('saveNewSiteBtn').addEventListener('click', async () => 
   state.substations.push(substation);
   await dbLayer.put('substations', substation);
   await dbLayer.queueSync('substation', 'upsert', substation);
-  ui.renderSubstationDatalist();
   refreshSiteList();
   document.getElementById('addSiteForm').hidden = true;
   renderMarkers(state.substations, (id) => {
@@ -2870,7 +2878,21 @@ function restoreMesDraft() {
   ui.showToast('Session MES en cours restaurée (travail non enregistré récupéré)');
 }
 
-document.getElementById('mesSubstation').addEventListener('input', saveMesDraft);
+function pickMesSubstation(s) {
+  document.getElementById('mesSubstation').value = s.name;
+  saveMesDraft();
+}
+const mesSubstationSuggest = document.getElementById('mesSubstationSuggest');
+document.getElementById('mesSubstation').addEventListener('input', (e) => {
+  saveMesDraft();
+  ui.renderSubstationSuggestions(mesSubstationSuggest, e.target.value, pickMesSubstation);
+});
+document.getElementById('mesSubstation').addEventListener('focus', (e) => {
+  if (e.target.value.trim()) ui.renderSubstationSuggestions(mesSubstationSuggest, e.target.value, pickMesSubstation);
+});
+document.getElementById('mesSubstation').addEventListener('blur', () => {
+  mesSubstationSuggest.hidden = true;
+});
 document.getElementById('mesIntervenant').addEventListener('input', saveMesDraft);
 document.getElementById('mesNotes').addEventListener('input', saveMesDraft);
 
