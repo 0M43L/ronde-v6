@@ -1503,6 +1503,45 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     }
     return;
   }
+  const deleteSiteBtn = e.target.closest('[data-action="delete-site"]');
+  if (deleteSiteBtn) {
+    // Bouton affiché uniquement pour Axel côté rendu (voir isAxel() dans
+    // renderSiteDetail()), mais on revérifie ici : data-action="..." est un
+    // attribut DOM, pas une barrière de sécurité. Le serveur revérifie aussi
+    // (voir le cas 'substation' dans deleteItem(), api/sync.js) — c'est la
+    // seule vérification qui compte vraiment.
+    if (!ui.isAxel()) return;
+    const site = ui.getSelectedSite();
+    if (!site) return;
+    const rondeCount = state.rondes.filter((r) => r.substation_id === site.id).length;
+    const actionCount = state.actions.filter((a) => a.substation_id === site.id).length;
+    const mesCount = state.mesSessions.filter((m) => m.substation_id === site.id).length;
+    const ficheCount = state.fiches.filter((f) => f.substation_id === site.id).length;
+    // Un site avec de l'historique n'est presque sûrement pas un doublon à
+    // nettoyer mais le "vrai" site : on bloque plutôt que de tenter une
+    // suppression qui échouerait de toute façon côté serveur (clé étrangère
+    // NOT NULL sur rondes.substation_id) après avoir déjà retiré le site de
+    // l'écran, ce qui aurait semblé marcher puis être revenu sans explication
+    // au prochain rechargement.
+    if (rondeCount || actionCount || mesCount || ficheCount) {
+      const parts = [];
+      if (rondeCount) parts.push(`${rondeCount} ronde${rondeCount > 1 ? 's' : ''}`);
+      if (actionCount) parts.push(`${actionCount} action${actionCount > 1 ? 's' : ''}`);
+      if (mesCount) parts.push(`${mesCount} session${mesCount > 1 ? 's' : ''} MES`);
+      if (ficheCount) parts.push(`${ficheCount} fiche${ficheCount > 1 ? 's' : ''}`);
+      ui.showToast(`Impossible : ${parts.join(', ')} encore rattachée(s) à ce site`);
+      return;
+    }
+    if (!window.confirm(`Supprimer définitivement "${site.name}" ? Cette action est irréversible.`)) return;
+    state.substations = state.substations.filter((s) => s.id !== site.id);
+    await dbLayer.remove('substations', site.id);
+    await dbLayer.queueSync('substation', 'delete', { id: site.id });
+    ui.backToSiteList();
+    refreshSiteList();
+    ui.showToast('Site supprimé');
+    syncNow().catch(() => {});
+    return;
+  }
 });
 
 // ===== RÉSEAU (carte réelle, dessin réservé à Axel — voir aussi la même

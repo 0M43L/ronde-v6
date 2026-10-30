@@ -123,7 +123,7 @@ async function syncItem(item, userId, user) {
   const { entity_type, action, payload } = item;
 
   if (action === 'delete') {
-    return deleteItem(entity_type, payload.id, userId);
+    return deleteItem(entity_type, payload.id, userId, user);
   }
 
   switch (entity_type) {
@@ -422,9 +422,18 @@ const TABLES = {
 // fiches de référence et les sous-stations n'ont pas cette contrainte).
 const OWNED_TABLES = new Set(['rondes', 'actions', 'mes_sessions']);
 
-async function deleteItem(entity_type, id, userId) {
+async function deleteItem(entity_type, id, userId, user) {
   const table = TABLES[entity_type];
   if (!table) throw new Error(`Type inconnu: ${entity_type}`);
+  // Supprimer un site est une opération partagée bien plus lourde de
+  // conséquences qu'une fiche/action/ronde personnelle (visible et utilisé
+  // par toute l'équipe) — réservée à Axel, comme les autres opérations
+  // sensibles sur les sous-stations (voir api/substations.js, api/rondes.js).
+  if (table === 'substations' && (user?.prenom || '').toLowerCase() !== 'axel') {
+    const err = new Error('FORBIDDEN_NOT_AXEL');
+    err.code = 'FORBIDDEN_NOT_AXEL';
+    throw err;
+  }
   // Même règle que pour la modification (voir case 'fiche' dans syncItem) :
   // une fiche terrain ne peut être supprimée que par son auteur, une fiche
   // de référence (sans auteur personnel) reste supprimable par tous. Sans
