@@ -2358,6 +2358,17 @@ export function renderSiteDetail() {
       <div class="card-header">Historique du site</div>
       <div class="card-body">${historiqueHtml}</div>
     </div>
+    ${
+      isAxel()
+        ? `<div class="card">
+            <div class="card-header">${icon('alertTriangle', 12)} Zone sensible</div>
+            <div class="card-body">
+              <p class="hint" style="margin:0 0 10px;">Réservé à ton compte — pour supprimer un site créé en double (ex. avant la correction de la recherche de site insensible aux espaces).</p>
+              <button class="btn-ghost" data-action="delete-site" data-id="${site.id}" style="padding:10px 0;">${icon('trash', 13)} Supprimer définitivement ce site</button>
+            </div>
+          </div>`
+        : ''
+    }
   `;
   el.querySelectorAll('.stat-tile .value').forEach(animateCountUp);
 }
