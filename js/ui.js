@@ -1297,7 +1297,10 @@ export function renderMesHistory() {
         <div class="item-title">${escapeHtml(substation ? substation.name : m.substation_id || 'Site inconnu')}</div>
         <div class="item-meta">${escapeHtml(m.date || '')} · ${nok} point${nok > 1 ? 's' : ''} NOK${m.tech ? ` · ${escapeHtml(m.tech)}` : ''}</div>
         ${syncPendingMark('mes_session', m.id)}
-        ${isOwned(m) ? `<div class="item-actions"><button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button></div>` : ''}
+        <div class="item-actions">
+          <button class="btn-ghost" data-action="view-mes" data-id="${m.id}" style="color:var(--accent);">Voir la fiche</button>
+          ${isOwned(m) ? `<button class="btn-ghost" data-action="delete-mes" data-id="${m.id}">Supprimer</button>` : ''}
+        </div>
       </div>`;
       })
       .join('') +
@@ -2645,6 +2648,107 @@ export function buildWeeklyReportHtml() {
       </table>`
           : `<div style="font-size:10px;color:${c.muted};">Aucune action en attente.</div>`
       }
+
+      ${reportFooter()}
+    </div>`;
+}
+
+const MES_STATUS_REPORT_LABEL = { ok: 'OK', nok: 'NOK', na: 'N/A' };
+
+function mesStatusBadge(status) {
+  const c = REPORT_COLORS;
+  const map = { ok: [c.success, c.successSoft], nok: [c.danger, c.dangerSoft], na: [c.muted, c.neutralSoft] };
+  const [fg, bg] = map[status] || [c.muted, c.neutralSoft];
+  return `<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:9.5px;font-weight:700;background:${bg};color:${fg};">${MES_STATUS_REPORT_LABEL[status] || '—'}</span>`;
+}
+
+// Fiche de mise en service détaillée (demandée par Axel : "le but est d'avoir
+// une fiche qu'on peut extraire ... pour voir ce qui est check et ce qui ne
+// l'est pas") — même principe que buildRondeReportHtml/buildWeeklyReportHtml,
+// réutilise la même modale d'aperçu + export PDF.
+export function buildMesReportHtml(session, substation) {
+  const c = REPORT_COLORS;
+  const poste = session.poste || {};
+  const cas = CAS_POSTE_TYPES.find((ct) => String(ct.cas) === String(poste.cas_poste));
+  const checks = session.checks || [];
+  const okCount = checks.filter((p) => p.status === 'ok').length;
+  const nokCount = checks.filter((p) => p.status === 'nok').length;
+  const naCount = checks.filter((p) => p.status === 'na').length;
+
+  const echRows = (poste.echangeurs || [])
+    .map(
+      (e, i) => `
+    <tr style="border-bottom:1px solid ${c.border};">
+      <td style="padding:6px 8px;font-size:9.5px;color:${c.text};">Éch. ${i + 1} (${e.type_boucle === 'glacee' ? 'eau glacée' : 'eau chaude'})</td>
+      <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(e.puissance_nominale || '—')} kW</td>
+      <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(e.debit_nominal || '—')} m³/h</td>
+      <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(e.t_aller_nominale || '—')} / ${escapeHtml(e.t_retour_nominale || '—')} °C</td>
+      <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(e.n_contrat || '—')}</td>
+      <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(e.type_compteur || '—')}</td>
+    </tr>`
+    )
+    .join('');
+
+  const byCategory = {};
+  checks.forEach((p) => {
+    if (!byCategory[p.category]) byCategory[p.category] = [];
+    byCategory[p.category].push(p);
+  });
+  const checksHtml = Object.entries(byCategory)
+    .map(
+      ([category, points]) => `
+    ${reportSectionTitle(category)}
+    <table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
+      <tr style="background:${c.accent};color:#fff;">
+        <th style="text-align:left;padding:6px 8px;font-size:9px;">Point</th>
+        <th style="text-align:left;padding:6px 8px;font-size:9px;width:60px;">Statut</th>
+        <th style="text-align:left;padding:6px 8px;font-size:9px;width:90px;">Valeur</th>
+        <th style="text-align:left;padding:6px 8px;font-size:9px;">Commentaire</th>
+      </tr>
+      ${points
+        .map(
+          (p) => `
+        <tr style="border-bottom:1px solid ${c.border};">
+          <td style="padding:6px 8px;font-size:9.5px;color:${c.text};">${escapeHtml(p.label)}</td>
+          <td style="padding:6px 8px;">${mesStatusBadge(p.status)}</td>
+          <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(p.valeur || '—')}</td>
+          <td style="padding:6px 8px;font-size:9px;color:${c.muted};">${escapeHtml(p.commentaire || '—')}</td>
+        </tr>`
+        )
+        .join('')}
+    </table>`
+    )
+    .join('');
+
+  return `
+    <div style="font-family:Arial,sans-serif;padding:6px;background:#fff;">
+      ${reportHeader('Fiche de mise en service', "Ronde V6 — IDEX · Sites d'échange de chauffage urbain")}
+      <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:140px;">Site</td><td style="padding:4px 0;font-size:11px;font-weight:700;color:${c.text};">${escapeHtml(substation ? substation.name : '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Date</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(session.date || '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Intervenant IDEX</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(session.tech || '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Représentant client</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${escapeHtml(poste.representant_client || '—')}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Type de poste</td><td style="padding:4px 0;font-size:10.5px;color:${c.text};">${cas ? `${cas.code} — ${escapeHtml(cas.designation)}` : '—'}</td></tr>
+        <tr><td style="padding:4px 10px 4px 0;font-size:9.5px;font-weight:700;color:${c.muted};">Résultat</td><td style="padding:4px 0;font-size:10px;">${okCount} OK · ${nokCount} NOK · ${naCount} N/A</td></tr>
+      </table>
+
+      ${reportSectionTitle('Configuration du poste')}
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="background:${c.accent};color:#fff;">
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">Échangeur</th>
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">Puissance</th>
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">Débit</th>
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">T° aller/retour</th>
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">N° contrat</th>
+          <th style="text-align:left;padding:6px 8px;font-size:9px;">Compteur</th>
+        </tr>
+        ${echRows || `<tr><td colspan="6" style="padding:6px 8px;font-size:9.5px;color:${c.muted};">Aucun échangeur renseigné</td></tr>`}
+      </table>
+
+      ${checksHtml}
+
+      ${reportSectionTitle('Notes')}
+      <div style="font-size:10px;background:${c.bgAlt};border:1px solid ${c.border};border-radius:8px;padding:10px 12px;min-height:20px;color:${c.text};white-space:pre-wrap;">${escapeHtml(session.notes) || '—'}</div>
 
       ${reportFooter()}
     </div>`;
