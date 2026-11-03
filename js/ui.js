@@ -1241,6 +1241,47 @@ export function renderMesProgress() {
   document.getElementById('mesProgressFill').style.width = total ? `${Math.round((done / total) * 100)}%` : '0%';
 }
 
+function buildMesCheckItemHtml(p) {
+  return `
+    <div class="check-item" data-point-index="${p.i}">
+      <div class="check-header">${escapeHtml(p.label)}</div>
+      <div class="check-buttons">
+        <button class="check-btn ok ${p.status === 'ok' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="ok">OK</button>
+        <button class="check-btn danger ${p.status === 'nok' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="nok">NOK</button>
+        <button class="check-btn na ${p.status === 'na' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="na">N/A</button>
+      </div>
+      <input type="text" class="check-comment value-mono" style="margin-top:8px;" placeholder="Valeur relevée..." data-action="set-mes-value" data-index="${p.i}" value="${escapeHtml(p.valeur)}">
+      <div data-hint-index="${p.i}">${computeDeviationHint(p.i)}</div>
+      <textarea class="check-comment" placeholder="Commentaire..." data-action="set-mes-comment" data-index="${p.i}">${escapeHtml(p.commentaire)}</textarea>
+    </div>`;
+}
+
+function mesPhaseBadgeHtml(points) {
+  const total = points.length;
+  const done = points.filter((p) => p.status).length;
+  const nok = points.filter((p) => p.status === 'nok').length;
+  const style = nok
+    ? 'background:var(--danger-soft);color:var(--danger);'
+    : done === total
+      ? 'background:var(--success-soft);color:var(--success);'
+      : '';
+  return `<span class="card-header-count" style="${style}">${done}/${total}${nok ? ` · ${nok} NOK` : ''}</span>`;
+}
+
+// Ordre stable des phases, dérivé de state.mesChecks (donc de MES_POINTS_DEF)
+// plutôt que de l'ordre de rendu courant : permet à renderMesCheckItem() de
+// retrouver la bonne pastille de progression sans avoir à reconstruire toute
+// la liste des phases à chaque tap.
+function mesCategoryIndex(category) {
+  const categories = [...new Set(state.mesChecks.map((c) => c.category))];
+  return categories.indexOf(category);
+}
+
+// 41 points répartis sur 8 phases : tous dépliés en même temps rendait cet
+// onglet écrasant à faire défiler (même retour "galère" qu'Axel avait fait
+// sur Bilan/Historique, voir le commentaire sur details.card dans style.css).
+// Phases repliées par défaut, avec une pastille de progression (X/Y, NOK en
+// rouge) pour voir l'avancement sans ouvrir chaque phase.
 export function renderMesChecks() {
   const list = document.getElementById('mesChecksList');
   const byCategory = {};
@@ -1251,30 +1292,40 @@ export function renderMesChecks() {
 
   list.innerHTML = Object.entries(byCategory)
     .map(
-      ([category, points]) => `
-    <div class="card" style="margin-bottom:10px;">
-      <div class="card-header">${escapeHtml(category)}</div>
+      ([category, points], catIndex) => `
+    <details class="card" style="margin-bottom:10px;" id="mesPhase-${catIndex}">
+      <summary class="card-header">
+        <span>${escapeHtml(category)}</span>
+        <span id="mesPhaseBadge-${catIndex}">${mesPhaseBadgeHtml(points)}</span>
+      </summary>
       <div class="card-body">
-        ${points
-          .map(
-            (p) => `
-          <div class="check-item">
-            <div class="check-header">${escapeHtml(p.label)}</div>
-            <div class="check-buttons">
-              <button class="check-btn ok ${p.status === 'ok' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="ok">OK</button>
-              <button class="check-btn danger ${p.status === 'nok' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="nok">NOK</button>
-              <button class="check-btn na ${p.status === 'na' ? 'sel' : ''}" data-action="set-mes-status" data-index="${p.i}" data-status="na">N/A</button>
-            </div>
-            <input type="text" class="check-comment value-mono" style="margin-top:8px;" placeholder="Valeur relevée..." data-action="set-mes-value" data-index="${p.i}" value="${escapeHtml(p.valeur)}">
-            <div data-hint-index="${p.i}">${computeDeviationHint(p.i)}</div>
-            <textarea class="check-comment" placeholder="Commentaire..." data-action="set-mes-comment" data-index="${p.i}">${escapeHtml(p.commentaire)}</textarea>
-          </div>`
-          )
-          .join('')}
+        ${points.map(buildMesCheckItemHtml).join('')}
       </div>
-    </div>`
+    </details>`
     )
     .join('');
+  renderMesProgress();
+}
+
+// Remplace seulement le point modifié (sur le modèle de renderControlItem()
+// pour la ronde, voir js/app.js) : reconstruire les 41 points à chaque tap
+// sur OK/NOK/N/A rendait l'onglet de plus en plus lent au fil de la session,
+// et aurait en plus refermé toutes les phases dépliées à chaque fois une
+// fois celles-ci devenues des <details>.
+export function renderMesCheckItem(index) {
+  const point = state.mesChecks[index];
+  const node = document.querySelector(`[data-point-index="${index}"]`);
+  if (!node || !point) {
+    renderMesChecks();
+    return;
+  }
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = buildMesCheckItemHtml({ ...point, i: index });
+  node.replaceWith(wrapper.firstElementChild);
+
+  const catIndex = mesCategoryIndex(point.category);
+  const badge = document.getElementById(`mesPhaseBadge-${catIndex}`);
+  if (badge) badge.innerHTML = mesPhaseBadgeHtml(state.mesChecks.filter((c) => c.category === point.category));
   renderMesProgress();
 }
 
