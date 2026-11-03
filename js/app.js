@@ -3031,9 +3031,22 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
   ui.renderMesHistory();
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
   ui.showToast('Session MES enregistrée');
+  // Demandé par Axel : valider une MES doit directement donner la fiche
+  // détaillée (ce qui a été vérifié, les valeurs relevées), prête à exporter
+  // et à envoyer — sinon remplir 41 points de contrôle ne sert à rien si
+  // personne ne peut les revoir après coup.
+  showReportPreview(ui.buildMesReportHtml(session, substation), `MES_${substation.name.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
 });
 
 document.getElementById('mesHistoryList').addEventListener('click', async (e) => {
+  const viewBtn = e.target.closest('[data-action="view-mes"]');
+  if (viewBtn) {
+    const session = state.mesSessions.find((m) => m.id === viewBtn.dataset.id);
+    if (!session) return;
+    const substation = state.substations.find((s) => s.id === session.substation_id);
+    showReportPreview(ui.buildMesReportHtml(session, substation), `MES_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+    return;
+  }
   const btn = e.target.closest('[data-action="delete-mes"]');
   if (!btn) return;
   const id = btn.dataset.id;
