@@ -2938,8 +2938,9 @@ document.getElementById('mesNotes').addEventListener('input', saveMesDraft);
 document.getElementById('mesChecksList').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action="set-mes-status"]');
   if (!btn) return;
-  state.mesChecks[Number(btn.dataset.index)].status = btn.dataset.status;
-  ui.renderMesChecks();
+  const index = Number(btn.dataset.index);
+  state.mesChecks[index].status = btn.dataset.status;
+  ui.renderMesCheckItem(index);
   saveMesDraft();
 });
 
