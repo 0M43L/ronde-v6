@@ -2446,10 +2446,22 @@ document.getElementById('downloadReportPdfBtn').addEventListener('click', async 
     ui.showToast("Export PDF indisponible hors-ligne pour l'instant");
     return;
   }
+  // html2canvas peut produire une page blanche (pas une erreur — juste rien
+  // de capturé) sur iOS Safari quand l'élément source est positionné très
+  // loin hors-écran (left:-9999px) : ses calculs de coordonnées se basent
+  // sur getBoundingClientRect()/le scroll de la page, et un très grand
+  // décalage combiné au défilement réel de la page derrière la modale
+  // d'aperçu peut suffire à faire capturer une zone vide. On garde le
+  // conteneur près de l'origine (0,0) — invisible via un parent
+  // overflow:hidden de taille nulle plutôt qu'un déport extrême — et on
+  // fige scrollX/scrollY à 0 pour que la capture ignore le défilement réel.
+  const clipWrapper = document.createElement('div');
+  clipWrapper.style.cssText = 'position:fixed; top:0; left:0; width:0; height:0; overflow:hidden;';
   const container = document.createElement('div');
-  container.style.cssText = 'position:fixed; left:-9999px; top:0; width:780px;';
+  container.style.cssText = 'width:780px;';
   container.innerHTML = pendingReportHtml;
-  document.body.appendChild(container);
+  clipWrapper.appendChild(container);
+  document.body.appendChild(clipWrapper);
   btn.disabled = true;
   btn.textContent = 'Génération en cours...';
   html2pdf()
@@ -2457,7 +2469,7 @@ document.getElementById('downloadReportPdfBtn').addEventListener('click', async 
       margin: 10,
       filename: pendingReportFilename,
       image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2 },
+      html2canvas: { scale: 2, scrollX: 0, scrollY: 0, windowWidth: 780 },
       jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
     })
     .from(container)
@@ -2465,13 +2477,13 @@ document.getElementById('downloadReportPdfBtn').addEventListener('click', async 
     .catch(() => {
       // Échec silencieux connu d'html2canvas sur certains téléphones (trop de
       // photos, mémoire insuffisante) : sans ce catch, rien ne se passait et
-      // le conteneur hors-écran restait indéfiniment dans le DOM. L'aperçu
-      // (déjà visible) reste la garantie de secours — une capture d'écran
+      // le conteneur restait indéfiniment dans le DOM. L'aperçu (déjà
+      // visible) reste la garantie de secours — une capture d'écran
       // fonctionne toujours quand le PDF échoue.
       ui.showToast('Échec de la génération du PDF — tu peux faire une capture d\'écran de l\'aperçu en attendant');
     })
     .finally(() => {
-      container.remove();
+      clipWrapper.remove();
       btn.disabled = false;
       btn.textContent = 'Télécharger en PDF';
     });
