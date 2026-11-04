@@ -1513,7 +1513,14 @@ function renderHistoriqueItem(it) {
                         </div>`
                      : ''
                  }
-                 ${it.owned ? `<div class="item-actions"><button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button></div>` : ''}
+                 ${
+                   it.entityType === 'mes_session' || it.owned
+                     ? `<div class="item-actions">
+                         ${it.entityType === 'mes_session' ? `<button class="btn-ghost" data-action="view-mes" data-id="${it.id}" style="color:var(--accent);">Voir la fiche</button>` : ''}
+                         ${it.owned ? `<button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button>` : ''}
+                       </div>`
+                     : ''
+                 }
                </div>`
             : ''
         }
@@ -2263,6 +2270,7 @@ export function renderSiteDetail() {
       <div class="row"><span>Type de poste</span><span class="val">${cas ? `${cas.code} — ${escapeHtml(cas.designation)}` : '—'}</span></div>
       <div class="row"><span>Relevée le</span><span class="val">${escapeHtml(lastMes.date || '')}</span></div>
       ${echRows}
+      <button class="btn-secondary" data-action="view-mes" data-id="${lastMes.id}" style="width:100%; margin-top:10px;">Voir la fiche complète</button>
     </div></div>`;
   }
 
