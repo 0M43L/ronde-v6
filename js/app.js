@@ -1367,6 +1367,11 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.openPhotoLightbox(viewPhotoBtn.dataset.url);
     return;
   }
+  const viewMesBtn = e.target.closest('[data-action="view-mes"]');
+  if (viewMesBtn) {
+    openMesReportPreview(viewMesBtn.dataset.id);
+    return;
+  }
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
   if (removeBtn) {
     const site = ui.getSelectedSite();
@@ -2416,6 +2421,17 @@ function showReportPreview(html, filename) {
   document.getElementById('reportPreviewOverlay').hidden = false;
 }
 
+// Partagé par les 3 endroits où une session MES peut être ouverte (sa propre
+// liste sur l'onglet MES, l'Historique, la fiche du site) — remonté par Axel
+// ("je n'y ai pas accès à ce détail") : la fiche complète n'était visible
+// nulle part ailleurs que l'onglet MES lui-même.
+function openMesReportPreview(id) {
+  const session = state.mesSessions.find((m) => m.id === id);
+  if (!session) return;
+  const substation = state.substations.find((s) => s.id === session.substation_id);
+  showReportPreview(ui.buildMesReportHtml(session, substation), `MES_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+}
+
 document.getElementById('closeReportPreviewBtn').addEventListener('click', () => {
   document.getElementById('reportPreviewOverlay').hidden = true;
 });
@@ -3042,10 +3058,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
 document.getElementById('mesHistoryList').addEventListener('click', async (e) => {
   const viewBtn = e.target.closest('[data-action="view-mes"]');
   if (viewBtn) {
-    const session = state.mesSessions.find((m) => m.id === viewBtn.dataset.id);
-    if (!session) return;
-    const substation = state.substations.find((s) => s.id === session.substation_id);
-    showReportPreview(ui.buildMesReportHtml(session, substation), `MES_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+    openMesReportPreview(viewBtn.dataset.id);
     return;
   }
   const btn = e.target.closest('[data-action="delete-mes"]');
@@ -3079,6 +3092,11 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
 
   if (action === 'toggle-hist-detail') {
     ui.toggleHistoriqueDetail(id);
+    return;
+  }
+
+  if (action === 'view-mes') {
+    openMesReportPreview(id);
     return;
   }
 
