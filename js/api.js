@@ -236,6 +236,17 @@ export async function requestAddMeterValueColumns() {
   return data;
 }
 
+// Ajoute les colonnes de preuve de clôture (closed_photo/closed_comment/
+// closed_by/closed_at) à la table actions si elles n'existent pas encore
+// (réservé à Axel, vérifié côté serveur — voir api/actions.js). Même
+// mécanisme que requestAddMeterValueColumns().
+export async function requestAddActionClosureColumns() {
+  const res = await authedFetch('/api/actions?action=add-closure-columns', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Migration impossible');
+  return data;
+}
+
 export async function requestDiagnostic(substation_name, anomalies) {
   const res = await authedFetch('/api/diagnostic', {
     method: 'POST',
