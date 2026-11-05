@@ -671,6 +671,19 @@ export function getFicheById(id) {
   return state.fiches.find((f) => f.id === id) || null;
 }
 
+// Une seule photo (pas une liste comme pour une fiche) : la preuve de
+// clôture d'une action, voir openCloseActionModal() dans app.js.
+export function renderCloseActionPhoto(url) {
+  const row = document.getElementById('closeActionPhotoRow');
+  const addLabel = row.querySelector('.photo-btn');
+  row.querySelectorAll('.photo-thumb').forEach((el) => el.remove());
+  if (!url) return;
+  const thumb = document.createElement('div');
+  thumb.className = 'photo-thumb';
+  thumb.innerHTML = `<img src="${url}"><button class="remove-photo" data-action="remove-close-action-photo">${icon('xCircle', 11)}</button>`;
+  row.insertBefore(thumb, addLabel);
+}
+
 export function renderFicheFormPhotos(photos) {
   const row = document.getElementById('ficheFormPhotoRow');
   const addLabel = row.querySelector('label');
@@ -1086,6 +1099,16 @@ function renderActionItem(a) {
               ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
                   <div class="item-meta">${a.source === 'ronde' ? 'Créée automatiquement depuis une anomalie de ronde' : 'Ajoutée manuellement'}</div>
                   ${a.photo ? `<img src="${a.photo}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
+                  ${
+                    a.done && (a.closedPhoto || a.closedComment)
+                      ? `<div class="alert success" style="margin-top:10px;display:block;">
+                          <strong>${icon('check', 12)} Preuve de clôture</strong>
+                          ${a.closedBy || a.closedAt ? `<div class="item-meta" style="margin-top:2px;">${escapeHtml(a.closedBy || '')}${a.closedBy && a.closedAt ? ' · ' : ''}${escapeHtml(a.closedAt || '')}</div>` : ''}
+                          ${a.closedComment ? `<div style="margin-top:6px;">${escapeHtml(a.closedComment)}</div>` : ''}
+                          ${a.closedPhoto ? `<img src="${a.closedPhoto}" style="max-width:100%;border-radius:8px;margin-top:8px;display:block;">` : ''}
+                        </div>`
+                      : ''
+                  }
                   ${substation ? `<button class="btn-secondary" data-action="goto-action-site" data-site-id="${substation.id}" style="width:100%;margin-top:10px;">Voir la fiche du site</button>` : ''}
                   <button class="btn-secondary" data-action="share-action" data-id="${a.id}" style="width:100%;margin-top:8px;" type="button">${icon('upload', 14)} Partager</button>
                 </div>`

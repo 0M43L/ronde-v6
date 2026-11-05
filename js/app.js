@@ -293,6 +293,8 @@ document.addEventListener('keydown', (e) => {
     closeMoreMenu();
   } else if (!document.getElementById('newActionOverlay').hidden) {
     closeNewActionModal();
+  } else if (!document.getElementById('closeActionOverlay').hidden) {
+    closeCloseActionModal();
   } else if (!document.getElementById('globalSearchOverlay').hidden) {
     closeGlobalSearch();
   } else if (!document.getElementById('reportPreviewOverlay').hidden) {
@@ -828,6 +830,12 @@ async function enterApp() {
     api
       .requestAddMeterValueColumns()
       .then(() => localStorage.setItem('meter_columns_migrated_v1', '1'))
+      .catch(() => {});
+  }
+  if (ui.isAxel() && !localStorage.getItem('action_closure_columns_migrated_v1')) {
+    api
+      .requestAddActionClosureColumns()
+      .then(() => localStorage.setItem('action_closure_columns_migrated_v1', '1'))
       .catch(() => {});
   }
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
@@ -2777,6 +2785,78 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
   ui.showToast('Action ajoutée');
 });
 
+// ===== CLÔTURE D'ACTION AVEC PREUVE =====
+// Axel : "je veux la preuve que l'action a été faite", pas juste pouvoir la
+// cocher ou la supprimer sans rien laisser derrière. Cocher une action non
+// traitée ouvre cette modale (photo et/ou commentaire, au moins l'un des
+// deux) au lieu de clôturer directement ; décocher une action déjà traitée,
+// à l'inverse, reste immédiat (rouvrir n'a rien de destructif, la preuve
+// déjà enregistrée n'est pas effacée — elle sera proposée en pré-remplissage
+// si l'action est reclôturée plus tard).
+let pendingCloseActionId = null;
+let closeActionPendingPhoto = null;
+
+function openCloseActionModal(action) {
+  pendingCloseActionId = action.id;
+  closeActionPendingPhoto = action.closedPhoto || null;
+  document.getElementById('closeActionComment').value = action.closedComment || '';
+  ui.renderCloseActionPhoto(closeActionPendingPhoto);
+  overlayTriggers.closeActionOverlay = document.activeElement;
+  document.getElementById('closeActionOverlay').hidden = false;
+}
+
+function closeCloseActionModal() {
+  document.getElementById('closeActionOverlay').hidden = true;
+  pendingCloseActionId = null;
+  closeActionPendingPhoto = null;
+  document.getElementById('closeActionPhotoInput').value = '';
+  returnFocusAfterOverlay('closeActionOverlay');
+}
+
+document.getElementById('closeActionPhotoInput').addEventListener('change', async (e) => {
+  if (!e.target.files[0]) return;
+  closeActionPendingPhoto = await fileToDataUrl(e.target.files[0]);
+  ui.renderCloseActionPhoto(closeActionPendingPhoto);
+});
+
+document.getElementById('closeActionOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'closeActionOverlay') {
+    closeCloseActionModal();
+    return;
+  }
+  if (e.target.closest('[data-action="remove-close-action-photo"]')) {
+    closeActionPendingPhoto = null;
+    document.getElementById('closeActionPhotoInput').value = '';
+    ui.renderCloseActionPhoto(null);
+  }
+});
+
+document.getElementById('closeCloseActionBtn').addEventListener('click', closeCloseActionModal);
+
+document.getElementById('confirmCloseActionBtn').addEventListener('click', async () => {
+  const id = pendingCloseActionId;
+  if (!id) return;
+  const action = state.actions.find((a) => a.id === id);
+  if (!action) return;
+  const comment = document.getElementById('closeActionComment').value.trim();
+  if (!comment && !closeActionPendingPhoto) {
+    ui.showToast('Ajoute une photo ou un commentaire comme preuve');
+    return;
+  }
+  action.done = true;
+  action.closedPhoto = closeActionPendingPhoto;
+  action.closedComment = comment;
+  action.closedBy = `${state.user.prenom} ${state.user.nom}`.trim();
+  action.closedAt = new Date().toLocaleString('fr-FR');
+  await dbLayer.put('actions', action);
+  await queueSyncTracked('action', 'upsert', action);
+  closeCloseActionModal();
+  ui.renderActions();
+  ui.renderBilanStats();
+  ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
+  ui.showToast('Action clôturée');
+});
+
 document.getElementById('actionsSearch').addEventListener('input', () => {
   ui.renderActions();
 });
@@ -2883,7 +2963,16 @@ document.getElementById('actionsList').addEventListener('change', async (e) => {
   const id = box.dataset.id;
   const action = state.actions.find((a) => a.id === id);
   if (!action) return;
-  action.done = box.checked;
+  if (box.checked) {
+    // Clôturer exige une preuve (photo et/ou commentaire, voir la modale) :
+    // la case revient à son état d'origine tant que ce n'est pas confirmé.
+    box.checked = false;
+    openCloseActionModal(action);
+    return;
+  }
+  // Rouvrir n'a rien de destructif : immédiat, sans modale. La preuve déjà
+  // enregistrée (closedPhoto/closedComment) n'est pas effacée.
+  action.done = false;
   await dbLayer.put('actions', action);
   await queueSyncTracked('action', 'upsert', action);
   ui.renderActions();

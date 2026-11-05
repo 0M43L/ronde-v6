@@ -337,6 +337,30 @@
       </div>
     </div>
 
+    <!-- Clôturer une action avec une preuve (photo et/ou commentaire) plutôt
+         qu'une simple case à cocher sans trace — demandé par Axel : "je veux
+         la preuve que l'action a été faite". -->
+    <div class="modal-overlay" id="closeActionOverlay" hidden>
+      <div class="modal-card">
+        <div class="modal-card-header">
+          <h2>Clôturer l'action</h2>
+          <button class="icon-btn" id="closeCloseActionBtn" aria-label="Fermer">&times;</button>
+        </div>
+        <p class="hint" style="margin:0 0 10px;">Une photo ou un commentaire suffit, comme preuve que c'est fait.</p>
+        <div class="form-group">
+          <label>Photo (après intervention)</label>
+          <div class="photo-row" id="closeActionPhotoRow">
+            <label class="photo-btn"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7 9.2 4.5A1 1 0 0 1 10.1 4h3.8a1 1 0 0 1 .9.5L16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.4"/></svg> Ajouter<input type="file" accept="image/*" capture="environment" id="closeActionPhotoInput"></label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Commentaire</label>
+          <textarea id="closeActionComment" placeholder="Ce qui a été fait..."></textarea>
+        </div>
+        <button class="btn" id="confirmCloseActionBtn" style="width:100%;">Clôturer l'action</button>
+      </div>
+    </div>
+
     <!-- Aperçu visuel d'un rapport (ronde ou hebdomadaire) avant export PDF :
          le rendu HTML s'affiche toujours, même quand la génération du PDF
          (html2canvas) échoue sur l'appareil — voir exportPdfBtn/

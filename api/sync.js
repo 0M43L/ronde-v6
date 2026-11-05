@@ -366,19 +366,34 @@ async function syncItem(item, userId, user) {
       const row = existing.rows[0];
       const isOwner = !row || !row.user_id || row.user_id === userId;
 
+      // closed_photo/closed_comment/closed_by/closed_at : preuve de clôture
+      // (voir addClosureColumns() dans api/actions.js) — qui clôture une
+      // action n'est pas forcément qui l'a créée (ex. Axel signale, un autre
+      // technicien corrige et clôture), d'où la mise à jour même côté
+      // non-propriétaire.
       if (!isOwner) {
         return db.execute({
-          sql: `UPDATE actions SET done = ?, photo = ? WHERE id = ?`,
-          args: [payload.done ? 1 : 0, payload.photo || null, payload.id],
+          sql: `UPDATE actions SET done = ?, photo = ?, closed_photo = ?, closed_comment = ?, closed_by = ?, closed_at = ? WHERE id = ?`,
+          args: [
+            payload.done ? 1 : 0,
+            payload.photo || null,
+            payload.closedPhoto || null,
+            payload.closedComment || null,
+            payload.closedBy || null,
+            payload.closedAt || null,
+            payload.id,
+          ],
         });
       }
 
       return db.execute({
-        sql: `INSERT INTO actions (id, user_id, substation_id, ronde_id, text, severity, source, photo, done)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO actions (id, user_id, substation_id, ronde_id, text, severity, source, photo, done, closed_photo, closed_comment, closed_by, closed_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 text = excluded.text, severity = excluded.severity, done = excluded.done,
-                photo = excluded.photo`,
+                photo = excluded.photo, closed_photo = excluded.closed_photo,
+                closed_comment = excluded.closed_comment, closed_by = excluded.closed_by,
+                closed_at = excluded.closed_at`,
         args: [
           payload.id,
           userId,
@@ -389,6 +404,10 @@ async function syncItem(item, userId, user) {
           payload.source || 'manuelle',
           payload.photo || null,
           payload.done ? 1 : 0,
+          payload.closedPhoto || null,
+          payload.closedComment || null,
+          payload.closedBy || null,
+          payload.closedAt || null,
         ],
       });
     }

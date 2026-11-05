@@ -134,16 +134,24 @@ CREATE TABLE IF NOT EXISTS fiches (
 -- anomalie relevée en ronde (avec photo), 'manuelle' sinon.
 -- severity : 'danger' | 'warning' | 'none' — sert au tri par gravité.
 CREATE TABLE IF NOT EXISTS actions (
-  id            TEXT PRIMARY KEY,
-  user_id       TEXT NOT NULL REFERENCES users(id),
-  substation_id TEXT REFERENCES substations(id),
-  ronde_id      TEXT REFERENCES rondes(id),
-  text          TEXT NOT NULL,
-  severity      TEXT NOT NULL DEFAULT 'none',
-  source        TEXT NOT NULL DEFAULT 'manuelle',
-  photo         TEXT,
-  done          INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id),
+  substation_id  TEXT REFERENCES substations(id),
+  ronde_id       TEXT REFERENCES rondes(id),
+  text           TEXT NOT NULL,
+  severity       TEXT NOT NULL DEFAULT 'none',
+  source         TEXT NOT NULL DEFAULT 'manuelle',
+  photo          TEXT,
+  done           INTEGER NOT NULL DEFAULT 0,
+  -- Preuve de clôture (photo et/ou commentaire) : demandé par Axel pour
+  -- savoir qu'une action a vraiment été faite, pas juste cochée. closed_by
+  -- est un nom libre (comme tech sur rondes/mes_sessions), pas une clé
+  -- étrangère — qui a clôturé peut différer de qui a créé l'action.
+  closed_photo   TEXT,
+  closed_comment TEXT,
+  closed_by      TEXT,
+  closed_at      TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_actions_user ON actions(user_id);
