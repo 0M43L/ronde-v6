@@ -492,13 +492,16 @@ function siteRowsDetail(ids, rondes) {
 }
 
 function rondeRowsDetail(rondes) {
+  // Mène directement au rapport de CETTE ronde (view-ronde), pas seulement
+  // à la fiche du site — chaque ligne représente une ronde précise, pas un
+  // groupe. Voir siteRowsDetail() ci-dessus pour le cas groupé par site.
   return rondes
     .slice()
     .sort((a, b) => `${b.date || ''}${b.heure || ''}`.localeCompare(`${a.date || ''}${a.heure || ''}`))
     .map((r) => {
       const substation = state.substations.find((s) => s.id === r.substation_id);
       const statut = r.statut || 'operationnel';
-      return `<div class="item" ${substation ? `data-action="goto-site-alert" data-id="${substation.id}" style="cursor:pointer;"` : ''}>
+      return `<div class="item" data-action="view-ronde" data-id="${r.id}" style="cursor:pointer;">
         <div class="item-row" style="justify-content:space-between;align-items:center;">
           <div>
             <div class="item-title">${escapeHtml(substation ? substation.name : 'Site supprimé')}</div>
@@ -1481,9 +1484,12 @@ let expandedHistoriqueId = null;
 let lastHistFilter = 'tous';
 let lastHistSearchTerm = '';
 
-export function toggleHistoriqueDetail(id) {
+// onRender par défaut : re-rendre l'onglet Historique. Un autre contexte qui
+// réutilise renderHistoriqueItem() (ex. la fiche d'un site) passe son propre
+// re-rendu, sinon basculer un élément là-bas re-rendrait le mauvais écran.
+export function toggleHistoriqueDetail(id, onRender = () => renderHistorique(lastHistFilter, lastHistSearchTerm)) {
   expandedHistoriqueId = expandedHistoriqueId === id ? null : id;
-  renderHistorique(lastHistFilter, lastHistSearchTerm);
+  onRender();
 }
 
 // "Aujourd'hui" / "Hier" / "14 oct" — compact (pas de jour de semaine, pas
@@ -1537,9 +1543,10 @@ function renderHistoriqueItem(it) {
                      : ''
                  }
                  ${
-                   it.entityType === 'mes_session' || it.owned
+                   it.entityType === 'mes_session' || it.entityType === 'ronde' || it.owned
                      ? `<div class="item-actions">
                          ${it.entityType === 'mes_session' ? `<button class="btn-ghost" data-action="view-mes" data-id="${it.id}" style="color:var(--accent);">Voir la fiche</button>` : ''}
+                         ${it.entityType === 'ronde' ? `<button class="btn-ghost" data-action="view-ronde" data-id="${it.id}" style="color:var(--accent);">Voir le rapport</button>` : ''}
                          ${it.owned ? `<button class="btn-ghost" data-action="${it.deleteAction}" data-id="${it.id}">Supprimer</button>` : ''}
                        </div>`
                      : ''
@@ -2313,18 +2320,13 @@ export function renderSiteDetail() {
       </div>`
     : '';
 
+  // Réutilise renderHistoriqueItem() (même rendu que l'onglet Historique :
+  // dépliable, boutons "Voir le rapport"/"Voir la fiche"/Supprimer) plutôt
+  // qu'un simple texte statique — demandé par Axel : accéder au détail
+  // depuis n'importe où, pas seulement depuis l'onglet Historique.
   const historiqueItems = buildHistoriqueItems().filter((it) => it.substation_id === site.id);
   const historiqueHtml = historiqueItems.length
-    ? historiqueItems
-        .slice(0, 30)
-        .map(
-          (it) => `<div class="item">
-            <div class="hist-type">${it.type} ${it.statut ? SITE_STATUT_BADGE[it.statut] || '' : ''}</div>
-            <div class="item-meta">${escapeHtml(it.meta)}</div>
-            ${it.body ? `<div class="item-body">${escapeHtml(it.body)}</div>` : ''}
-          </div>`
-        )
-        .join('')
+    ? historiqueItems.slice(0, 30).map(renderHistoriqueItem).join('')
     : `<div class="empty-state">${icon('search', 28)}<p>Aucune activité enregistrée sur ce site</p></div>`;
 
   el.innerHTML = `
@@ -2533,16 +2535,34 @@ function reportSectionTitle(label) {
 // substation/tech/date/heure/observations : valeurs de la ronde en cours de
 // saisie (pas encore forcément enregistrées), passées par l'appelant plutôt
 // que relues dans le DOM pour garder ce module découplé du formulaire.
-export function buildRondeReportHtml({ substation, tech, date, heure, observations }) {
+// controls/statut/type/meter* : passés explicitement plutôt que lus dans
+// state.controls/state.rondeStatut/etc., pour pouvoir générer le rapport
+// d'une ronde ARCHIVÉE (state.rondes), pas seulement de celle en cours de
+// saisie dans le formulaire — voir openRondeReportPreview() dans app.js,
+// demandé par Axel pour accéder au détail d'une ronde depuis n'importe où.
+export function buildRondeReportHtml({
+  substation,
+  tech,
+  date,
+  heure,
+  observations,
+  controls = [],
+  statut,
+  type,
+  meterPuissance,
+  meterEnergie,
+  meterVolumeValue,
+  meterEnergieValue,
+}) {
   const c = REPORT_COLORS;
-  const statutMeta = RONDE_STATUTS.find((s) => s.id === state.rondeStatut) || RONDE_STATUTS[0];
-  const [statutColor, statutBg] = statutColors(state.rondeStatut);
-  const typeMeta = RONDE_TYPES.find((t) => t.id === state.rondeType) || RONDE_TYPES[0];
+  const statutMeta = RONDE_STATUTS.find((s) => s.id === statut) || RONDE_STATUTS[0];
+  const [statutColor, statutBg] = statutColors(statut);
+  const typeMeta = RONDE_TYPES.find((t) => t.id === type) || RONDE_TYPES[0];
 
   // "Relevé de compteur" n'a aucun point de contrôle (voir
   // controlsDefForType() dans state.js) : pas de tableau vide et inutile
   // dans ce cas, la section disparaît simplement.
-  const controlsSection = state.controls.length
+  const controlsSection = controls.length
     ? `${reportSectionTitle('Contrôles réalisés')}
       <table style="width:100%;border-collapse:collapse;">
         <tr style="background:${c.accent};color:#fff;">
@@ -2550,7 +2570,7 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
           <th style="text-align:left;padding:7px 8px;font-size:9.5px;width:80px;">Statut</th>
           <th style="text-align:left;padding:7px 8px;font-size:9.5px;">Commentaire</th>
         </tr>
-        ${state.controls
+        ${controls
           .map(
             (ctrl) => `
           <tr style="border-bottom:1px solid ${c.border};">
@@ -2563,7 +2583,7 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
       </table>`
     : '';
 
-  const withPhotos = state.controls.filter((ctrl) => ctrl.photo || ctrl.photoApres);
+  const withPhotos = controls.filter((ctrl) => ctrl.photo || ctrl.photoApres);
   const photosHtml = withPhotos.length
     ? `${reportSectionTitle('Photos')}
       <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -2586,11 +2606,11 @@ export function buildRondeReportHtml({ substation, tech, date, heure, observatio
       ? `<tr><td style="padding:3px 10px 3px 0;font-size:9.5px;font-weight:700;color:${c.muted};width:140px;">${label}</td><td style="padding:3px 0;font-size:10.5px;color:${c.text};">${escapeHtml(String(value))} ${unit}</td></tr>`
       : '';
   const meterPhotos = [
-    state.rondeMeterPuissance ? { url: state.rondeMeterPuissance, label: 'Puissance' } : null,
-    state.rondeMeterEnergie ? { url: state.rondeMeterEnergie, label: 'Énergie' } : null,
+    meterPuissance ? { url: meterPuissance, label: 'Puissance' } : null,
+    meterEnergie ? { url: meterEnergie, label: 'Énergie' } : null,
   ].filter(Boolean);
-  const meterValuesHtml = `${meterValueRow('Volume du compteur', state.rondeMeterVolumeValue, 'm³')}${meterValueRow('Énergie', state.rondeMeterEnergieValue, 'MWh')}`;
-  const meterSection = RONDE_TYPES_WITH_METER_PHOTOS.includes(state.rondeType)
+  const meterValuesHtml = `${meterValueRow('Volume du compteur', meterVolumeValue, 'm³')}${meterValueRow('Énergie', meterEnergieValue, 'MWh')}`;
+  const meterSection = RONDE_TYPES_WITH_METER_PHOTOS.includes(type)
     ? `${reportSectionTitle('Compteur')}
       ${
         meterPhotos.length

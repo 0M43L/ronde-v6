@@ -1375,9 +1375,15 @@ document.getElementById('siteDetail').addEventListener('click', async (e) => {
     ui.openPhotoLightbox(viewPhotoBtn.dataset.url);
     return;
   }
-  const viewMesBtn = e.target.closest('[data-action="view-mes"]');
-  if (viewMesBtn) {
-    openMesReportPreview(viewMesBtn.dataset.id);
+  // Carte "Dernière configuration MES connue" (view-mes) et section
+  // "Historique du site" en bas de page (réutilise renderHistoriqueItem(),
+  // donc les mêmes data-action que l'onglet Historique) : même détail
+  // accessible qu'ailleurs dans l'appli, demandé par Axel.
+  const histItemBtn = e.target.closest(
+    '[data-action="toggle-hist-detail"], [data-action="view-mes"], [data-action="view-ronde"], [data-action="delete-ronde"], [data-action="delete-fiche"], [data-action="delete-action"], [data-action="delete-mes"]'
+  );
+  if (histItemBtn) {
+    handleHistoriqueItemAction(histItemBtn.dataset.action, histItemBtn.dataset.id, () => ui.renderSiteDetail());
     return;
   }
   const removeBtn = e.target.closest('[data-action="remove-site-photo"]');
@@ -2505,9 +2511,41 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
     date: document.getElementById('rondeDate').value,
     heure: document.getElementById('rondeHeure').value,
     observations: document.getElementById('rondeObservations').value,
+    controls: state.controls,
+    statut: state.rondeStatut,
+    type: state.rondeType,
+    meterPuissance: state.rondeMeterPuissance,
+    meterEnergie: state.rondeMeterEnergie,
+    meterVolumeValue: state.rondeMeterVolumeValue,
+    meterEnergieValue: state.rondeMeterEnergieValue,
   });
   showReportPreview(html, `Ronde_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
 });
+
+// Rapport complet d'une ronde ARCHIVÉE (state.rondes), accessible depuis
+// n'importe où — Historique, fiche du site — pas seulement celle en cours
+// de saisie. Demandé par Axel : "peu importe l'onglet, si j'appuie j'ai
+// accès au détail".
+function openRondeReportPreview(id) {
+  const ronde = state.rondes.find((r) => r.id === id);
+  if (!ronde) return;
+  const substation = state.substations.find((s) => s.id === ronde.substation_id);
+  const html = ui.buildRondeReportHtml({
+    substation,
+    tech: ronde.tech,
+    date: ronde.date,
+    heure: ronde.heure,
+    observations: ronde.observations,
+    controls: ronde.controls || [],
+    statut: ronde.statut,
+    type: ronde.type,
+    meterPuissance: ronde.compteurPuissancePhoto,
+    meterEnergie: ronde.compteurEnergiePhoto,
+    meterVolumeValue: ronde.compteurVolume,
+    meterEnergieValue: ronde.compteurEnergie,
+  });
+  showReportPreview(html, `Ronde_${(substation ? substation.name : 'site').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+}
 
 // ===== FICHES =====
 // Formulaire unique pour créer une fiche ou enrichir une fiche existante
@@ -3179,6 +3217,84 @@ document.getElementById('mesHistoryList').addEventListener('click', async (e) =>
 });
 
 // ===== HISTORIQUE =====
+// Partagé entre l'onglet Historique et la fiche d'un site (section
+// "Historique du site", qui réutilise le même renderHistoriqueItem()) :
+// demandé par Axel pour que taper un élément donne accès au détail depuis
+// n'importe où, pas seulement sur l'onglet Historique. `refresh` re-rend le
+// conteneur concerné (pas toujours le même selon d'où vient le clic).
+// Renvoie true si l'action a été prise en charge.
+function handleHistoriqueItemAction(action, id, refresh) {
+  if (action === 'toggle-hist-detail') {
+    ui.toggleHistoriqueDetail(id, refresh);
+    return true;
+  }
+  if (action === 'view-mes') {
+    openMesReportPreview(id);
+    return true;
+  }
+  if (action === 'view-ronde') {
+    openRondeReportPreview(id);
+    return true;
+  }
+  if (action === 'delete-ronde') {
+    softDelete(id, 'Ronde supprimée', {
+      refresh,
+      onCommit: async () => {
+        await dbLayer.remove('rondes', id);
+        await dbLayer.queueSync('ronde', 'delete', { id });
+        state.rondes = state.rondes.filter((r) => r.id !== id);
+      },
+    });
+    return true;
+  }
+  if (action === 'delete-fiche') {
+    const fiche = state.fiches.find((f) => f.id === id);
+    if (!fiche || fiche.is_reference) return true;
+    softDelete(id, 'Fiche supprimée', {
+      refresh: () => {
+        refresh();
+        ui.renderFiches(document.getElementById('ficheSearch').value);
+      },
+      onCommit: async () => {
+        await dbLayer.remove('fiches', id);
+        await dbLayer.queueSync('fiche', 'delete', { id });
+        state.fiches = state.fiches.filter((f) => f.id !== id);
+      },
+    });
+    return true;
+  }
+  if (action === 'delete-action') {
+    softDelete(id, 'Action supprimée', {
+      refresh: () => {
+        refresh();
+        ui.renderActions();
+        ui.renderBilanStats();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('actions', id);
+        await dbLayer.queueSync('action', 'delete', { id });
+        state.actions = state.actions.filter((a) => a.id !== id);
+      },
+    });
+    return true;
+  }
+  if (action === 'delete-mes') {
+    softDelete(id, 'Session MES supprimée', {
+      refresh: () => {
+        refresh();
+        ui.renderMesHistory();
+      },
+      onCommit: async () => {
+        await dbLayer.remove('mes', id);
+        await dbLayer.queueSync('mes_session', 'delete', { id });
+        state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
+      },
+    });
+    return true;
+  }
+  return false;
+}
+
 document.getElementById('historiqueContent').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
@@ -3191,67 +3307,7 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
     return;
   }
 
-  if (action === 'toggle-hist-detail') {
-    ui.toggleHistoriqueDetail(id);
-    return;
-  }
-
-  if (action === 'view-mes') {
-    openMesReportPreview(id);
-    return;
-  }
-
-  const refreshHist = () => ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
-
-  if (action === 'delete-ronde') {
-    softDelete(id, 'Ronde supprimée', {
-      refresh: refreshHist,
-      onCommit: async () => {
-        await dbLayer.remove('rondes', id);
-        await dbLayer.queueSync('ronde', 'delete', { id });
-        state.rondes = state.rondes.filter((r) => r.id !== id);
-      },
-    });
-  } else if (action === 'delete-fiche') {
-    const fiche = state.fiches.find((f) => f.id === id);
-    if (!fiche || fiche.is_reference) return;
-    softDelete(id, 'Fiche supprimée', {
-      refresh: () => {
-        refreshHist();
-        ui.renderFiches(document.getElementById('ficheSearch').value);
-      },
-      onCommit: async () => {
-        await dbLayer.remove('fiches', id);
-        await dbLayer.queueSync('fiche', 'delete', { id });
-        state.fiches = state.fiches.filter((f) => f.id !== id);
-      },
-    });
-  } else if (action === 'delete-action') {
-    softDelete(id, 'Action supprimée', {
-      refresh: () => {
-        refreshHist();
-        ui.renderActions();
-        ui.renderBilanStats();
-      },
-      onCommit: async () => {
-        await dbLayer.remove('actions', id);
-        await dbLayer.queueSync('action', 'delete', { id });
-        state.actions = state.actions.filter((a) => a.id !== id);
-      },
-    });
-  } else if (action === 'delete-mes') {
-    softDelete(id, 'Session MES supprimée', {
-      refresh: () => {
-        refreshHist();
-        ui.renderMesHistory();
-      },
-      onCommit: async () => {
-        await dbLayer.remove('mes', id);
-        await dbLayer.queueSync('mes_session', 'delete', { id });
-        state.mesSessions = state.mesSessions.filter((m) => m.id !== id);
-      },
-    });
-  }
+  handleHistoriqueItemAction(action, id, () => ui.renderHistorique(histFilter, document.getElementById('histSearch').value));
 });
 
 document.getElementById('histSearch').addEventListener('input', (e) => {
@@ -3511,6 +3567,11 @@ document.getElementById('bilanStats').addEventListener('click', (e) => {
     refreshSiteList();
     ui.selectSite(site.dataset.id);
     loadSiteDetailIfNeeded(site.dataset.id);
+    return;
+  }
+  const rondeRow = e.target.closest('[data-action="view-ronde"]');
+  if (rondeRow) {
+    openRondeReportPreview(rondeRow.dataset.id);
     return;
   }
   const action = e.target.closest('[data-action="goto-stat-action"]');
