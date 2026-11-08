@@ -53,8 +53,9 @@ export default async function handler(req, res) {
   }
 }
 
+// Pas de secondes : voir la même remarque dans api/actions.js.
 function formatDateFr(sqliteDatetime) {
   const ms = Date.parse(`${sqliteDatetime.replace(' ', 'T')}Z`);
   if (!ms) return '';
-  return new Date(ms).toLocaleString('fr-FR');
+  return new Date(ms).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

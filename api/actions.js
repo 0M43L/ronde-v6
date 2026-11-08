@@ -118,8 +118,12 @@ export default async function handler(req, res) {
   }
 }
 
+// Pas de secondes : un horodatage affiché "15:05:38" sur une simple action
+// donne une impression de flicage au seconde près, remonté par Axel. Les
+// minutes restent largement suffisantes pour situer une action dans le
+// temps ; le tri, lui, continue d'utiliser ts (en millisecondes), inchangé.
 function formatDateFr(sqliteDatetime) {
   const ms = Date.parse(`${sqliteDatetime.replace(' ', 'T')}Z`);
   if (!ms) return '';
-  return new Date(ms).toLocaleString('fr-FR');
+  return new Date(ms).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
