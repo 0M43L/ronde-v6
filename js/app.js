@@ -16,6 +16,15 @@ import {
 import { prefetchTilesAround, downloadOfflineMap } from './tiles.js';
 import { refreshSyncStatus, syncNow, setSyncStatusListener, setSyncErrorListener, setSyncProgressListener } from './sync.js';
 
+// Horodatage affiché (action/fiche/MES créée, action clôturée...) sans les
+// secondes : "15:05:38" sur une simple action donnait une impression de
+// flicage au seconde près, remonté par Axel. Les minutes suffisent large-
+// ment ; le tri, lui, continue d'utiliser ts (Date.now(), en millisecondes),
+// inchangé et non affiché tel quel.
+function nowDateFr() {
+  return new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 // ===== CHARGEMENT PARESSEUX DES LIBRAIRIES EXTERNES =====
 // Leaflet/xlsx/html2pdf ne servent qu'à des fonctionnalités ponctuelles
 // (carte, export Excel, export PDF). Les charger via des <script> classiques
@@ -2223,7 +2232,7 @@ document.getElementById('controlsList').addEventListener('click', async (e) => {
       photo: c.photo || null,
       done: false,
       tech: `${state.user.prenom} ${state.user.nom}`.trim(),
-      date: new Date().toLocaleString('fr-FR'),
+      date: nowDateFr(),
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
@@ -2378,7 +2387,7 @@ document.getElementById('saveRondeBtn').addEventListener('click', async () => {
       photo: c.photo || null,
       done: false,
       tech: `${state.user.prenom} ${state.user.nom}`.trim(),
-      date: new Date().toLocaleString('fr-FR'),
+      date: nowDateFr(),
       ts: Date.now(),
     };
     await dbLayer.put('actions', action);
@@ -2713,7 +2722,7 @@ document.getElementById('addFicheBtn').addEventListener('click', async () => {
       ...fields,
       photos: ficheFormPhotos,
       is_reference: false,
-      date: new Date().toLocaleString('fr-FR'),
+      date: nowDateFr(),
       ts: Date.now(),
     };
     await dbLayer.put('fiches', fiche);
@@ -2809,7 +2818,7 @@ document.getElementById('addActionBtn').addEventListener('click', async () => {
     photo: null,
     done: false,
     tech: `${state.user.prenom} ${state.user.nom}`.trim(),
-    date: new Date().toLocaleString('fr-FR'),
+    date: nowDateFr(),
     ts: Date.now(),
   };
   await dbLayer.put('actions', action);
@@ -2885,7 +2894,7 @@ document.getElementById('confirmCloseActionBtn').addEventListener('click', async
   action.closedPhoto = closeActionPendingPhoto;
   action.closedComment = comment;
   action.closedBy = `${state.user.prenom} ${state.user.nom}`.trim();
-  action.closedAt = new Date().toLocaleString('fr-FR');
+  action.closedAt = nowDateFr();
   await dbLayer.put('actions', action);
   await queueSyncTracked('action', 'upsert', action);
   closeCloseActionModal();
@@ -3168,7 +3177,7 @@ document.getElementById('saveMesBtn').addEventListener('click', async () => {
     poste: JSON.parse(JSON.stringify(state.mesPoste)),
     notes: document.getElementById('mesNotes').value,
     tech: `${state.user.prenom} ${state.user.nom}`.trim(),
-    date: new Date().toLocaleString('fr-FR'),
+    date: nowDateFr(),
     ts: Date.now(),
   };
   await dbLayer.put('mes', session);
@@ -3355,7 +3364,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     ];
   });
   const rondeSheet = XLSX.utils.aoa_to_sheet([
-    [`Historique des rondes — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
+    [`Historique des rondes — Ronde V6 IDEX · exporté le ${nowDateFr()}`],
     [`${rondesSorted.length} ronde${rondesSorted.length > 1 ? 's' : ''}`],
     [],
     rondeHeaders,
@@ -3377,7 +3386,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     ];
   });
   const actionSheet = XLSX.utils.aoa_to_sheet([
-    [`Actions — Ronde V6 IDEX · exporté le ${new Date().toLocaleString('fr-FR')}`],
+    [`Actions — Ronde V6 IDEX · exporté le ${nowDateFr()}`],
     [`${actionRows.length} action${actionRows.length > 1 ? 's' : ''}`],
     [],
     actionHeaders,

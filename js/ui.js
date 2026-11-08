@@ -323,9 +323,9 @@ function buildControlItemHtml(ctrl, i) {
           ? `<textarea class="check-comment" placeholder="Commentaire..." data-action="set-comment" data-index="${i}">${escapeHtml(ctrl.comment)}</textarea>
              <div data-suggest-index="${i}">${renderFicheSuggestions(matchFichesForControl(ctrl))}</div>
              <div class="photo-row">
-               <label class="photo-btn">${icon('camera', 14)} Avant<input type="file" accept="image/*" capture="environment" data-action="set-photo" data-index="${i}"></label>
+               <label class="photo-btn">${icon('camera', 14)} Avant<input type="file" accept="image/*" data-action="set-photo" data-index="${i}"></label>
                ${ctrl.photo ? `<div class="photo-thumb"><img src="${ctrl.photo}"><button class="remove-photo" data-action="remove-photo" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
-               <label class="photo-btn">${icon('camera', 14)} Après<input type="file" accept="image/*" capture="environment" data-action="set-photo-apres" data-index="${i}"></label>
+               <label class="photo-btn">${icon('camera', 14)} Après<input type="file" accept="image/*" data-action="set-photo-apres" data-index="${i}"></label>
                ${ctrl.photoApres ? `<div class="photo-thumb"><img src="${ctrl.photoApres}"><button class="remove-photo" data-action="remove-photo-apres" data-index="${i}">${icon('xCircle', 11)}</button></div>` : ''}
              </div>
              <button class="btn-secondary" style="width:100%; margin-top:8px; ${ctrl.actionCreated ? 'opacity:.5;' : ''}" data-action="create-action-inline" data-index="${i}" ${ctrl.actionCreated ? 'disabled' : ''}>
@@ -392,7 +392,7 @@ export function renderRondeMeterPhotos() {
   group.hidden = !show;
   if (!show) return;
   const field = (label, value, action) => `
-    <label class="photo-btn">${icon('camera', 14)} ${label}<input type="file" accept="image/*" capture="environment" data-action="set-${action}"></label>
+    <label class="photo-btn">${icon('camera', 14)} ${label}<input type="file" accept="image/*" data-action="set-${action}"></label>
     ${value ? `<div class="photo-thumb"><img src="${value}"><button class="remove-photo" data-action="remove-${action}">${icon('xCircle', 11)}</button></div>` : ''}`;
   document.getElementById('rondeMeterPhotos').innerHTML = `
     <div class="photo-row">
