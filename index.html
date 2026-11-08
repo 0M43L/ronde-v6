@@ -381,8 +381,11 @@
       <button class="btn btn-secondary" id="weeklyReportBtn" style="width:100%; margin-bottom:14px;"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg> Générer rapport hebdomadaire</button>
 
       <!-- Ordre pensé pour ce qui demande une action en premier : résumé
-           de la visite en cours, puis tout ce qui reste à traiter, puis
-           les vues d'ensemble/tendances en bas pour un coup d'œil plus posé. -->
+           de la visite en cours, puis tout ce qui reste à traiter (regroupé
+           en une seule carte "Points d'attention" plutôt que plusieurs
+           accordéons séparés à ouvrir un par un), puis la vue d'ensemble en
+           bas — chiffres clés et graphiques, toujours visibles car compacts
+           et déjà visuels, pour un coup d'œil plus posé. -->
       <div class="card">
         <div class="card-header">Résumé de la ronde en cours</div>
         <div class="card-body" id="bilanContent">
@@ -391,14 +394,13 @@
       </div>
 
       <details class="card">
-        <summary class="card-header">Actions en retard par site<span class="card-header-count" id="actionsRetardSiteCount" hidden></span></summary>
-        <div class="card-body" id="actionsRetardSite"></div>
-      </details>
-
-      <details class="card">
-        <summary class="card-header">Sites à surveiller<span class="card-header-count" id="sitesASurveillerCount" hidden></span></summary>
-        <p class="hint" style="padding:0 14px;">Un même point dégradé plusieurs fois de suite sur un site — à traiter avant que ça ne devienne une vraie panne.</p>
-        <div class="card-body" id="sitesASurveiller"></div>
+        <summary class="card-header">Points d'attention<span class="card-header-count" id="attentionCount" hidden></span></summary>
+        <div class="card-body" id="bilanAttention">
+          <div id="actionsRetardSite"></div>
+          <div id="sitesASurveiller"></div>
+          <div id="pointsRecurrents"></div>
+          <div class="alert success" id="bilanAttentionEmpty" hidden>✅ Rien à signaler</div>
+        </div>
       </details>
 
       <details class="card">
@@ -415,27 +417,22 @@
         </div>
       </details>
 
-      <details class="card">
-        <summary class="card-header">Points récurrents dégradés<span class="card-header-count" id="pointsRecurrentsCount" hidden></span></summary>
-        <div class="card-body" id="pointsRecurrents"></div>
-      </details>
-
-      <details class="card">
-        <summary class="card-header">Suivi d'activité (30 jours)</summary>
+      <div class="card">
+        <div class="card-header">Vue d'ensemble — 30 derniers jours</div>
         <div class="card-body">
           <div class="stat-grid" id="bilanStats"></div>
+          <div class="bilan-charts-row">
+            <div class="bilan-chart-col">
+              <div class="bilan-chart-title">État du parc</div>
+              <div id="bilanStatusChart"></div>
+            </div>
+            <div class="bilan-chart-col">
+              <div class="bilan-chart-title">Tendance hebdomadaire (rondes)</div>
+              <div id="bilanTrend"></div>
+            </div>
+          </div>
         </div>
-      </details>
-
-      <details class="card">
-        <summary class="card-header">Tendance hebdomadaire (rondes)</summary>
-        <div class="card-body" id="bilanTrend"></div>
-      </details>
-
-      <details class="card">
-        <summary class="card-header">État du parc — 30 derniers jours</summary>
-        <div class="card-body" id="bilanStatusChart"></div>
-      </details>
+      </div>
     </div>
 
     <!-- DIAGNOSTIC -->
