@@ -1813,6 +1813,26 @@ function setCardHeaderCount(elId, n) {
   el.textContent = n;
 }
 
+// "Points d'attention" fusionne 3 listes (actions en retard, sites à
+// surveiller, points récurrents) dans une seule carte repliable plutôt que
+// 3 accordéons distincts à ouvrir un par un (retour d'Axel : présentation du
+// Bilan "trop complexe"). Chaque fonction de rendu garde sa propre logique
+// (inchangée) mais signale juste son nombre d'éléments ici, pour afficher un
+// seul badge agrégé sur la carte et un seul message "rien à signaler" quand
+// les 3 sont vides — au lieu de 3 messages verts redondants.
+const attentionCounts = { retard: 0, surveiller: 0, recurrents: 0 };
+
+function refreshAttentionEmptyState() {
+  const total = attentionCounts.retard + attentionCounts.surveiller + attentionCounts.recurrents;
+  const emptyEl = document.getElementById('bilanAttentionEmpty');
+  const countEl = document.getElementById('attentionCount');
+  if (emptyEl) emptyEl.hidden = total > 0;
+  if (countEl) {
+    countEl.hidden = total === 0;
+    countEl.textContent = total;
+  }
+}
+
 export function renderSitesNonVisites(thresholdDays) {
   const el = document.getElementById('sitesNonVisites');
   const lastVisit = {};
@@ -1863,12 +1883,15 @@ export function renderPointsRecurrents() {
     .filter((c) => c.n >= 2)
     .sort((a, b) => b.n - a.n);
 
-  setCardHeaderCount('pointsRecurrentsCount', recurrent.length);
+  attentionCounts.recurrents = recurrent.length;
+  refreshAttentionEmptyState();
   if (recurrent.length === 0) {
-    el.innerHTML = '<div class="alert success">✅ Aucun point récurrent</div>';
+    el.innerHTML = '';
     return;
   }
-  el.innerHTML = recurrent.map((c) => `<div class="alert warning"><strong>${escapeHtml(c.label)}</strong> — ${c.n} ronde${c.n > 1 ? 's' : ''}</div>`).join('');
+  el.innerHTML =
+    `<div class="attention-section-label">Points récurrents dégradés</div>` +
+    recurrent.map((c) => `<div class="alert warning"><strong>${escapeHtml(c.label)}</strong> — ${c.n} ronde${c.n > 1 ? 's' : ''}</div>`).join('');
 }
 
 // ===== ALERTES PRÉDICTIVES (anomalies récurrentes par site) =====
@@ -1930,20 +1953,24 @@ export function renderSitesASurveiller() {
   const el = document.getElementById('sitesASurveiller');
   if (!el) return;
   const alerts = computeSiteAlerts();
-  setCardHeaderCount('sitesASurveillerCount', alerts.length);
+  attentionCounts.surveiller = alerts.length;
+  refreshAttentionEmptyState();
   if (alerts.length === 0) {
-    el.innerHTML = '<div class="alert success">✅ Aucune anomalie récurrente détectée</div>';
+    el.innerHTML = '';
     return;
   }
-  el.innerHTML = alerts
-    .map((a) => {
-      const s = state.substations.find((x) => x.id === a.substation_id);
-      return `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" data-action="goto-site-alert" data-id="${a.substation_id}" style="cursor:pointer;">
-        <strong>${escapeHtml(s ? s.name : a.substation_id)}</strong> — ${escapeHtml(a.label)}
-        <br><span style="font-size:12px;opacity:.85;">${a.count}/${a.outOf} dernières visites${a.lastComment ? ` · "${escapeHtml(a.lastComment)}"` : ''}</span>
-      </div>`;
-    })
-    .join('');
+  el.innerHTML =
+    `<div class="attention-section-label">Sites à surveiller</div>` +
+    `<p class="hint" style="margin-top:-2px;">Un même point dégradé plusieurs fois de suite sur un site — à traiter avant que ça ne devienne une vraie panne.</p>` +
+    alerts
+      .map((a) => {
+        const s = state.substations.find((x) => x.id === a.substation_id);
+        return `<div class="alert ${a.severity === 'danger' ? 'danger' : 'warning'}" data-action="goto-site-alert" data-id="${a.substation_id}" style="cursor:pointer;">
+          <strong>${escapeHtml(s ? s.name : a.substation_id)}</strong> — ${escapeHtml(a.label)}
+          <br><span style="font-size:12px;opacity:.85;">${a.count}/${a.outOf} dernières visites${a.lastComment ? ` · "${escapeHtml(a.lastComment)}"` : ''}</span>
+        </div>`;
+      })
+      .join('');
 }
 
 // Affiché dans l'onglet Ronde dès qu'une sous-station à risque est
@@ -1975,9 +2002,10 @@ export function renderActionsRetardSite(thresholdDays = 7) {
   const now = Date.now();
   const overdue = state.actions.filter((a) => !a.done && a.ts && (now - a.ts) / 86400000 > thresholdDays);
 
-  setCardHeaderCount('actionsRetardSiteCount', overdue.length);
+  attentionCounts.retard = overdue.length;
+  refreshAttentionEmptyState();
   if (overdue.length === 0) {
-    el.innerHTML = '<div class="alert success">✅ Aucune action en retard</div>';
+    el.innerHTML = '';
     return;
   }
 
@@ -1988,10 +2016,12 @@ export function renderActionsRetardSite(thresholdDays = 7) {
     bySite[name] = (bySite[name] || 0) + 1;
   });
 
-  el.innerHTML = Object.entries(bySite)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action${n > 1 ? 's' : ''} en retard</div>`)
-    .join('');
+  el.innerHTML =
+    `<div class="attention-section-label">Actions en retard par site</div>` +
+    Object.entries(bySite)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, n]) => `<div class="alert danger">${escapeHtml(name)} — ${n} action${n > 1 ? 's' : ''} en retard</div>`)
+      .join('');
 }
 
 // ===== SITES (fiche technique par sous-station) =====
