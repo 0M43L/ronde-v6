@@ -3344,6 +3344,17 @@ document.getElementById('histFiltersReset').addEventListener('click', () => {
   ui.renderHistorique(histFilter, document.getElementById('histSearch').value);
 });
 
+// Date Excel réelle (type date, triable/filtrable nativement par Excel),
+// pas un texte — new Date("YYYY-MM-DD") parse en UTC et peut décaler d'un
+// jour une fois réinterprété localement, donc on construit nous-mêmes avec
+// le constructeur local.
+function localDateFromYmd(ymd) {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
 document.getElementById('exportExcelBtn').addEventListener('click', async () => {
   await ensureXlsx().catch(() => {});
   if (typeof XLSX === 'undefined') {
@@ -3358,11 +3369,14 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger');
     const typeLabel = (RONDE_TYPES.find((t) => t.id === (r.type || 'ronde')) || RONDE_TYPES[0]).label;
     return [
-      r.date || '', r.heure || '', substation ? substation.name : r.substation_id, typeLabel, r.tech || '',
+      localDateFromYmd(r.date) || '', r.heure || '', substation ? substation.name : r.substation_id, typeLabel, r.tech || '',
       STATUT_LABEL[r.statut] || r.statut || '', anomalies.length,
       anomalies.map((a) => CONTROL_PROBLEM_LABEL[a.id] || a.label).join(', '), r.observations || '',
     ];
   });
+  const rondeHeaderRow = 4;
+  const rondeFirstDataRow = rondeHeaderRow + 1;
+  const rondeLastDataRow = rondeHeaderRow + rondeRows.length;
   const rondeSheet = XLSX.utils.aoa_to_sheet([
     [`Historique des rondes — Ronde V6 IDEX · exporté le ${nowDateFr()}`],
     [`${rondesSorted.length} ronde${rondesSorted.length > 1 ? 's' : ''}`],
@@ -3372,19 +3386,31 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   ]);
   rondeSheet['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 45 }];
   rondeSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: rondeHeaders.length - 1 } }];
-  rondeSheet['!autofilter'] = { ref: `A4:${String.fromCharCode(65 + rondeHeaders.length - 1)}${4 + rondeRows.length}` };
-  rondeSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
+  rondeSheet['!autofilter'] = { ref: `A${rondeHeaderRow}:${String.fromCharCode(65 + rondeHeaders.length - 1)}${rondeLastDataRow}` };
+  rondeSheet['!freeze'] = { xSplit: 0, ySplit: rondeHeaderRow };
+  // Colonne Date (A) au format date Excel (pas juste du texte qui ressemble
+  // à une date) sur toutes les lignes de données, pour que tri/filtre par
+  // date fonctionnent nativement dans Excel.
+  for (let row = rondeFirstDataRow; row <= rondeLastDataRow; row++) {
+    const cell = rondeSheet[`A${row}`];
+    if (cell && cell.v instanceof Date) cell.z = 'dd/mm/yyyy';
+  }
 
   const SEVERITY_LABEL = { danger: 'Urgent', warning: 'À surveiller', none: 'Info' };
+  const actionsSorted = state.actions.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
   const actionHeaders = ['Statut', 'Gravité', 'Site', 'Description', 'Intervenant', 'Date', 'Origine'];
-  const actionRows = state.actions.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((a) => {
+  const actionRows = actionsSorted.map((a) => {
     const substation = state.substations.find((s) => s.id === a.substation_id);
     return [
       a.done ? 'Traitée' : 'En attente', SEVERITY_LABEL[a.severity] || a.severity || '',
-      substation ? substation.name : (a.substation_id || ''), a.text || '', a.tech || '', a.date || '',
+      substation ? substation.name : (a.substation_id || ''), a.text || '', a.tech || '',
+      a.ts ? new Date(a.ts) : (a.date || ''),
       a.source === 'ronde' ? 'Ronde' : 'Manuelle',
     ];
   });
+  const actionHeaderRow = 4;
+  const actionFirstDataRow = actionHeaderRow + 1;
+  const actionLastDataRow = actionHeaderRow + actionRows.length;
   const actionSheet = XLSX.utils.aoa_to_sheet([
     [`Actions — Ronde V6 IDEX · exporté le ${nowDateFr()}`],
     [`${actionRows.length} action${actionRows.length > 1 ? 's' : ''}`],
@@ -3394,10 +3420,59 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
   ]);
   actionSheet['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 45 }, { wch: 16 }, { wch: 16 }, { wch: 10 }];
   actionSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: actionHeaders.length - 1 } }];
-  actionSheet['!autofilter'] = { ref: `A4:${String.fromCharCode(65 + actionHeaders.length - 1)}${4 + actionRows.length}` };
-  actionSheet['!freeze'] = { xSplit: 0, ySplit: 4 };
+  actionSheet['!autofilter'] = { ref: `A${actionHeaderRow}:${String.fromCharCode(65 + actionHeaders.length - 1)}${actionLastDataRow}` };
+  actionSheet['!freeze'] = { xSplit: 0, ySplit: actionHeaderRow };
+  for (let row = actionFirstDataRow; row <= actionLastDataRow; row++) {
+    const cell = actionSheet[`F${row}`];
+    if (cell && cell.v instanceof Date) cell.z = 'dd/mm/yyyy hh:mm';
+  }
+
+  // Synthèse : ne récrit pas les totaux en dur depuis l'appli, mais de vraies
+  // formules Excel (COUNTIF/COUNTIFS) qui pointent sur les feuilles Rondes/
+  // Actions — si Axel modifie une ligne dans Excel (ex. une action qu'il
+  // repasse "En attente"), les totaux se recalculent tout seuls. Demandé par
+  // Axel : "utiliser 100% de Excel", pas juste un tableau figé. 0 en valeur
+  // de départ (recalculé à l'ouverture par Excel) ; affectation directe des
+  // cellules formule après coup — plus fiable qu'un objet cellule glissé
+  // dans le tableau passé à aoa_to_sheet(), qui attend des valeurs brutes.
+  const sitesVisitesCount = new Set(rondesSorted.map((r) => r.substation_id)).size;
+  const synthese = [
+    [`Synthèse — Ronde V6 IDEX · exporté le ${nowDateFr()}`],
+    [],
+    ['Rondes'],
+    ['Nombre total de rondes', 0],
+    ['Rondes avec au moins une anomalie', 0],
+    ['Sites visités (au moins une fois)', sitesVisitesCount],
+    [],
+    ['Actions'],
+    ["Nombre total d'actions", 0],
+    ['Actions en attente', 0],
+    ['Dont urgentes, non traitées', 0],
+    ['Actions traitées', 0],
+  ];
+  const syntheseSheet = XLSX.utils.aoa_to_sheet(synthese);
+  syntheseSheet['!cols'] = [{ wch: 34 }, { wch: 14 }];
+  syntheseSheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },
+    { s: { r: 7, c: 0 }, e: { r: 7, c: 1 } },
+  ];
+  if (rondeRows.length) {
+    syntheseSheet['B4'] = { t: 'n', f: `COUNTA(Rondes!C${rondeFirstDataRow}:C${rondeLastDataRow})` };
+    syntheseSheet['B5'] = { t: 'n', f: `COUNTIF(Rondes!G${rondeFirstDataRow}:G${rondeLastDataRow},">0")` };
+  }
+  if (actionRows.length) {
+    syntheseSheet['B9'] = { t: 'n', f: `COUNTA(Actions!C${actionFirstDataRow}:C${actionLastDataRow})` };
+    syntheseSheet['B10'] = { t: 'n', f: `COUNTIF(Actions!A${actionFirstDataRow}:A${actionLastDataRow},"En attente")` };
+    syntheseSheet['B11'] =
+      { t: 'n', f: `COUNTIFS(Actions!A${actionFirstDataRow}:A${actionLastDataRow},"En attente",Actions!B${actionFirstDataRow}:B${actionLastDataRow},"Urgent")` };
+    syntheseSheet['B12'] = { t: 'n', f: `COUNTIF(Actions!A${actionFirstDataRow}:A${actionLastDataRow},"Traitée")` };
+  }
 
   const workbook = XLSX.utils.book_new();
+  // Synthèse en premier : ouvrir le fichier donne tout de suite une vue
+  // d'ensemble plutôt qu'un mur de lignes à faire défiler.
+  XLSX.utils.book_append_sheet(workbook, syntheseSheet, 'Synthèse');
   XLSX.utils.book_append_sheet(workbook, rondeSheet, 'Rondes');
   XLSX.utils.book_append_sheet(workbook, actionSheet, 'Actions');
   XLSX.writeFile(workbook, `Historique_Ronde_V6_${Date.now()}.xlsx`);
