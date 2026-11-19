@@ -267,11 +267,13 @@ document.getElementById('createUserBtn').addEventListener('click', async () => {
   const nom = document.getElementById('newUserNom').value.trim();
   const email = document.getElementById('newUserEmail').value.trim();
   const password = document.getElementById('newUserPassword').value;
-  // Seuls email + mot de passe sont bloquants (voir handleCreateUser côté
-  // serveur) : prénom/nom se complètent après coup via "Modifier" sur la
-  // fiche du compte, pas la peine de forcer à tout taper d'un coup.
-  if (!email || !password) {
-    ui.showToast('Email et mot de passe requis');
+  // Seul le mot de passe est bloquant (voir handleCreateUser côté serveur) :
+  // prénom/nom/email se complètent après coup via "Modifier" sur la fiche
+  // du compte — Axel veut pouvoir créer un compte avec juste un nom et un
+  // mot de passe sans être forcé de renseigner un email tout de suite (le
+  // compte ne pourra simplement pas se connecter tant que ce n'est pas fait).
+  if (!password) {
+    ui.showToast('Mot de passe requis');
     return;
   }
   try {
@@ -280,7 +282,10 @@ document.getElementById('createUserBtn').addEventListener('click', async () => {
     document.getElementById('newUserNom').value = '';
     document.getElementById('newUserEmail').value = '';
     document.getElementById('newUserPassword').value = '';
-    ui.showToast(`Compte créé${prenom ? ` pour ${prenom}` : ''}`);
+    ui.showToast(
+      `Compte créé${prenom ? ` pour ${prenom}` : ''}${email ? '' : ' — ajoute un email via "Modifier" pour qu\'il puisse se connecter'}`,
+      { sticky: !email }
+    );
     await loadAdminUsers();
   } catch (err) {
     ui.showToast(err.message || 'Création du compte impossible');
