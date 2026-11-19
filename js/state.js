@@ -221,6 +221,9 @@ export const state = {
   // page Actions — pas de cache IndexedDB/sync, c'est un enrichissement en
   // lecture pure, pas une donnée métier de l'appli. { configured, events }.
   teamCalendar: null,
+  // Comptes et leurs accès par onglet — chargé à la demande en ouvrant la
+  // page admin "Comptes" (Axel uniquement), jamais au démarrage normal.
+  adminUsers: [],
   controls: CONTROLS_DEF.map((c) => ({ ...c, status: null, comment: '', photo: null, photoApres: null, actionCreated: false })),
   rondeStatut: 'operationnel',
   rondeType: 'ronde',

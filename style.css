@@ -454,6 +454,16 @@ details.card:not([open]) > summary.card-header { border-bottom: none; }
 }
 .card-body { padding: 13px; }
 
+/* ===== COMPTES (page admin) ===== */
+.admin-user-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.admin-user-row:last-child { border-bottom: none; padding-bottom: 0; }
+.admin-user-row:first-child { padding-top: 0; }
+.admin-user-name { font-weight: 700; font-size: 14px; }
+.admin-full-access-row { display: flex; align-items: center; gap: 7px; font-size: 13px; margin-top: 10px; cursor: pointer; }
+.admin-tabs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 10px; margin-top: 8px; }
+.admin-tabs-grid[hidden] { display: none; }
+.admin-tabs-grid label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
 /* ===== ICONS ===== */
 .icon { flex-shrink: 0; vertical-align: -3px; }
 .btn, .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }

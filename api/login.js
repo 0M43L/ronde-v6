@@ -93,6 +93,17 @@ export default async function handler(req, res) {
       args: [user.id],
     });
 
+    // Voir api/_auth.js : même logique (null = accès complet, valeur
+    // corrompue retombe sur null plutôt que de bloquer la connexion).
+    let allowedTabs = null;
+    if (user.allowed_tabs) {
+      try {
+        allowedTabs = JSON.parse(user.allowed_tabs);
+      } catch {
+        allowedTabs = null;
+      }
+    }
+
     return res.json({
       ok: true,
       token,
@@ -101,6 +112,7 @@ export default async function handler(req, res) {
         email: user.email,
         nom: user.nom,
         prenom: user.prenom,
+        allowedTabs,
       },
     });
   } catch (error) {

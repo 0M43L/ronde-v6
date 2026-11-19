@@ -192,13 +192,27 @@ async function handleLoginVerify(req, res) {
     return res.status(400).json({ error: 'Requête invalide' });
   }
 
-  const credRow = await db.execute({
-    sql: `SELECT wc.id, wc.credential_id, wc.public_key, wc.counter, wc.transports, u.id as uid, u.email, u.nom, u.prenom
-          FROM webauthn_credentials wc
-          JOIN users u ON u.id = wc.user_id
-          WHERE wc.user_id = ? AND wc.credential_id = ?`,
-    args: [userId, response.id],
-  });
+  // allowed_tabs peut ne pas encore exister (migration pas encore passée) :
+  // voir la même protection dans api/_auth.js.
+  let credRow;
+  try {
+    credRow = await db.execute({
+      sql: `SELECT wc.id, wc.credential_id, wc.public_key, wc.counter, wc.transports, u.id as uid, u.email, u.nom, u.prenom, u.allowed_tabs
+            FROM webauthn_credentials wc
+            JOIN users u ON u.id = wc.user_id
+            WHERE wc.user_id = ? AND wc.credential_id = ?`,
+      args: [userId, response.id],
+    });
+  } catch (error) {
+    if (!/no such column/i.test(error?.message || '')) throw error;
+    credRow = await db.execute({
+      sql: `SELECT wc.id, wc.credential_id, wc.public_key, wc.counter, wc.transports, u.id as uid, u.email, u.nom, u.prenom
+            FROM webauthn_credentials wc
+            JOIN users u ON u.id = wc.user_id
+            WHERE wc.user_id = ? AND wc.credential_id = ?`,
+      args: [userId, response.id],
+    });
+  }
   const cred = credRow.rows[0];
   if (!cred) {
     return res.status(400).json({ error: 'Identifiant Face ID/Touch ID inconnu, connecte-toi avec ton mot de passe.' });
@@ -247,10 +261,21 @@ async function handleLoginVerify(req, res) {
 
   await db.execute({ sql: `UPDATE users SET last_login = datetime('now') WHERE id = ?`, args: [userId] });
 
+  // Voir api/_auth.js : même logique (null = accès complet, valeur
+  // corrompue retombe sur null plutôt que de bloquer la connexion).
+  let allowedTabs = null;
+  if (cred.allowed_tabs) {
+    try {
+      allowedTabs = JSON.parse(cred.allowed_tabs);
+    } catch {
+      allowedTabs = null;
+    }
+  }
+
   return res.json({
     ok: true,
     token,
-    user: { id: userId, email: cred.email, nom: cred.nom, prenom: cred.prenom },
+    user: { id: userId, email: cred.email, nom: cred.nom, prenom: cred.prenom, allowedTabs },
   });
 }
 

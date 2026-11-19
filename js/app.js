@@ -252,6 +252,62 @@ webauthnPlatformAvailable().then((available) => {
   document.getElementById('webauthnLoginDivider').hidden = !available;
 });
 
+// ===== COMPTES (page admin "Comptes", réservée à Axel) =====
+async function loadAdminUsers() {
+  try {
+    state.adminUsers = await api.fetchAdminUsers();
+  } catch {
+    state.adminUsers = [];
+  }
+  ui.renderAdminUsersList();
+}
+
+document.getElementById('createUserBtn').addEventListener('click', async () => {
+  const prenom = document.getElementById('newUserPrenom').value.trim();
+  const nom = document.getElementById('newUserNom').value.trim();
+  const email = document.getElementById('newUserEmail').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  if (!prenom || !nom || !email || !password) {
+    ui.showToast('Remplis tous les champs');
+    return;
+  }
+  try {
+    await api.createUserAccount({ email, password, prenom, nom });
+    document.getElementById('newUserPrenom').value = '';
+    document.getElementById('newUserNom').value = '';
+    document.getElementById('newUserEmail').value = '';
+    document.getElementById('newUserPassword').value = '';
+    ui.showToast(`Compte créé pour ${prenom}`);
+    await loadAdminUsers();
+  } catch (err) {
+    ui.showToast(err.message || 'Création du compte impossible');
+  }
+});
+
+document.getElementById('adminUsersList').addEventListener('change', (e) => {
+  if (e.target.dataset.action !== 'admin-full-access') return;
+  const row = e.target.closest('.admin-user-row');
+  row.querySelector('.admin-tabs-grid').hidden = e.target.checked;
+});
+
+document.getElementById('adminUsersList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="admin-save-access"]');
+  if (!btn) return;
+  const row = btn.closest('.admin-user-row');
+  const userId = row.dataset.userId;
+  const fullAccess = row.querySelector('[data-action="admin-full-access"]').checked;
+  const allowedTabs = fullAccess
+    ? null
+    : Array.from(row.querySelectorAll('.admin-tabs-grid input:checked')).map((i) => i.value);
+  try {
+    await api.setUserAllowedTabs(userId, allowedTabs);
+    ui.showToast('Accès mis à jour');
+    await loadAdminUsers();
+  } catch (err) {
+    ui.showToast(err.message || 'Mise à jour impossible');
+  }
+});
+
 // ===== THEME =====
 // data-theme="dark"/"light" force un choix manuel (mémorisé) ; sans ça,
 // --prefers-color-scheme du système décide. L'habillage "glassy" (halo +
@@ -831,6 +887,9 @@ async function enterApp() {
   });
   document.getElementById('startNetworkDrawBtn').hidden = !ui.isAxel();
   document.getElementById('gpsBackfillBtn').hidden = !ui.isAxel() || !!localStorage.getItem('gps_backfill_done_v1');
+  // Cache les onglets non autorisés pour ce compte (voir allowedTabs côté
+  // serveur) et la page admin "Comptes" pour tout le monde sauf Axel.
+  ui.applyTabVisibility();
   // Silencieux (pas de bouton ni de toast) : juste une migration de schéma,
   // sans rien à décider ni à montrer. Protégé par un flag local pour ne pas
   // réessayer à chaque connexion une fois fait ; en cas d'échec (hors-ligne,
@@ -845,6 +904,12 @@ async function enterApp() {
     api
       .requestAddActionClosureColumns()
       .then(() => localStorage.setItem('action_closure_columns_migrated_v1', '1'))
+      .catch(() => {});
+  }
+  if (ui.isAxel() && !localStorage.getItem('permission_column_migrated_v1')) {
+    api
+      .requestAddPermissionColumn()
+      .then(() => localStorage.setItem('permission_column_migrated_v1', '1'))
       .catch(() => {});
   }
   // Démarrée en parallèle de loadAppData(), jamais attendue : la carte
@@ -1192,7 +1257,14 @@ document.getElementById('rondeLocalisationDetails').addEventListener('toggle', (
 });
 
 function goToTab(tabName) {
+  // Défensif : un onglet caché côté UI (voir applyTabVisibility()) ne
+  // devrait jamais être atteignable, mais un lien/état resté en cache ne
+  // doit pas pouvoir y naviguer quand même. "admin" suit sa propre règle
+  // (isAxel(), jamais allowedTabs — voir RESTRICTABLE_TAB_DEFS dans ui.js).
+  const allowed = tabName === 'admin' ? ui.isAxel() : ui.isTabAllowed(tabName);
+  if (!allowed) tabName = 'aujourdhui';
   ui.switchTab(tabName);
+  if (tabName === 'admin') loadAdminUsers();
   if (tabName === 'ronde') {
     invalidateMapSize();
     // Seulement si aucune ronde n'est en cours de saisie (sinon on écraserait

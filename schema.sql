@@ -12,7 +12,11 @@ CREATE TABLE IF NOT EXISTS users (
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   last_login          TEXT,
   failed_login_count  INTEGER NOT NULL DEFAULT 0,
-  locked_until        TEXT
+  locked_until        TEXT,
+  -- Liste JSON des onglets accessibles (ex. '["ronde","actions"]'), ou NULL
+  -- = accès complet (tout le monde avant cette colonne, et tout compte créé
+  -- sans restriction explicite). Voir VALID_TABS dans api/verify.js.
+  allowed_tabs        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_sessions (
