@@ -279,6 +279,20 @@ export async function createUserAccount({ email, password, prenom, nom }) {
   return data.user;
 }
 
+// `fields` : { prenom?, nom?, email?, password? } — seuls les champs fournis
+// changent (voir handleUpdateUser côté serveur). Un mot de passe vide ou
+// absent ne change pas le mot de passe existant.
+export async function updateUserAccount(userId, fields) {
+  const res = await authedFetch('/api/verify?action=update-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, ...fields }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Mise à jour impossible');
+  return data;
+}
+
 // `allowedTabs` : tableau d'ids d'onglets, ou null pour un accès complet.
 export async function setUserAllowedTabs(userId, allowedTabs) {
   const res = await authedFetch('/api/verify?action=set-allowed-tabs', {

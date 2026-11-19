@@ -91,8 +91,12 @@ async function handleCreateUser(req, res) {
 
   try {
     const { email, password, prenom, nom } = req.body || {};
-    if (!email || !password || !prenom || !nom) {
-      return res.status(400).json({ error: 'Email, mot de passe, prénom et nom requis' });
+    // Seuls email + mot de passe sont bloquants : sans eux le compte ne
+    // pourrait jamais se connecter. Prénom/nom sont de simples libellés —
+    // pas la peine de bloquer la création pour ça, ils se complètent après
+    // coup (voir handleUpdateUser ci-dessous), remonté par Axel.
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Le mot de passe doit faire au moins 8 caractères' });
@@ -109,12 +113,63 @@ async function handleCreateUser(req, res) {
 
     await db.execute({
       sql: `INSERT INTO users (id, email, password_hash, password_salt, nom, prenom) VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [id, email, passwordHash, salt, nom, prenom],
+      args: [id, email, passwordHash, salt, nom || '', prenom || ''],
     });
 
-    return res.json({ ok: true, user: { id, email, prenom, nom, allowedTabs: null } });
+    return res.json({ ok: true, user: { id, email, prenom: prenom || '', nom: nom || '', allowedTabs: null } });
   } catch (error) {
     console.error('Create user error:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+}
+
+// Corrige/complète un compte après coup (prénom, nom, email, mot de passe) —
+// pour ne jamais bloquer la création sur un champ manquant ou une faute de
+// frappe : Axel édite plutôt que de devoir tout ressaisir correctement du
+// premier coup. Chaque champ est optionnel et seuls ceux fournis changent.
+async function handleUpdateUser(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const user = await requireAuth(req, res);
+  if (!user) return;
+  if (!isAxelUser(user)) return res.status(403).json({ error: 'Réservé à Axel' });
+
+  try {
+    const { userId, prenom, nom, email, password } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'userId requis' });
+
+    const sets = [];
+    const args = [];
+
+    if (prenom !== undefined) {
+      sets.push('prenom = ?');
+      args.push(prenom || '');
+    }
+    if (nom !== undefined) {
+      sets.push('nom = ?');
+      args.push(nom || '');
+    }
+    if (email !== undefined) {
+      if (!email) return res.status(400).json({ error: "L'email ne peut pas être vide" });
+      const existing = await db.execute({ sql: `SELECT id FROM users WHERE email = ? AND id != ?`, args: [email, userId] });
+      if (existing.rows.length) return res.status(409).json({ error: 'Un autre compte existe déjà avec cet email' });
+      sets.push('email = ?');
+      args.push(email);
+    }
+    if (password) {
+      if (password.length < 8) return res.status(400).json({ error: 'Le mot de passe doit faire au moins 8 caractères' });
+      const salt = randomBytes(16).toString('hex');
+      const passwordHash = scryptSync(password, salt, 64).toString('hex');
+      sets.push('password_hash = ?', 'password_salt = ?');
+      args.push(passwordHash, salt);
+    }
+
+    if (!sets.length) return res.json({ ok: true });
+
+    args.push(userId);
+    await db.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('Update user error:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
 }
@@ -172,6 +227,8 @@ export default async function handler(req, res) {
       return handleListUsers(req, res);
     case 'create-user':
       return handleCreateUser(req, res);
+    case 'update-user':
+      return handleUpdateUser(req, res);
     case 'set-allowed-tabs':
       return handleSetAllowedTabs(req, res);
     case 'add-permission-column':
