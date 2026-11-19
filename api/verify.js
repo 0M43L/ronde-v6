@@ -20,6 +20,24 @@ function isAxelUser(user) {
   return (user?.prenom || '').toLowerCase() === 'axel';
 }
 
+// Un compte a besoin d'un email (c'est l'identifiant de connexion) et la
+// colonne est UNIQUE NOT NULL — mais Axel veut pouvoir créer un compte avec
+// juste un nom et un mot de passe, sans être bloqué par l'email tout de
+// suite. On génère un email-jeton distinct à chaque fois (satisfait
+// UNIQUE/NOT NULL sans migration de schéma) ; ce compte ne pourra se
+// connecter qu'une fois un vrai email renseigné via "Modifier". Le domaine
+// ".invalid" est réservé par la RFC 2606 pour ce genre d'usage : jamais un
+// vrai email de technicien ne pourra tomber dessus par coïncidence.
+const PLACEHOLDER_EMAIL_DOMAIN = '@sans-email.invalid';
+
+function makePlaceholderEmail() {
+  return `${randomUUID()}${PLACEHOLDER_EMAIL_DOMAIN}`;
+}
+
+function isPlaceholderEmail(email) {
+  return typeof email === 'string' && email.endsWith(PLACEHOLDER_EMAIL_DOMAIN);
+}
+
 // Ajoute la colonne allowed_tabs à `users` si elle n'existe pas encore —
 // même mécanisme idempotent que addClosureColumns()/addMeterValueColumns()
 // (voir api/actions.js, api/rondes.js), déclenché automatiquement à la
@@ -74,7 +92,7 @@ async function handleListUsers(req, res) {
             allowedTabs = null;
           }
         }
-        return { id: r.id, email: r.email, prenom: r.prenom, nom: r.nom, allowedTabs };
+        return { id: r.id, email: isPlaceholderEmail(r.email) ? '' : r.email, prenom: r.prenom, nom: r.nom, allowedTabs };
       }),
     });
   } catch (error) {
@@ -91,20 +109,25 @@ async function handleCreateUser(req, res) {
 
   try {
     const { email, password, prenom, nom } = req.body || {};
-    // Seuls email + mot de passe sont bloquants : sans eux le compte ne
-    // pourrait jamais se connecter. Prénom/nom sont de simples libellés —
-    // pas la peine de bloquer la création pour ça, ils se complètent après
-    // coup (voir handleUpdateUser ci-dessous), remonté par Axel.
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    // Seul le mot de passe est bloquant. Prénom/nom/email sont de simples
+    // informations qui se complètent après coup (voir handleUpdateUser) —
+    // Axel veut pouvoir créer un compte avec juste un nom et un mot de
+    // passe pour l'instant, sans être forcé de donner un email tout de
+    // suite (voir makePlaceholderEmail() ci-dessus : ce compte ne pourra
+    // juste pas se connecter tant qu'un vrai email n'est pas ajouté).
+    if (!password) {
+      return res.status(400).json({ error: 'Mot de passe requis' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Le mot de passe doit faire au moins 8 caractères' });
     }
 
-    const existing = await db.execute({ sql: `SELECT id FROM users WHERE email = ?`, args: [email] });
-    if (existing.rows.length) {
-      return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
+    let finalEmail = email || makePlaceholderEmail();
+    if (email) {
+      const existing = await db.execute({ sql: `SELECT id FROM users WHERE email = ?`, args: [email] });
+      if (existing.rows.length) {
+        return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
+      }
     }
 
     const salt = randomBytes(16).toString('hex');
@@ -113,10 +136,10 @@ async function handleCreateUser(req, res) {
 
     await db.execute({
       sql: `INSERT INTO users (id, email, password_hash, password_salt, nom, prenom) VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [id, email, passwordHash, salt, nom || '', prenom || ''],
+      args: [id, finalEmail, passwordHash, salt, nom || '', prenom || ''],
     });
 
-    return res.json({ ok: true, user: { id, email, prenom: prenom || '', nom: nom || '', allowedTabs: null } });
+    return res.json({ ok: true, user: { id, email: email || '', prenom: prenom || '', nom: nom || '', allowedTabs: null } });
   } catch (error) {
     console.error('Create user error:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -148,8 +171,11 @@ async function handleUpdateUser(req, res) {
       sets.push('nom = ?');
       args.push(nom || '');
     }
-    if (email !== undefined) {
-      if (!email) return res.status(400).json({ error: "L'email ne peut pas être vide" });
+    // Un email vide ne bloque pas et n'efface rien (contrairement à
+    // prénom/nom, qui peuvent légitimement être vidés) : il n'y a pas de
+    // sens à "retirer" l'email d'un compte, donc un champ laissé vide ici
+    // veut dire "ne pas y toucher", jamais une erreur.
+    if (email) {
       const existing = await db.execute({ sql: `SELECT id FROM users WHERE email = ? AND id != ?`, args: [email, userId] });
       if (existing.rows.length) return res.status(409).json({ error: 'Un autre compte existe déjà avec cet email' });
       sets.push('email = ?');
