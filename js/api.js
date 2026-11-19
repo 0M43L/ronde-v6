@@ -247,6 +247,50 @@ export async function requestAddActionClosureColumns() {
   return data;
 }
 
+// ===== GESTION DES COMPTES (réservé à Axel, vérifié côté serveur — voir
+// api/verify.js, qui regroupe ces actions pour rester sous la limite de
+// fonctions serverless du plan Vercel Hobby). =====
+
+// Ajoute la colonne allowed_tabs à `users` si elle n'existe pas encore.
+// Appelée automatiquement et silencieusement à la connexion d'Axel, même
+// mécanisme que requestAddMeterValueColumns().
+export async function requestAddPermissionColumn() {
+  const res = await authedFetch('/api/verify?action=add-permission-column', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Migration impossible');
+  return data;
+}
+
+export async function fetchAdminUsers() {
+  const res = await authedFetch('/api/verify?action=list-users');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Impossible de récupérer les comptes');
+  return data.users;
+}
+
+export async function createUserAccount({ email, password, prenom, nom }) {
+  const res = await authedFetch('/api/verify?action=create-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, prenom, nom }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Création du compte impossible');
+  return data.user;
+}
+
+// `allowedTabs` : tableau d'ids d'onglets, ou null pour un accès complet.
+export async function setUserAllowedTabs(userId, allowedTabs) {
+  const res = await authedFetch('/api/verify?action=set-allowed-tabs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, allowedTabs }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Mise à jour impossible');
+  return data;
+}
+
 export async function requestDiagnostic(substation_name, anomalies) {
   const res = await authedFetch('/api/diagnostic', {
     method: 'POST',

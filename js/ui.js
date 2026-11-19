@@ -149,7 +149,7 @@ export function escapeHtml(str) {
 // barre, donc quand l'un d'eux est actif c'est le bouton "Plus" lui-même
 // qui doit apparaître sélectionné, sinon la barre du bas semble ne rien
 // indiquer du tout une fois sur Fiches/Bilan/Diagnostic/MES.
-const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes', 'reseau', 'historique'];
+const MORE_MENU_TABS = ['fiches', 'bilan', 'diagnostic', 'mes', 'reseau', 'historique', 'admin'];
 
 export function switchTab(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach((t) => {
@@ -165,6 +165,87 @@ export function switchTab(tab) {
   }
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${tab}`));
   state.currentTab = tab;
+}
+
+// ===== ACCÈS PAR COMPTE (page admin "Comptes", réservée à Axel) =====
+// Onglets qu'on peut restreindre par compte — gardée synchronisée avec
+// VALID_TABS côté serveur (api/verify.js). "aujourdhui" n'y figure pas :
+// toujours accessible, c'est la page d'accueil après connexion. "admin" non
+// plus : réservée à Axel uniquement, jamais octroyable via cette liste (voir
+// applyTabVisibility() ci-dessous, qui la gate séparément par isAxel()).
+const RESTRICTABLE_TAB_DEFS = [
+  { id: 'ronde', label: 'Ronde' },
+  { id: 'sites', label: 'Sites' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'historique', label: 'Historique' },
+  { id: 'fiches', label: 'Fiches' },
+  { id: 'bilan', label: 'Bilan' },
+  { id: 'diagnostic', label: 'Diagnostic IA' },
+  { id: 'mes', label: 'MES' },
+  { id: 'reseau', label: 'Réseau' },
+];
+
+// null (comportement historique, tout compte jamais restreint) = accès
+// complet. "aujourdhui" est toujours autorisée.
+export function isTabAllowed(tab) {
+  if (tab === 'aujourdhui') return true;
+  const allowed = state.user?.allowedTabs;
+  return !allowed || allowed.includes(tab);
+}
+
+// Cache les onglets non autorisés (barre du bas + menu "Plus"), et masque le
+// bouton "Plus" lui-même si plus aucun de ses onglets n'est accessible —
+// appelé une fois à la connexion (voir enterApp() dans app.js). Purement
+// cosmétique : api/verify.js revérifie indépendamment côté serveur pour les
+// actions sensibles, comme partout ailleurs dans l'appli (voir isAxel()).
+export function applyTabVisibility() {
+  document.querySelectorAll('.tab[data-tab], .more-menu-item[data-tab]').forEach((el) => {
+    // "admin" n'est jamais géré par allowedTabs (voir RESTRICTABLE_TAB_DEFS
+    // ci-dessus) : uniquement par isAxel(), juste en dessous.
+    if (el.dataset.tab === 'admin') return;
+    el.hidden = !isTabAllowed(el.dataset.tab);
+  });
+  const adminItem = document.querySelector('.more-menu-item[data-tab="admin"]');
+  if (adminItem) adminItem.hidden = !isAxel();
+  const moreBtn = document.getElementById('moreTabBtn');
+  if (moreBtn) {
+    const anyVisible = MORE_MENU_TABS.some((t) => (t === 'admin' ? isAxel() : isTabAllowed(t)));
+    moreBtn.hidden = !anyVisible;
+  }
+}
+
+export function renderAdminUsersList() {
+  const el = document.getElementById('adminUsersList');
+  if (!el) return;
+  if (!state.adminUsers.length) {
+    el.innerHTML = '<p class="hint">Chargement…</p>';
+    return;
+  }
+  el.innerHTML = state.adminUsers
+    .map((u) => {
+      if (u.id === state.user?.id) {
+        return `<div class="admin-user-row">
+          <div class="admin-user-name">${escapeHtml(u.prenom)} ${escapeHtml(u.nom)} <span class="hint">(toi — toujours accès complet)</span></div>
+          <div class="hint">${escapeHtml(u.email)}</div>
+        </div>`;
+      }
+      const fullAccess = !u.allowedTabs;
+      return `<div class="admin-user-row" data-user-id="${u.id}">
+        <div class="admin-user-name">${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</div>
+        <div class="hint">${escapeHtml(u.email)}</div>
+        <label class="admin-full-access-row">
+          <input type="checkbox" data-action="admin-full-access" ${fullAccess ? 'checked' : ''}> Accès complet (tous les onglets)
+        </label>
+        <div class="admin-tabs-grid"${fullAccess ? ' hidden' : ''}>
+          ${RESTRICTABLE_TAB_DEFS.map(
+            (t) =>
+              `<label><input type="checkbox" value="${t.id}" ${u.allowedTabs?.includes(t.id) ? 'checked' : ''}> ${escapeHtml(t.label)}</label>`
+          ).join('')}
+        </div>
+        <button class="btn-secondary" data-action="admin-save-access" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+    })
+    .join('');
 }
 
 // ===== SOUS-STATIONS =====
