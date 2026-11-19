@@ -267,8 +267,11 @@ document.getElementById('createUserBtn').addEventListener('click', async () => {
   const nom = document.getElementById('newUserNom').value.trim();
   const email = document.getElementById('newUserEmail').value.trim();
   const password = document.getElementById('newUserPassword').value;
-  if (!prenom || !nom || !email || !password) {
-    ui.showToast('Remplis tous les champs');
+  // Seuls email + mot de passe sont bloquants (voir handleCreateUser côté
+  // serveur) : prénom/nom se complètent après coup via "Modifier" sur la
+  // fiche du compte, pas la peine de forcer à tout taper d'un coup.
+  if (!email || !password) {
+    ui.showToast('Email et mot de passe requis');
     return;
   }
   try {
@@ -277,7 +280,7 @@ document.getElementById('createUserBtn').addEventListener('click', async () => {
     document.getElementById('newUserNom').value = '';
     document.getElementById('newUserEmail').value = '';
     document.getElementById('newUserPassword').value = '';
-    ui.showToast(`Compte créé pour ${prenom}`);
+    ui.showToast(`Compte créé${prenom ? ` pour ${prenom}` : ''}`);
     await loadAdminUsers();
   } catch (err) {
     ui.showToast(err.message || 'Création du compte impossible');
@@ -291,20 +294,49 @@ document.getElementById('adminUsersList').addEventListener('change', (e) => {
 });
 
 document.getElementById('adminUsersList').addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-action="admin-save-access"]');
-  if (!btn) return;
-  const row = btn.closest('.admin-user-row');
-  const userId = row.dataset.userId;
-  const fullAccess = row.querySelector('[data-action="admin-full-access"]').checked;
-  const allowedTabs = fullAccess
-    ? null
-    : Array.from(row.querySelectorAll('.admin-tabs-grid input:checked')).map((i) => i.value);
-  try {
-    await api.setUserAllowedTabs(userId, allowedTabs);
-    ui.showToast('Accès mis à jour');
-    await loadAdminUsers();
-  } catch (err) {
-    ui.showToast(err.message || 'Mise à jour impossible');
+  const toggleBtn = e.target.closest('[data-action="admin-toggle-edit"]');
+  if (toggleBtn) {
+    const form = toggleBtn.closest('.admin-user-row').querySelector('.admin-edit-form');
+    form.hidden = !form.hidden;
+    return;
+  }
+
+  const profileBtn = e.target.closest('[data-action="admin-save-profile"]');
+  if (profileBtn) {
+    const row = profileBtn.closest('.admin-user-row');
+    const userId = row.dataset.userId;
+    const field = (name) => row.querySelector(`.admin-edit-form [data-field="${name}"]`).value.trim();
+    const password = field('password');
+    try {
+      await api.updateUserAccount(userId, {
+        prenom: field('prenom'),
+        nom: field('nom'),
+        email: field('email'),
+        ...(password ? { password } : {}),
+      });
+      ui.showToast('Profil mis à jour');
+      await loadAdminUsers();
+    } catch (err) {
+      ui.showToast(err.message || 'Mise à jour impossible');
+    }
+    return;
+  }
+
+  const accessBtn = e.target.closest('[data-action="admin-save-access"]');
+  if (accessBtn) {
+    const row = accessBtn.closest('.admin-user-row');
+    const userId = row.dataset.userId;
+    const fullAccess = row.querySelector('[data-action="admin-full-access"]').checked;
+    const allowedTabs = fullAccess
+      ? null
+      : Array.from(row.querySelectorAll('.admin-tabs-grid input:checked')).map((i) => i.value);
+    try {
+      await api.setUserAllowedTabs(userId, allowedTabs);
+      ui.showToast('Accès mis à jour');
+      await loadAdminUsers();
+    } catch (err) {
+      ui.showToast(err.message || 'Mise à jour impossible');
+    }
   }
 });
 

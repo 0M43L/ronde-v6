@@ -223,17 +223,33 @@ export function renderAdminUsersList() {
   }
   el.innerHTML = state.adminUsers
     .map((u) => {
-      if (u.id === state.user?.id) {
-        return `<div class="admin-user-row">
-          <div class="admin-user-name">${escapeHtml(u.prenom)} ${escapeHtml(u.nom)} <span class="hint">(toi — toujours accès complet)</span></div>
-          <div class="hint">${escapeHtml(u.email)}</div>
-        </div>`;
-      }
+      const isSelf = u.id === state.user?.id;
       const fullAccess = !u.allowedTabs;
+      // Le profil (prénom/nom/email/mot de passe) est modifiable après coup
+      // pour tout le monde, y compris Axel lui-même — la création ne bloque
+      // plus sur un champ manquant ou une faute de frappe (remonté par
+      // Axel) : on corrige ici plutôt que d'obliger à tout ressaisir juste.
       return `<div class="admin-user-row" data-user-id="${u.id}">
-        <div class="admin-user-name">${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</div>
-        <div class="hint">${escapeHtml(u.email)}</div>
-        <label class="admin-full-access-row">
+        <div class="admin-user-header">
+          <div>
+            <div class="admin-user-name">${escapeHtml(u.prenom) || '<em>(sans prénom)</em>'} ${escapeHtml(u.nom)}${isSelf ? ' <span class="hint">(toi)</span>' : ''}</div>
+            <div class="hint">${escapeHtml(u.email) || 'Email non renseigné'}</div>
+          </div>
+          <button class="btn-ghost" data-action="admin-toggle-edit" type="button">Modifier</button>
+        </div>
+        <div class="admin-edit-form" hidden>
+          <div class="form-row">
+            <div class="form-group"><label>Prénom</label><input type="text" data-field="prenom" value="${escapeHtml(u.prenom)}"></div>
+            <div class="form-group"><label>Nom</label><input type="text" data-field="nom" value="${escapeHtml(u.nom)}"></div>
+          </div>
+          <div class="form-group"><label>Email</label><input type="email" data-field="email" value="${escapeHtml(u.email)}"></div>
+          <div class="form-group"><label>Nouveau mot de passe <span class="hint">(laisser vide pour ne pas changer)</span></label><input type="password" data-field="password" autocomplete="new-password"></div>
+          <button class="btn-secondary" data-action="admin-save-profile" type="button">Enregistrer le profil</button>
+        </div>
+        ${
+          isSelf
+            ? '<p class="hint" style="margin-top:10px;">Toujours accès complet (ton compte).</p>'
+            : `<label class="admin-full-access-row">
           <input type="checkbox" data-action="admin-full-access" ${fullAccess ? 'checked' : ''}> Accès complet (tous les onglets)
         </label>
         <div class="admin-tabs-grid"${fullAccess ? ' hidden' : ''}>
@@ -242,7 +258,8 @@ export function renderAdminUsersList() {
               `<label><input type="checkbox" value="${t.id}" ${u.allowedTabs?.includes(t.id) ? 'checked' : ''}> ${escapeHtml(t.label)}</label>`
           ).join('')}
         </div>
-        <button class="btn-secondary" data-action="admin-save-access" style="margin-top:10px;">Enregistrer</button>
+        <button class="btn-secondary" data-action="admin-save-access" style="margin-top:10px;">Enregistrer les accès</button>`
+        }
       </div>`;
     })
     .join('');
