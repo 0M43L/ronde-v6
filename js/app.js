@@ -666,6 +666,18 @@ function loadShownSyncErrorKeys() {
     return new Set();
   }
 }
+// api/sync.js renvoie certains rejets sous forme de code anglais en
+// MAJUSCULES plutôt qu'un message déjà traduit (FORBIDDEN_NOT_AXEL,
+// FORBIDDEN_NOT_OWNER, CONFLICT) — sans ça, le toast ci-dessous affichait ce
+// code brut tel quel ("Échec de synchro (substation) : FORBIDDEN_NOT_AXEL"),
+// incompréhensible pour un technicien. Les autres messages du serveur (ex.
+// "Site introuvable") sont déjà en français et passent inchangés.
+const SYNC_ERROR_LABELS = {
+  FORBIDDEN_NOT_AXEL: 'action réservée à Axel',
+  FORBIDDEN_NOT_OWNER: "tu n'es pas à l'origine de cet élément",
+  CONFLICT: 'modifié entre-temps par quelqu\'un d\'autre',
+};
+
 const shownSyncErrorKeys = loadShownSyncErrorKeys();
 function saveShownSyncErrorKeys() {
   try {
@@ -703,7 +715,7 @@ setSyncErrorListener(async (failedItems, errors) => {
         if (shownSyncErrorKeys.has(key)) return;
         shownSyncErrorKeys.add(key);
         saveShownSyncErrorKeys();
-        ui.showToast(`Échec de synchro (${item.entity_type}) : ${code}`, { sticky: true });
+        ui.showToast(`Échec de synchro (${item.entity_type}) : ${SYNC_ERROR_LABELS[code] || code}`, { sticky: true });
       });
     } else {
       ui.showToast(`${other.length} éléments n'ont pas pu être synchronisés, nouvelle tentative automatique`);
@@ -3428,8 +3440,16 @@ document.getElementById('historiqueContent').addEventListener('click', async (e)
   handleHistoriqueItemAction(action, id, () => ui.renderHistorique(histFilter, document.getElementById('histSearch').value));
 });
 
+// Débounce : buildHistoriqueItems() reparcourt tout l'historique partagé de
+// l'équipe (rondes+actions+fiches+MES, avec une recherche de sous-station
+// par élément) à chaque appel — sans ça, chaque frappe au clavier relançait
+// ce travail immédiatement, de plus en plus coûteux à mesure que
+// l'historique de l'équipe grossit au fil des mois.
+let histSearchDebounce = null;
 document.getElementById('histSearch').addEventListener('input', (e) => {
-  ui.renderHistorique(histFilter, e.target.value);
+  clearTimeout(histSearchDebounce);
+  const value = e.target.value;
+  histSearchDebounce = setTimeout(() => ui.renderHistorique(histFilter, value), 200);
 });
 
 document.getElementById('histFilterChips').addEventListener('click', (e) => {
@@ -3513,7 +3533,12 @@ document.getElementById('exportExcelBtn').addEventListener('click', async () => 
     return [
       a.done ? 'Traitée' : 'En attente', SEVERITY_LABEL[a.severity] || a.severity || '',
       substation ? substation.name : (a.substation_id || ''), a.text || '', a.tech || '',
-      a.ts ? new Date(a.ts) : (a.date || ''),
+      // `a.ts > 0`, pas juste `a.ts` : ts peut valoir 0 (epoch) si created_at
+      // était malformé côté serveur (Date.parse(...) || 0) — avec le simple
+      // booléen, cette ligne précise retombait sur du texte simple au lieu
+      // d'une date Excel triable, sans que rien d'autre dans la ligne ne le
+      // signale.
+      a.ts > 0 ? new Date(a.ts) : (a.date || ''),
       a.source === 'ronde' ? 'Ronde' : 'Manuelle',
     ];
   });

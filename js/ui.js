@@ -1491,8 +1491,14 @@ export function formatDateFr(isoDate) {
 
 export function buildHistoriqueItems() {
   const items = [];
+  // Map plutôt que .find() dans chaque boucle ci-dessous : cette fonction
+  // reparcourt tout l'historique partagé de l'équipe à chaque frappe dans la
+  // recherche (voir le débounce côté app.js) — un .find() par ronde/session
+  // MES devient notable à mesure que le nombre de sites grandit au fil des
+  // mois, un Map construit une seule fois ici reste en O(1) par lookup.
+  const substationsById = new Map(state.substations.map((s) => [s.id, s]));
   state.rondes.forEach((r) => {
-    const substation = state.substations.find((s) => s.id === r.substation_id);
+    const substation = substationsById.get(r.substation_id);
     const anomalies = (r.controls || []).filter((c) => c.status === 'warning' || c.status === 'danger').length;
     items.push({
       type: RONDE_TYPES.find((t) => t.id === (r.type || 'ronde'))?.label || 'Ronde',
@@ -1542,7 +1548,7 @@ export function buildHistoriqueItems() {
     });
   });
   state.mesSessions.forEach((m) => {
-    const substation = state.substations.find((s) => s.id === m.substation_id);
+    const substation = substationsById.get(m.substation_id);
     items.push({ type: 'MES', entityType: 'mes_session', ts: m.ts || 0, title: substation ? substation.name : m.substation_id, meta: `${m.date || ''}${m.tech ? ` · ${m.tech}` : ''}`, body: m.notes, deleteAction: 'delete-mes', id: m.id, statut: null, anomalies: 0, substation_id: m.substation_id || null, owned: isOwned(m), tech: m.tech || null, searchable: `${substation ? substation.name : ''} ${m.notes || ''}`.toLowerCase() });
   });
   items.sort((a, b) => b.ts - a.ts);

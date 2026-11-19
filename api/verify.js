@@ -38,6 +38,16 @@ function isPlaceholderEmail(email) {
   return typeof email === 'string' && email.endsWith(PLACEHOLDER_EMAIL_DOMAIN);
 }
 
+// La vérification d'unicité de l'email (SELECT puis INSERT/UPDATE séparés)
+// n'est pas atomique : deux requêtes presque simultanées avec le même email
+// (ex. double-clic sur "Créer le compte") peuvent toutes les deux passer le
+// SELECT, puis la seconde écriture échoue sur la contrainte UNIQUE de la
+// colonne — sans ce filet, ça remontait un 500 générique au lieu du 409
+// clair habituel. Rattrapé ici plutôt que dans chaque handler.
+function isUniqueEmailError(error) {
+  return /UNIQUE constraint failed.*users\.email/i.test(error?.message || '');
+}
+
 // Ajoute la colonne allowed_tabs à `users` si elle n'existe pas encore —
 // même mécanisme idempotent que addClosureColumns()/addMeterValueColumns()
 // (voir api/actions.js, api/rondes.js), déclenché automatiquement à la
@@ -141,6 +151,9 @@ async function handleCreateUser(req, res) {
 
     return res.json({ ok: true, user: { id, email: email || '', prenom: prenom || '', nom: nom || '', allowedTabs: null } });
   } catch (error) {
+    if (isUniqueEmailError(error)) {
+      return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
+    }
     console.error('Create user error:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -159,6 +172,15 @@ async function handleUpdateUser(req, res) {
   try {
     const { userId, prenom, nom, email, password } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'userId requis' });
+
+    // isAxelUser() (et donc TOUT ce qui est réservé à Axel dans cette page,
+    // y compris cette action elle-même) se déduit uniquement du prénom
+    // "axel" — renommer son propre compte retirerait l'accès admin sans
+    // aucun moyen de le redonner depuis l'appli (plus aucun compte "Axel").
+    // Même logique que le garde-fou déjà en place sur set-allowed-tabs.
+    if (userId === user.id && isAxelUser(user) && prenom !== undefined && (prenom || '').toLowerCase() !== 'axel') {
+      return res.status(400).json({ error: 'Impossible de renommer ton propre compte (perdrait l\'accès admin)' });
+    }
 
     const sets = [];
     const args = [];
@@ -195,6 +217,9 @@ async function handleUpdateUser(req, res) {
     await db.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args });
     return res.json({ ok: true });
   } catch (error) {
+    if (isUniqueEmailError(error)) {
+      return res.status(409).json({ error: 'Un autre compte existe déjà avec cet email' });
+    }
     console.error('Update user error:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
