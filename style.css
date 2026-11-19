@@ -130,6 +130,18 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* L'attribut natif [hidden] n'a que la priorité la plus faible (feuille de
+   style du navigateur) : n'importe quelle règle d'auteur de même spécificité
+   (ex. `.btn { display: flex }`) l'emporte quand même, laissant un élément
+   "caché" par JS (el.hidden = true) visible à l'écran. Trouvé une première
+   fois sur .admin-tabs-grid (visible malgré hidden), puis confirmé que ça
+   touchait aussi .btn/.btn-secondary partout dans l'appli (bouton Face ID
+   visible sans appareil compatible, bouton Axel visible aux autres
+   techniciens...). Une seule règle globale, prioritaire sur tout composant,
+   référée une fois pour toutes plutôt qu'un correctif au cas par cas à
+   chaque nouvelle classe qui l'aurait aussi. */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
