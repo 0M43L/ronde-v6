@@ -142,6 +142,19 @@
    chaque nouvelle classe qui l'aurait aussi. */
 [hidden] { display: none !important; }
 
+/* Aucun élément ne doit pouvoir élargir la page au-delà de l'écran (un mot
+   trop long, une icône, un arrondi de bordure...) : sur Safari iOS, dès que
+   le document devient plus large que l'écran, la barre du bas en
+   position:fixed se met à suivre le viewport de MISE EN PAGE (qui inclut le
+   débordement) plutôt que le viewport VISIBLE — elle semble alors "ne plus
+   être à sa place", en plus du débordement lui-même visible à l'écran.
+   Un seul verrou global plutôt que de traquer chaque futur débordement un
+   par un. Les listes qui défilent volontairement à l'horizontale (ex.
+   .action-stats, .filter-chips) restent inchangées : leur propre
+   `overflow-x: auto` est un contexte de défilement imbriqué, indépendant de
+   celui-ci. */
+html, body { overflow-x: hidden; }
+
 html, body { height: 100%; }
 
 body {
